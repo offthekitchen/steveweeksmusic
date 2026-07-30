@@ -1,0 +1,921 @@
+<?php
+/*
+*******************************************************************
+PerformanceMaintenance.php
+This PHP file defines the Maintenance page for 
+managing Performances.
+NOTES
+Date        Change
+-------------------------------------------------------------
+2015-04-26	Refactored and added helpful links.
+*******************************************************************
+*/	
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Performance Maintenance</title>
+<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//Performance Name is a required Field
+    if ( document.PerformanceMaint.txtPerformanceName.value == "" )
+    {
+        sErrorMessage += "Performance Name Required\n";
+        bValid = false;
+    }
+
+	//Performance Name is a required Field
+    if ( document.PerformanceMaint.PerformanceDate.value == "" || document.PerformanceMaint.PerformanceDate.value == "0000-00-00" )
+    {
+        sErrorMessage += "Performance Date Required\n";
+        bValid = false;
+    }
+
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+<script>
+function buildTourLink() 
+{
+	setTourID();
+	if(document.getElementById("selTour").value > 0)
+	{
+		sTourMaintLink = "<SMALL><I><A HREF='./TourMaintenance.php?ID=" + document.getElementById("selTour").value + "'>Edit Tour</A></I></SMALL>";  
+		document.getElementById("lnkTourMaint").innerHTML = sTourMaintLink;
+	}
+	else
+	{
+		document.getElementById("lnkTourMaint").innerHTML = "";
+	}
+}
+
+function getTours() {
+	sDate = document.getElementById("PerformanceDate").value;
+
+    if (sDate == "" || sDate == "0000-00-00") {
+        document.getElementById("selTour").innerHTML = "<OPTION Value='0'>NONE</OPTION>";
+		document.getElementById("hdnTourID").value = 0;
+        return;
+    } else { 
+        if (window.XMLHttpRequest) {
+            // code for IE7+, Firefox, Chrome, Opera, Safari
+            xmlhttp = new XMLHttpRequest();
+        } else {
+            // code for IE6, IE5
+            xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                document.getElementById("selTour").innerHTML = xmlhttp.responseText;
+//alert("VALUE is " + document.getElementById("selTour").value);
+				if(document.getElementById("selTour").value == 0)
+				{	
+					document.getElementById("hdnTourID").value = 0;
+				}
+            }
+        }
+//alert("CALLING GetPotentialTours.php?date="+sDate);		
+        xmlhttp.open("GET","GetPotentialTours.php?date="+sDate,true);
+        xmlhttp.send();
+    }
+	
+}
+
+function setTourID() {
+
+//alert("Setting TourID to " + document.getElementById("selTour").value);
+	document.getElementById("hdnTourID").value = document.getElementById("selTour").value;
+}
+</script>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include Performance Class		
+ 	include_once (CLASS_DIR . "/class_Performance.php");
+
+	//include Tour Class		
+ 	include_once (CLASS_DIR . "/class_Tour.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+	//Array of Performance records from the DB
+	global $aPerformanceRecords;
+	
+	?>
+<form name="PerformanceMaint" action="PerformanceMaintenance.php" method="post">
+
+	<?php
+
+		//Instantiate needed objects
+		$thisPerformance = new Performance();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisPerformanceID = $_REQUEST['ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisPerformanceID))
+		{
+						
+			$thisPerformance->nPerformanceID = $nThisPerformanceID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisPerformance->getPerformance())
+			{
+			
+				//Records found
+				if (sizeof($thisPerformance->aPerformanceRecords) > 0)
+				{
+									
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "Performance record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisPerformance->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildPerformanceObject($thisPerformance);
+				
+				//Insert record
+				if ($thisPerformance->insertPerformance())			
+				{
+
+					//reload Performance
+					$nNewPerformanceID = $thisPerformance->nPerformanceID;
+					$thisPerformance = new Performance();
+					$thisPerformance->nPerformanceID = $nNewPerformanceID;
+
+					if ($thisPerformance->getPerformance())
+					{	
+						//Load the form fields with the newly populated object
+						loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
+						//Store the ID of the performance
+						$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;			
+						
+						//Success
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->sMessage = "Performance Added";
+						$form->nFormMode = FORM_MODE_EDIT;			
+					}
+					else
+					{
+						//Problem reloading screen
+						clearFormFields($form);
+						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->sMessage = "Performance Added, but error occured while reloading the performance data";
+						$form->nFormMode = FORM_MODE_NEW;			
+					}
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: {$thisPerformance->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+
+				//Load values from form field array into DB object
+				buildPerformanceObject($thisPerformance);
+
+				//Update record
+				if ($thisPerformance->updatePerformance())			
+				{
+				
+					//reload Performance
+					$thisPerformance->getPerformance();
+				
+					//Load the form fields with the newly populated DB object						
+					loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
+					//Store the ID of the performance
+					$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;			
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Performance Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - {$thisPerformance->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildPerformanceObject($thisPerformance);				
+
+				//Delete record
+				if ($thisPerformance->deletePerformance())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "Performance Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: {$thisPerformance->sErrorMessage}";
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildPerformanceObject($thisPerformance);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisPerformance->getPerformance())
+				{
+					//No records found
+					if(sizeof($thisPerformance->aPerformanceRecords) < 1)
+					{
+						$form->sMessage = "No Performance records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisPerformance->aPerformanceRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
+						//Store the ID of the performance
+						$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;			
+
+						$form->sMessage = "One Performance record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select Performance record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisPerformance->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				$_POST['hdnPerformanceID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnPerformanceID" value="<?php echo $_POST['hdnPerformanceID']?>" />	
+	<input type="hidden" id="hdnTourID" name="hdnTourID" value="<?php echo $_POST['hdnTourID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Performance Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Date</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Time</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Performance Name</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Location</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>City</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>State</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisPerformance->aPerformanceRecords as $oPerformanceRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='{$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->dtPerformanceDate}</TD>";
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->sPerformanceTime}</TD>";
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->sPerformanceName}</TD>";
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->sLocation}</TD>";
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->sLocationCity}</TD>";
+			echo "	<TD class='{$sResultStyleClass}'>{$oPerformanceRecord->sLocationState}</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td>
+				 <TABLE>
+<TR height="25" valign="top">
+						<TD valign="top" >
+						<?php
+						if ($_POST['hdnPerformanceID'] > 0)
+						{
+							//Parse Performance Date
+							if ($_POST['PerformanceDate'] > "0000-00-00")
+							{
+								//Must parse out date parts to set the date on the calendar picker
+								$aPerformanceDateParts = explode("-",$_POST['PerformanceDate']);
+							}
+
+							echo "<i><small>";
+							echo "<a href='{$ROOT}/Schedule.php?year={$aPerformanceDateParts[0]}";
+							echo "&eventID={$nThisPerformanceID}#BM{$nThisPerformanceID}'";
+							echo " target='_blank'>Page</a></i></small>";
+							echo "&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;";
+							echo "<i><small>";
+							echo "<a href='" . ADMIN_DIR . "/PerformanceEmails.php?ID={$nThisPerformanceID}' target='_blank'>Emails</a></i></small>";
+						}
+						?>
+
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FieldGroupTitle">
+							DETAILS
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td>
+										NAME: <input type="text" name="txtPerformanceName" value="<?php echo $_POST['txtPerformanceName']; ?>" size="60" />&nbsp;&nbsp;
+									</td>								
+									<td width="206">
+										PERFORMANCE DATE:<BR /> 
+									  	<?php	  
+									  	$myCalendar = new tc_calendar("PerformanceDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Performance Date
+										if (!empty($aPerformanceDateParts))
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$myCalendar->setDate($aPerformanceDateParts[2], $aPerformanceDateParts[1], $aPerformanceDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>
+								  </td>
+									<td>
+										TIME: <input type="text" name="txtPerformanceTime" value="<?php echo $_POST['txtPerformanceTime']; ?>" size="50" />
+									</td>
+								</tr>
+								<tr>
+									<td rowspan="3" valign="top">
+										PERFORMANCE DECSRIPTION<BR />
+										<textarea name="txtDescription" cols=60 rows=5 ><?php echo $_POST['txtDescription']; ?></textarea>
+									</td>
+									<td colspan="2">
+										LOCATION: <input type="text" name="txtLocation" value="<?php echo $_POST['txtLocation']; ?>" size="80" />
+									</td>
+								</tr>
+								<tr>
+									<td colspan="2">
+										LOCATION URL: <input type="text" name="txtLocationWebsite" value="<?php echo $_POST['txtLocationWebsite']; ?>" size="80" />
+									</td>
+								</tr>
+								<tr>
+									<td colspan="2">
+										ADDRESS 1: <input type="text" name="txtLocationAddr1" value="<?php echo $_POST['txtLocationAddr1']; ?>" size="60" />
+									</td>
+								</tr>
+								<tr>
+									<td>
+										EVENT WEBSITE: <input type="text" name="txtPerformanceWebsite" value="<?php echo $_POST['txtPerformanceWebsite']; ?>" size="60" />
+									</td>
+									<td colspan="2">
+										ADDRESS 2: <input type="text" name="txtLocationAddr2" value="<?php echo $_POST['txtLocationAddr2']; ?>" size="60" />
+									</td>
+								</tr>
+								<tr>
+									<td>
+										ADMISSION: <input type="text" name="txtAdmission" value="<?php echo $_POST['txtAdmission']; ?>" size="50" />
+								
+									</td>
+									<td colspan="2">
+										CITY: <input type="text" name="txtLocationCity" value="<?php echo $_POST['txtLocationCity']; ?>" size="50" />
+										STATE: <input type="text" name="txtLocationState" value="<?php echo $_POST['txtLocationState']; ?>" size="2" /> 
+										ZIP: <input type="text" name="txtLocationZip" value="<?php echo $_POST['txtLocationZip']; ?>" size="10" /> 									
+									</td>
+								</tr>
+								<tr>
+									<td colspan="2">
+										TOUR: 
+										<SELECT id="selTour" onchange="buildTourLink()">
+											<OPTION VALUE="0">NONE</OPTION>
+											<?php
+											if(!is_null($_POST['hdnTourID']) && $_POST['hdnTourID'] > 0)
+											{
+												$oThisTour = new Tour();
+												$oThisTour->nTourID = $_POST['hdnTourID'];
+												if($oThisTour->getTour())
+												{
+													if(sizeof($oThisTour->aTourRecords[0]) > 0)
+													{
+														echo "<OPTION VALUE={$oThisTour->aTourRecords[0]->nTourID} SELECTED>{$oThisTour->aTourRecords[0]->sTourName}</OPTION>";
+													}
+												}
+											}
+											?>
+										</SELECT>
+										<INPUT type="button" ID="btnAssignTour" value="Assign Tour" onclick="getTours()" />
+										<SPAN ID="lnkTourMaint" name="lnkTourMaint">
+										<?php
+										if($_POST['hdnTourID'] > 0)
+										{
+											echo "<SMALL><I><A HREF='" . ADMIN_DIR . "/TourMaintenance.php?ID={$_POST['hdnTourID']}'>Edit Tour</A></I></SMALL>";
+										} 
+										?>
+										</SPAN>
+
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+				 	<TR>
+						<TD CLASS="FieldGroupTitle">
+							CONTACT INFORMATION
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td>
+										CONTACT: <input type="text" name="txtContactName" value="<?php echo $_POST['txtContactName']; ?>" size="60" />
+									</td>
+									<td>
+										CONTACT PHONE: <input type="text" name="txtContactPhone" value="<?php echo $_POST['txtContactPhone']; ?>" size="20" />
+									</td>
+								</tr>								
+								<tr>
+									<td>
+										CONTACT EMAIL: <input type="text" name="txtContactEmail" value="<?php echo $_POST['txtContactEmail']; ?>" size="60" />
+									</td>
+									<td>
+									</td>
+								</tr>	
+							</table>
+						</TD>							
+					</TR>
+				 	<TR>
+						<TD CLASS="FieldGroupTitle">
+							BOOKING INFORMATION
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td>
+										BOOKED DATE:<BR /> 
+									  	<?php	  
+									  	$bookedCalendar = new tc_calendar("BookedDate", true, false);	  
+										$bookedCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$bookedCalendar->setPath("./calendar/");	  
+										$bookedCalendar->setYearInterval(2012, 2020);	  
+										$bookedCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$bookedCalendar->setDateFormat('j F Y');	  
+										$bookedCalendar->setAlignment('left', 'bottom');	  
+										//Parse Performance Date
+										if ($_POST['BookedDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aBookedDateParts = explode("-",$_POST['BookedDate']);
+											$bookedCalendar->setDate($aBookedDateParts[2], $aBookedDateParts[1], $aBookedDateParts[0]); 	 										}
+	  
+										$bookedCalendar->writeScript();	  
+										?>
+									</td>
+									<td width="30">
+									</td>
+									<td>
+										Contract:
+										<SELECT ID ="selContract" NAME ="selContract">
+											<OPTION <?php if(is_null($_POST['selContract']) ){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+											<OPTION <?php if($_POST['selContract'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+											<OPTION <?php if($_POST['selContract'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										</SELECT>
+									</td>
+									<td width="30">
+									</td>
+									<td>
+										BOOKED_AMOUNT: <input type="text" name="txtBookedAmount" value="<?php echo $_POST['txtBookedAmount']; ?>" size="20" />
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>	
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td>
+										AIRFARE BOOKED:
+										<SELECT ID ="selAirfare" NAME ="selAirfare">
+											<OPTION <?php if(is_null($_POST['selAirfare']) ){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+											<OPTION <?php if($_POST['selAirfare'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+											<OPTION <?php if($_POST['selAirfare'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										</SELECT>
+									</td>
+									<td rowspan="3">
+										PERFORMANCE NOTES<BR />
+										<textarea name="txtNotes" cols=60 rows=5 ><?php echo $_POST['txtNotes']; ?></textarea>
+									</td>
+								</tr>
+								<tr>
+									<td>
+										HOTEL BOOKED:
+										<SELECT ID ="selHotel" NAME ="selHotel">
+											<OPTION <?php if(is_null($_POST['selHotel'])){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+											<OPTION <?php if($_POST['selHotel'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+											<OPTION <?php if($_POST['selHotel'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										</SELECT>
+									</td>								
+								</tr>
+								<tr>
+									<td>
+										RENTAL CAR BOOKED:
+										<SELECT ID ="selRentalCar" NAME ="selRentalCar">
+											<OPTION <?php if(is_null($_POST['selRentalCar'])){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+											<OPTION <?php if($_POST['selRentalCar'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+											<OPTION <?php if($_POST['selRentalCar'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										</SELECT>
+										</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>		
+					<TR>
+						<TD>
+							<table>
+								<tr>
+									<td CLASS="FormFieldNoEdit">
+										ID: <?php echo $_POST['hdnPerformanceID']; ?>						
+									</td>
+									<td width="20">
+									</td>
+									<td CLASS="FormFieldNoEdit">
+										LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildPerformanceObject
+ * 
+ * This function loads builds a flag object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildPerformanceObject($oPerformance)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$oPerformance->nPerformanceID = $_POST['hdnPerformanceID'];
+	$oPerformance->nTourID = $_POST['hdnTourID'];
+
+	$oPerformance->sPerformanceName = html_entity_decode($_POST['txtPerformanceName'], ENT_QUOTES);
+	$oPerformance->bFuzzyNameSearch = TRUE;
+	$oPerformance->sPerformanceWebsite = html_entity_decode($_POST['txtPerformanceWebsite'], ENT_QUOTES);
+	$oPerformance->sPerformanceTime = html_entity_decode($_POST['txtPerformanceTime'], ENT_QUOTES);
+	$oPerformance->sLocation = html_entity_decode($_POST['txtLocation'], ENT_QUOTES);
+	$oPerformance->bFuzzyLocationSearch = TRUE;
+	$oPerformance->sLocationWebsite = html_entity_decode($_POST['txtLocationWebsite'], ENT_QUOTES);
+	$oPerformance->sLocationAddr1 = html_entity_decode($_POST['txtLocationAddr1'], ENT_QUOTES);
+	$oPerformance->sLocationAddr2 = html_entity_decode($_POST['txtLocationAddr2'], ENT_QUOTES);
+	$oPerformance->sLocationCity = html_entity_decode($_POST['txtLocationCity'], ENT_QUOTES);
+	$oPerformance->sLocationState = html_entity_decode($_POST['txtLocationState'], ENT_QUOTES);
+	$oPerformance->sLocationZip = html_entity_decode($_POST['txtLocationZip'], ENT_QUOTES);
+	$oPerformance->sDescription = html_entity_decode($_POST['txtDescription'], ENT_QUOTES);
+	$oPerformance->sAdmission = html_entity_decode($_POST['txtAdmission'], ENT_QUOTES);
+	$oPerformance->sContactName = html_entity_decode($_POST['txtContactName'], ENT_QUOTES);
+	$oPerformance->sContactEmail = html_entity_decode($_POST['txtContactEmail'], ENT_QUOTES);
+	$oPerformance->sContactPhone = html_entity_decode($_POST['txtContactPhone'], ENT_QUOTES);
+	$oPerformance->sPhotoAlbum = html_entity_decode($_POST['txtPhotoAlbum'], ENT_QUOTES);
+	$oPerformance->sVideoURL = html_entity_decode($_POST['txtVideoURL'], ENT_QUOTES);
+	$oPerformance->sNotes = html_entity_decode($_POST['txtNotes'], ENT_QUOTES);
+	$oPerformance->sContract = $_POST['selContract'];
+	$oPerformance->sAirfare = $_POST['selAirfare'];
+	$oPerformance->sHotel = $_POST['selHotel'];
+	$oPerformance->sRentalCar = $_POST['selRentalCar'];
+
+	$oPerformance->nBookedAmount = html_entity_decode($_POST['txtBookedAmount'], ENT_QUOTES);
+
+	//Performance Date	
+	$dtPerformanceDate = isset($_REQUEST["PerformanceDate"]) ? $_REQUEST["PerformanceDate"] : "";
+	if($dtPerformanceDate > "0000-00-00")
+	{
+		$oPerformance->dtPerformanceDate  = $dtPerformanceDate;
+	}
+
+	//Booked Date	
+	$dtBookedDate = isset($_REQUEST["BookedDate"]) ? $_REQUEST["BookedDate"] : "";
+	if($dtBookedDate > "0000-00-00")
+	{
+		$oPerformance->dtBookedDate  = $dtBookedDate;
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadPerformance
+ * 
+ * This function loads the form field array from a populated Performance object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadPerformance(&$oPerformance, $form)
+{
+
+	if (!is_null($oPerformance->nPerformanceID))
+	{
+		//Load Hidden Fields
+		$_POST['hdnPerformanceID'] = $oPerformance->nPerformanceID;
+		$_POST['hdnTourID'] = $oPerformance->nTourID;
+
+		$_POST['txtPerformanceName'] = htmlentities($oPerformance->sPerformanceName, ENT_QUOTES);
+		$_POST['txtPerformanceWebsite'] = htmlentities($oPerformance->sPerformanceWebsite, ENT_QUOTES);
+		$_POST['PerformanceDate'] = htmlentities($oPerformance->dtPerformanceDate, ENT_QUOTES);
+		$_POST['txtPerformanceTime'] = htmlentities($oPerformance->sPerformanceTime, ENT_QUOTES);
+		$_POST['txtLocation'] = htmlentities($oPerformance->sLocation, ENT_QUOTES);
+		$_POST['txtLocationWebsite'] = htmlentities($oPerformance->sLocationWebsite, ENT_QUOTES);
+		$_POST['txtLocationAddr1'] = htmlentities($oPerformance->sLocationAddr1, ENT_QUOTES);
+		$_POST['txtLocationAddr2'] = htmlentities($oPerformance->sLocationAddr2, ENT_QUOTES);
+		$_POST['txtLocationCity'] = htmlentities($oPerformance->sLocationCity, ENT_QUOTES);
+		$_POST['txtLocationState'] = htmlentities($oPerformance->sLocationState, ENT_QUOTES);
+		$_POST['txtLocationZip'] = htmlentities($oPerformance->sLocationZip, ENT_QUOTES);
+		$_POST['txtDescription'] = htmlentities($oPerformance->sDescription, ENT_QUOTES);
+		$_POST['txtAdmission'] = htmlentities($oPerformance->sAdmission, ENT_QUOTES);
+		$_POST['txtContactName'] = htmlentities($oPerformance->sContactName, ENT_QUOTES);
+		$_POST['txtContactEmail'] = htmlentities($oPerformance->sContactEmail, ENT_QUOTES);
+		$_POST['txtContactPhone'] = htmlentities($oPerformance->sContactPhone, ENT_QUOTES);
+		$_POST['txtPhotoAlbum'] = htmlentities($oPerformance->sPhotoAlbum, ENT_QUOTES);
+		$_POST['txtVideoURL'] = htmlentities($oPerformance->sVideoURL, ENT_QUOTES);
+		$_POST['txtBookedAmount'] = htmlentities($oPerformance->nBookedAmount, ENT_QUOTES);
+		$_POST['BookedDate'] = htmlentities($oPerformance->dtBookedDate, ENT_QUOTES);
+		$_POST['txtNotes'] = htmlentities($oPerformance->sNotes, ENT_QUOTES);
+		$_POST['selContract'] = htmlentities($oPerformance->sContract, ENT_QUOTES);
+		$_POST['selAirfare'] = htmlentities($oPerformance->sAirfare, ENT_QUOTES);
+		$_POST['selHotel'] = htmlentities($oPerformance->sHotel, ENT_QUOTES);
+		$_POST['selRentalCar'] = htmlentities($oPerformance->sRentalCar, ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($oPerformance->dtLastUpdate, ENT_QUOTES);
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			//$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
+			$_POST[$fieldName]= $fieldValue;
+	
+		}
+		
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+	//Hidden Fileds must be set to 0
+	$_POST = array();
+	$_POST['hdnPerformanceID'] = 0;
+}
+
+?>
+
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Tour Emails</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+</head>
+
+<body>
+	<?php
+	
+	//include Tour Class		
+ 	include_once (CLASS_DIR . "/class_Tour.php");
+
+	//include Performance Class		
+ 	include_once (CLASS_DIR . "/class_Performance.php");
+
+	//Array of Performance records from the DB
+	global $aTourRecords;
+	
+	?>
+
+	<?php
+
+		//Instantiate needed objects
+		$thisTour = new Tour();
+
+		//Get the ID query string parameter
+		$nThisTourID = $_REQUEST['TOUR_ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisTourID))
+		{
+						
+			$thisTour->nTourID = $nThisTourID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisTour->getTour())
+			{
+				//Records found
+				if (sizeof($thisTour->aTourRecords) > 0)
+				{
+				
+					//Get all the performances for the tour
+					$oTourPerformances = new Performance();
+					$oTourPerformances->nTourID = $nThisTourID;
+					if(!$oTourPerformances->getPerformance())
+					{
+						echo "ERROR RETRIEVING PERFORMANCES FOR TOUR " . $thisTour->aTourRecords[0]->sTourName;
+					}
+					
+				}
+				else
+				{
+					echo "NO TOUR DATA FOUND FOR ID: " . $thisTour->aTourRecords[0]->nTourID;
+				}
+			}
+			else
+			{
+				echo "ERROR RETRIEVING TOUR DATA FOR " . $thisTour->aTourRecords[0]->sTourName;
+			}
+		}
+		else
+		{
+			//NO ID Passed
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnTourID" value="<?php echo $form->aFormFieldValues['hdnTourID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Verification Email (right after LOA) </td>
+		</tr>
+		<tr>
+			<td><p>Thanks so much for getting the Letter of Agreement back to me for my performances there.&nbsp;&nbsp;&nbsp; If you could  verify the 3 items below, I&rsquo;d greatly appreciate it.<br />
+			  <br />
+                <strong>WEB SITE LISTING</strong><br />
+I&rsquo;ve posted the events on my web site at the links below.&nbsp; Let me know if you&rsquo;d like to see any  adjustments to the information or verbiage.&nbsp;  I can list whatever phone and/or email you want for the contact  information:<br />
+		<?php
+		foreach($oTourPerformances->aPerformanceRecords as $oTourPerformance)
+		{
+				$sPerformanceURL = "http://www.steveweeksmusic.com/Schedule.php?year=" . date("Y",strtotime($oTourPerformance->dtPerformanceDate)) . "&eventID=" . $oTourPerformance->nPerformanceID . "#BM" . $oTourPerformance->nPerformanceID;
+		
+			  	echo "<BR><a href='" . $sPerformanceURL . "'>";
+				echo $oTourPerformance->sLocation . " (" . date("l",strtotime($oTourPerformance->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($oTourPerformance->dtPerformanceDate)) . " at " . $oTourPerformance->sPerformanceTime . ")";
+				echo "</a>";			  			
+		}
+		?>
+					
+		      <p><strong>PERFORMANCE SPACE AND  SOUND</strong><br />
+			    If you could tell me a little about the performance space so  that I can show up prepared with the appropriate sound system I&rsquo;d greatly  appreciate it.&nbsp; I don&rsquo;t need technical  specifications, just a basic idea of the space to give me an idea of what to  expect.&nbsp; <br />
+			    My show easily scales, and I&rsquo;ve performed everywhere from  &ldquo;between the stacks&rdquo; (literally) to larger theaters.<br />
+			    If the space has a sound system, I&rsquo;ll happily use that.&nbsp; Otherwise I&rsquo;ll provide all my own equipment  and only require access to an electrical outlet.<br />
+  <strong><br />
+    PROMOTION</strong><br />
+			    If you have a list of media contacts in the area, I will  happily contact them and promote the show.&nbsp;  &nbsp;&nbsp;<br />
+			    Also, you can find hi-res photos, verbiage, flyers etc. on  my press kit at:<br />
+  <a href="http://www.steveweeksmusic.com/PressKit/">http://www.steveweeksmusic.com/PressKit/</a><br />
+			    Please feel free to use anything you find there or anywhere  on my web site.<br />
+  <br />
+			    We&rsquo;ll be in touch, but in the meantime, please don&rsquo;t  hesitate to contact me if you need anything.&nbsp; <br />
+  <br />
+			    Thanks so much and have a great day!</p>
+			  Steve  Weeks<br />
+719-640-9986<br />
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2" class="Title">
+				1 Month Email
+			</td>
+		</tr>
+		<tr>
+			<td><p>Hope all is well with you.<br /><br />
+			  Since it&rsquo;s about a month from my performances there, I thought I&rsquo;d  check in to see if you need anything.&nbsp; <br /><br />
+			  I&rsquo;m attaching a copy of the invoice so you have it.&nbsp; I do not expect payment until the performance  is complete, but I thought you might want the invoice ahead of time.<br /><br />
+			  Please note, that any checks should be made payable to <b>&rdquo;Steve Weeks&rdquo;</b>, not Steve Weeks Music (my  bank has a little heartburn with that).<br /><br />
+			  I usually arrive at least 1 hour before my performance to  give myself plenty of time to load in and set up.&nbsp; I provide all my own equipment and only  require access to an electrical outlet. <br /><br />
+			  I think I&rsquo;m all set on my end, but please feel free to  contact me if there&rsquo;s anything you need or anything you think I need to know.<br /><br />
+			  I&rsquo;ll check back in one last time before I leave.<br /><br />
+			  I&rsquo;m really looking forward to it!<br /><br />
+			  Take care,<br /><br />
+			  Steve Weeks<br />
+		    719-640-9986</p>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2" class="Title">
+				1 Week Email
+			</td>
+		</tr>
+		<tr>
+			<td><p>Well, it&rsquo;s only about a week until my performances there, so I thought I&rsquo;d  check in one last time.&nbsp;&nbsp;I think I'm set on my end, but please contact me if you need anything. &nbsp; <br />
+			    <br />
+I&rsquo;ve created an activity sheet for the &quot;Every Hero Has a Story&quot; theme  if you&rsquo;re using it.&nbsp;&nbsp;You can find it (and  other activity sheets) at:<br />
+<BR />
+<a href="http://steveweeksmusic.com/ActivityPages.php">http://steveweeksmusic.com/ActivityPages.php</a> <br /><br />
+This is NOT required for my show and is totally  optional.&nbsp; Each year I create an activity  to support the summer reading program theme in case libraries want something  for the kids.&nbsp; Feel free to print this  off if you want, but again, it&rsquo;s completely up to you.<br /><BR />
+As I&rsquo;m en route, you can reach me on my cell phone if you  need to contact me <strong>719-640-9986</strong>.<br />
+<BR />
+Otherwise, I&rsquo;ll see you soon!<br /><BR />
+Thanks!<br /><BR />
+
+Steve Weeks<br />
+719-640-9986</p>
+			</td>
+		</tr>
+	</table>
+</body>
+</html>

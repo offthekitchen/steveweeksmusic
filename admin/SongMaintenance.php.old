@@ -1,0 +1,801 @@
+<?php
+/*
+*******************************************************************
+SongMaintenance.php
+This PHP file defines the Maintenance page for 
+managing Songs.
+NOTES
+Date        Change
+-------------------------------------------------------------
+2015-12-01	Refactored and added Release Date, Run Time, ISRC, UPC
+			and Catalog Number fields
+2016-01-25	Added BMI Number and Active flag 
+2016-01-27	Added Report Links 
+2016-02-11	Added renderArtistDropDown()
+*******************************************************************
+*/	
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Song Maintenance</title>
+	<?php
+	error_reporting(E_ALL ^ E_NOTICE);
+
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	//inlcude Common Functions
+ 	include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="./javascript/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//Song Name is a required Field
+    if ( document.SongMaint.txtSongName.value == "" )
+    {
+        sErrorMessage += "Song Name Required\n";
+        bValid = false;
+    }
+
+	//Artist is a required Field
+    if ( document.SongMaint.selArtist.value == "0" )
+    {
+        sErrorMessage += "Artist Required\n";
+        bValid = false;
+    }
+
+	//BMI Number must be numeric
+    if ( !is_numeric(document.SongMaint.txtBMINumber.value) )
+    {
+        sErrorMessage += "BMI NUmber Must be Numeric\n";
+        bValid = false;
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+
+//*********************************************
+// getCDs
+// This function builds the CDs drop-down list
+//*********************************************
+function getCDs() {
+	artistElement = document.getElementById("selArtist"); 
+	nArtistID = artistElement.options[artistElement.selectedIndex].value;
+
+    if (nArtistID > 0) {
+
+        if (window.XMLHttpRequest) {
+            // code for IE7+, Firefox, Chrome, Opera, Safari
+            xmlhttp = new XMLHttpRequest();
+        } else {
+            // code for IE6, IE5
+            xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                document.getElementById("selCD").innerHTML = xmlhttp.responseText;
+//alert("VALUE is " + document.getElementById("selCD").value);
+            }
+        }
+//alert("CALLING GetPotentialCDs.php?Artist_ID="+nArtistID);		
+        xmlhttp.open("GET","GetPotentialCDs.php?Artist_ID="+nArtistID,true);
+        xmlhttp.send();
+    }
+	
+}
+//-->
+</script>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include Song Class		
+ 	include_once (CLASS_DIR . "/class_Song.php");
+ 	include_once (CLASS_DIR . "/class_CD.php");
+	include_once (CLASS_DIR . "/class_Artist.php");
+	
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Array of Song records from the DB
+	global $aSongRecords;
+	
+	?>
+<form name="SongMaint" action="SongMaintenance.php" method="post">
+
+	<?php
+
+		//Get Artists for drop-down list
+		$oArtists = new Artist();
+		if (!$oArtists->getArtist())
+		{
+			//ERROR
+		}
+
+		//Instantiate needed objects
+		$thisSong = new Song();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisSongID = $_REQUEST['SONG_ID'];
+
+		//If an Artist ID is passed, go ahead and search revenues for that Product
+		if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "")
+		{
+			$_POST['selArtist'] = $_REQUEST['ARTIST_ID'];
+			$_POST['btnSearch'] = "Search";
+		}
+
+		//If a CD ID is passed, go ahead and search revenues for that Product
+		if (isset($_REQUEST['CD_ID']) && $_REQUEST['CD_ID'] != "")
+		{
+			$_POST['selCD'] = $_REQUEST['CD_ID'];
+			$_POST['btnSearch'] = "Search";
+		}
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisSongID))
+		{
+						
+			$thisSong->nSongID = $nThisSongID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisSong->getSong())
+			{
+			
+				//Records found
+				if (sizeof($thisSong->aSongRecords) > 0)
+				{
+							
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadSong($thisSong->aSongRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "Song record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisSong->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildSongObject($thisSong);
+				
+				//Insert record
+				if ($thisSong->insertSong())			
+				{
+					//Load the form fields with the newly populated object
+					loadSong($thisSong, $form);
+					
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Song Added";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: {$thisSong->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_NEW;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+			
+				//Load values from form field array into DB object
+				buildSongObject($thisSong);
+				
+				//Update record
+				if ($thisSong->updateSong())			
+				{
+				
+					//reload Song
+					$thisSong->getSong();
+				
+					//Load the form fields with the newly populated DB object						
+					loadSong($thisSong->aSongRecords[0], $form);
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Song Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - {$thisSong->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildSongObject($thisSong);				
+
+				//Delete record
+				if ($thisSong->deleteSong())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "Song Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: {$thisSong->sErrorMessage}";
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildSongObject($thisSong);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisSong->getSong())
+				{
+					//No records found
+					if(sizeof($thisSong->aSongRecords) < 1)
+					{
+						$form->sMessage = "No Song records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisSong->aSongRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadSong($thisSong->aSongRecords[0], $form);			
+
+						$form->sMessage = "One Song record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select Song record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisSong->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   CANCEL  *
+			// *************
+			else if (isset($_POST["btnCancel"])) 
+			{
+				clearFormFields($form);
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				copyFormFields($form);
+				$_POST['hdnSongID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnSongID" value="<?php echo $_POST['hdnSongID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Song Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Song Name</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisSong->aSongRecords as $oSongRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='{$sResultStyleClass}'><A HREF='./SongMaintenance.php?SONG_ID={$oSongRecord->nSongID}'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='{$sResultStyleClass}'>{$oSongRecord->sSongName}</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td width="1094" colspan="3">
+				 <TABLE width="1094">
+				 	<TR>
+						<TD width="545" >
+							<table>
+								<tr>	
+									<td colspan="2">
+										<?php
+										if ($_POST['hdnSongID'] > 0)
+										{
+											echo "<i><small><a href='". ADMIN_DIR . "/SongReport.php?SONG_ID={$thisSong->aSongRecords[0]->nSongID}";
+											echo "'>Song Report</a></small></i>";
+											echo "&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;";
+											echo "<i><small><a href='". ADMIN_DIR . "/SongReport.php?CD_ID={$thisSong->aSongRecords[0]->nCDID}";
+											echo "'>CD Report</a></small></i>";
+										}
+										?>
+									</td>
+								</tr>
+								<tr>	
+									<td colspan="2">
+										<TABLE>
+											<TR>				
+												<TD CLASS="FormFieldNoEdit" width="50">
+													ID: <?php echo $_POST['hdnSongID']; ?>						
+												</TD>
+												<TD>
+													NAME: <input type="text" name="txtSongName" value="<?php echo $_POST['txtSongName']; ?>" size="60" />
+												</TD>
+												<TD>
+													TRACK #: <input type="text" name="txtTrackNumber" value="<?php echo $_POST['txtTrackNumber']; ?>" size="02" />								
+												</TD>
+											</TR>
+										</TABLE>
+									</td>
+									<td width="282">
+										RELEASE DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("ReleaseDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Payment Date
+										if ($_POST['ReleaseDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aReleaseDateParts = explode("-",$_POST['ReleaseDate']);
+											$myCalendar->setDate($aReleaseDateParts[2], $aReleaseDateParts[1], $aReleaseDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>								    
+								  </td>																	
+								</tr>		
+								<tr>					
+									<td width="50">
+										LYRICS: <input type="text" name="txtLyricsHTML" value="<?php echo $_POST['txtLyricsHTML']; ?>" size="60" />
+									</td>
+									<td >
+										SAMPLE MP3: <input type="text" name="txtSampleMP3" value="<?php echo $_POST['txtSampleMP3']; ?>" size="60" />
+									</td>
+									<td rowspan="3">
+										<table>
+											<tr>
+												<td class="Subtitle">
+													Image												
+												</td>
+											</tr>
+											<tr>
+												<td align="center">
+													<?php
+													if (!empty($_POST['txtImage']))
+													{
+														$sFullImagePath =IMG_DIR . "/{$_POST['txtImage']}";
+													}
+													else
+													{
+														$sFullImagePath = NULL;
+													}
+													$form->renderImagePreview($sFullImagePath, ""); 
+													?>												
+												</td>
+											</tr>
+											<tr>
+												<td>
+													<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage']; ?>" size="30" /><BR />
+													<input type="button" name="btnPreviewImage" onclick="preview_image('txtImage','<?php echo IMG_DIR ?>')" value="Preview" />												
+												</td>
+											</tr>
+										</table>
+									</td>
+								</tr>
+								<tr>					
+									<td width="50">
+										ISRC: <input type="text" name="txtISRC" value="<?php echo $_POST['txtISRC']; ?>" size="60" />
+									</td>
+									<td >
+										CATALOG #: <input type="text" name="txtCatalogNumber" value="<?php echo $_POST['txtCatalogNumber']; ?>" size="60" />
+									</td>
+								</tr>							
+								<tr>					
+									<td width="50">
+										RUN TIME: <input type="text" name="txtRunTime" value="<?php echo $_POST['txtRunTime']; ?>" size="60" />									</td>
+									<td>
+										UPC: <input type="text" name="txtUPC" value="<?php echo $_POST['txtUPC']; ?>" size="60" />
+									</td>
+								</tr>		
+								<tr>					
+									<td width="50">
+									<?php
+										renderArtistDropDown($_POST['selArtist']);
+									?>
+									</td>
+									<td>
+										<?php
+										renderCDDropDown($_POST['selCD']);
+										?>
+									</td>
+								</tr>
+								<tr>					
+									<td width="50">
+										BMI NUMBER: <input type="text" name="txtBMINumber" value="<?php echo $_POST['txtBMINumber']; ?>" size="60" />														
+									</td>
+									<td>
+										<input type="checkbox" name="chkActive" value="ACTIVE"<?php if( $_POST['chkActive']) {echo " checked ";}; ?> /> ACTIVE
+									</td>
+								</tr>								
+							</table>
+					  </TD>
+						<TD width="537">
+													
+
+					  </TD>
+					</TR>
+					<TR>
+						<TD CLASS="FormFieldNoEdit" colspan="2">
+							LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD>
+						</TD>
+						<TD>
+							
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildSongObject
+ * 
+ * This function loads builds a Song object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildSongObject($Song)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$Song->nSongID = $_POST['hdnSongID'];
+
+	$Song->sSongName = html_entity_decode($_POST['txtSongName'], ENT_QUOTES);
+	$Song->sSongImage = html_entity_decode($_POST['txtImage'], ENT_QUOTES);
+	$Song->nTrackNumber = html_entity_decode($_POST['txtTrackNumber'], ENT_QUOTES);
+	$Song->nCDID = $_POST['selCD'];
+	$Song->sLyricsHTML = html_entity_decode($_POST['txtLyricsHTML'], ENT_QUOTES);
+	$Song->sRunTime = html_entity_decode($_POST['txtRunTime'], ENT_QUOTES);
+	$Song->sISRC = html_entity_decode($_POST['txtISRC'], ENT_QUOTES);
+	$Song->sCatalogNumber = html_entity_decode($_POST['txtCatalogNumber'], ENT_QUOTES);
+	$Song->sUPC = html_entity_decode($_POST['txtUPC'], ENT_QUOTES);
+	$Song->sSampleMP3 = html_entity_decode($_POST['txtSampleMP3'], ENT_QUOTES);
+	$Song->nArtistID = $_POST['selArtist'];
+	if (is_numeric($_POST['txtBMINumber']))
+	{
+		$Song->nBMINumber = html_entity_decode($_POST['txtBMINumber'], ENT_QUOTES);
+	}
+	else
+	{
+		$Song->nBMINumber = 0;
+	}
+
+	if($_POST['chkActive'] == "ACTIVE")
+	{
+		$Song->bActive = TRUE;
+	}
+
+	//Release Date	
+	$dtReleaseDate = isset($_REQUEST["ReleaseDate"]) ? $_REQUEST["ReleaseDate"] : "";
+	if($dtReleaseDate > "0000-00-00")
+	{
+		$Song->dtReleaseDate  	= $dtReleaseDate;
+	}
+	
+	
+	$Song->bFuzzyNameSearch = TRUE;
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadSong
+ * 
+ * This function loads the form field array from a populated Song object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadSong(&$Song, $form)
+{
+
+	if (!is_null($Song->nSongID))
+	{
+		//Load Hidden Fields
+		$_POST['hdnSongID'] = $Song->nSongID;
+
+		$_POST['selCD'] = $Song->nCDID;
+		$_POST['txtSongName'] = htmlentities($Song->sSongName, ENT_QUOTES);
+		$_POST['txtTrackNumber'] = htmlentities($Song->nTrackNumber, ENT_QUOTES);
+		$_POST['txtImage'] = htmlentities($Song->sSongImage, ENT_QUOTES);
+		$_POST['txtLyricsHTML'] = htmlentities($Song->sLyricsHTML, ENT_QUOTES);
+		$_POST['txtSampleMP3'] = htmlentities($Song->sSampleMP3, ENT_QUOTES);
+		$_POST['ReleaseDate'] = htmlentities($Song->dtReleaseDate, ENT_QUOTES);
+		$_POST['txtRunTime'] = htmlentities($Song->sRunTime, ENT_QUOTES);
+		$_POST['txtISRC'] = htmlentities($Song->sISRC, ENT_QUOTES);
+		$_POST['txtCatalogNumber'] = htmlentities($Song->sCatalogNumber, ENT_QUOTES);
+		$_POST['txtUPC'] = htmlentities($Song->sUPC, ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($Song->dtLastUpdate, ENT_QUOTES);
+		$_POST['selArtist'] = $Song->nArtistID;
+		$_POST['txtBMINumber'] = htmlentities($Song->nBMINumber, ENT_QUOTES);
+		$_POST['chkActive'] = $Song->bActive;
+
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
+	
+		}
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+	$_POST = array();
+	
+}
+
+/*
+ ********************************************************************************
+ * copyFormFields
+ * 
+ * This function copies the data from the form back into the form field array
+ ********************************************************************************
+*/
+function copyFormFields($form)
+{
+
+	//Load Form field values into array 
+	foreach($_POST as $fieldName=>$fieldValue) 
+	{
+		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
+	}
+}
+
+?>
+
+</body>
+</html>

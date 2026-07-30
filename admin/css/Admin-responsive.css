@@ -1,0 +1,410 @@
+/* Steve Weeks Music Admin StyleSheet */
+@charset "UTF-8";
+
+@-webkit-keyframes testAnimation {
+
+	0% {background-color: blue; width: 150px; }
+	50% {background-color: black; width: 150px;}
+	100% {background-color: black; width: 0px;}
+}
+
+/*color guide:
+#e1d8b9 sand
+#cb7d20 orange
+#952 accent orange (dark)
+#3c6b92 main blue
+#2c566a teal
+#c3cebc light green
+#7f7f7f accent gray
+*/
+
+/*limited reset*/
+html, body, div, section, article, aside, header, hgroup, footer, nav, h1, h2, h3, h4, h5, h6, p, blockquote, address, time, span, em, strong, img, ol, ul, li, figure, canvas, video, th, td, tr {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	font: 100% Georgia, "Times New Roman", Times, serif;
+	text-align:left; 
+	background: white;
+}
+
+/*general styles*/
+a {
+	text-decoration: none;
+	color: #cb7d20;
+}
+a:hover {
+	color: #952;
+}
+
+/*html5 display rule*/
+address, article, aside, canvas, details, figcaption, figure, footer, header, hgroup, nav, menu, nav, section, summary {
+	display: block;
+}
+
+html {
+	background: #ddd;
+}
+
+/* Reporting Styles */
+.SongInfo {
+  background: #e1d8b9;
+  padding: .5em;
+  -webkit-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -moz-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -ms-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -o-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  -ms-border-radius: 10px;
+  -o-border-radius: 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  margin: 5px;
+
+}
+
+.SongInfo dt {
+	margin: 0em 2em 0em 0em;
+	width: 100px;
+	float:left;
+	clear: left;
+}
+
+.SongInfo dd {
+	font-style:italic;
+	padding: 0em 1em 0em 0em;
+}
+
+dd:empty {
+	width: 300px;
+	content: "n/a";
+	padding: 10px;
+}
+
+
+.wordWrap {
+	white-space: -moz-pre-wrap !important;  /* Mozilla, since 1999 */
+	white-space: -pre-wrap;      /* Opera 4-6 */
+	white-space: -o-pre-wrap;    /* Opera 7 */
+	white-space: pre-wrap;       /* css-3 */
+	word-wrap: break-word;       /* Internet Explorer 5.5+ */
+	white-space: -webkit-pre-wrap; /* Newer versions of Chrome/Safari*/
+	word-break: break-all;
+	white-space: normal;
+}
+
+.admin-header {
+	background-color: cornsilk;
+	color: darkgoldenrod;
+	text-align: center;
+	font-size: 40px;
+	padding-bottom: 10px;
+	padding-top: 10px;
+} 
+
+.admin-header img{
+	display: inline-block;
+}
+
+
+/* Table Detail Styles */
+td {
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+
+.Title 
+{
+	FONT-FAMILY:Georgia, "Times New Roman", Times, serif;
+    FONT-SIZE: 26px; 
+    FONT-WEIGHT: bold;
+    color:#000066;
+}
+
+.Subtitle 
+{
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 16px; 
+    FONT-WEIGHT: bold;
+    color:#000066;
+}
+
+/* Class for Form Messages */
+.FormMessage 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 12px; 
+    FONT-WEIGHT: bold;
+	font-style:italic;
+	margin-bottom: 5px;
+	margin-top: 5px;
+}
+
+.AdminGroup 
+{
+	border-width:thin;
+	border-color:#003399;
+	border-style:solid;
+	margin: 10px 0;
+	padding: 10px;
+}
+
+.FieldGroup 
+{
+	border-width:thin;
+	border-color:#003399;
+	border-style:solid;
+	margin: 20px 0;
+	padding-bottom: 15px;
+	padding-top: 15px;
+	color: darkolivegreen;
+}
+
+.FieldGroup input, .FieldGroup select  
+{
+	width: 100%;
+	margin-bottom: 10px;
+	height: 35px;
+    border-radius: 5px;
+    border: 1px solid
+}
+
+.FieldGroup input[type="checkbox"]  
+{
+	height: 16px;
+}
+
+.FieldGroup textarea {
+
+	width: 100%;
+	margin-bottom: 10px;
+}
+
+
+.FieldGroup .date-selector
+{
+	/*height: 45px;*/
+}
+
+.FieldGroup #btnAssignTour 
+{
+	width: 100px;
+}
+
+.FieldGroup #btnAssignPayment, .FieldGroup #btnAssignPerformance 
+{
+	width: 150px;
+}
+.FieldGroupTitle
+{
+	FONT-FAMILY:Georgia, "Times New Roman", Times, serif;
+    FONT-SIZE: 11px; 
+    FONT-WEIGHT: bold;
+	font-style:italic;
+    color: #003300;
+	margin-top: 10px;
+}
+
+/* Style for a form field that can not be edited */
+.FormFieldNoEdit 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 14px; 
+    FONT-WEIGHT: bold;
+	background-color: darkolivegreen;
+	color: white;
+}
+
+/* Style for an image preview link */
+.ImagePreview 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 9px; 
+	font-style:italic;
+	text-align:center;
+}.ImagePreview img {	margin-bottom: 10px;}
+
+/* Style for form button */
+.Buttons 
+{
+	background-color:darkgoldenrod;
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+.secondaryLinkButton 
+{
+	display: inline-block;
+	height: 30px;
+	border: 1px solid lightgrey;
+	padding: 5px;
+	border-radius: 5px;
+	text-decoration: none;
+	color:#666666;
+	margin: 0 10px 10px 10px;
+}
+.secondaryLinkButton:hover 
+{
+	background-color:#CCCCCC;
+	text-decoration: none;
+	color:#666666;
+}
+
+.formButton {
+	margin: 5px;
+	border: 1px solid;
+	border-radius: 5px;
+	width: 80px;
+	padding: 5px;
+	background-color: wheat
+}
+
+.formButton:hover {
+	background-color: olive;
+	color: wheat;
+}
+
+/* Styles for alternating search results */
+.result 
+{
+	background-color:#FFFFFF;
+}
+
+.missing-time a{
+	color: red;
+}
+
+.altresult 
+{
+	background-color: lavender;
+}
+
+/* Styles for datepicker  */
+div[id^=container_] {
+	padding: 10px;
+    border: 1px lightgrey solid;
+    border-radius: 3px;
+}
+
+/* Styles for alternating report rows */
+.reportrow 
+{
+	background-color:#FFFFFF;
+	font-size:16px;
+}
+
+.altreportrow
+{
+	background-color:#beccfb;
+	font-size:16px;
+}
+
+.FinancialLine
+{
+	background-color:#EFECF2;
+	font-size:16px;
+}
+
+.FinancialHeader
+{
+	background-color:#9999FF;
+	font-size:16px;
+	font-weight:bold;
+}
+
+.FinancialLineItem
+{
+	text-align:right;
+}
+
+.result-header 
+{
+	background-color:darkolivegreen;
+	color: white;
+}
+
+/* Image Previews */
+.thumbnail-preview, .image-preview {
+	text-align: center;
+}
+.thumbnail-preview img {
+	width: 100px;
+	height: auto;	margin-bottom: 15px;
+}
+.image-preview img {
+	width: 100%;
+	height: auto;	margin-bottom: 15px;
+}
+#lnkTourMaint, #lnkCDMaint, #lnkArtistMaint {
+	padding: 5px;
+	border: 1px solid lightgrey;
+	border-radius: 5px;	
+}
+
+/* Special breakpoint to handle differences within SM range */
+@media only screen and (min-width: 550px) and (max-width: 813px) 
+{
+	.admin-header {
+		font-size: 20px;
+	}
+	
+
+	.result-selector a {
+		font-size: 18px;	
+	}	
+
+}
+	
+
+/* Bootstrap XS Styles */
+@media only screen and (max-width: 550px) 
+{
+	.admin-header {
+		font-size: 16px;
+	}
+	
+	.admin-link {
+		font-size: 20px;
+	}
+
+	.result-selector a {
+		font-size: 18px;	
+	}	
+
+	.result-checkbox {
+		height: 30px;
+		width:	30px;
+	}
+	
+	.result-checkbox-text {
+		height: 35px;
+		width:	35px;
+	}
+	
+	.formButton {
+		width: 100%;
+		margin-bottom: 5px;
+		height: 40px;
+	}
+	
+	.secondaryLinkButton 
+	{
+		width: 100%;
+		text-align: center;
+	}
+
+	.FieldGroup input[type="checkbox"]  
+	{
+		height: 25px;
+	}
+
+	.category-selector {
+		height: 35px;
+	}
+
+}

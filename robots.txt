@@ -1,0 +1,5 @@
+User-agent: *
+
+Sitemap: http://www.steveweeksmusic.com/Sitemap.xml
+Disallow: /PressKit/
+

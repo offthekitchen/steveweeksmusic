@@ -1,0 +1,46 @@
+<?php
+/*
+**********************************************************************
+*  AdminSettings.php
+* 
+*   This file contains the Settings for the Admininstrative application
+**********************************************************************
+*/
+
+// APPLICATION CONSTANTS
+ define("ADMIN_IMG_DIR", ADMIN_DIR . "/images");
+ define("ADMIN_JS_DIR", ADMIN_DIR . "/javascript");
+ define("ADMIN_INCLUDE_DIR", ADMIN_DIR . "/includes");
+
+//FORM MODE CONSTANTS 
+ define("FORM_MODE_NEW",0);
+ define("FORM_MODE_EDIT",1);
+ define("FORM_MODE_SELECT",2);
+ define("FORM_MODE_EDIT_NO_DELETE",3);
+ define("FORM_MODE_SEARCH",4);
+
+ //Message Constants
+ define("ERROR_SEVERITY_NONE",0);
+ define("ERROR_SEVERITY_INFO",1);
+ define("ERROR_SEVERITY_WARNING",2);
+ define("ERROR_SEVERITY_ERROR",3);
+
+ //Style Constants
+ define("RESULT_STYLE_CLASS","result");
+ define("RESULT_STYLE_CLASS_ALT","altresult");
+ define("REPORT_STYLE_CLASS","reportrow");
+ define("REPORT_STYLE_CLASS_ALT","altreportrow");
+
+//Image Constants
+ define("NO_IMAGE","NoImage.gif");
+ define("IMAGE_NOT_FOUND","ImageNotFound.gif");
+ define("INVALID_IMAGE","InvalidImage.gif");
+
+//DB Constants
+ define("REVENUE_TYPE_CD_SALE",3);
+ define("REVENUE_TYPE_PERFORMANCE_FEE",4);
+
+
+ //ERROR CONSTANTS
+
+?>

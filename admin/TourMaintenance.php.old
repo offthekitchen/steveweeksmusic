@@ -1,0 +1,803 @@
+<?php
+/*
+*******************************************************************
+TourMaintenance.php
+This PHP file defines the Maintenance page for 
+managing Tours.
+NOTES
+Date        Change
+-------------------------------------------------------------
+2015-04-26	Refactored and moved Tour Report link to end of list<br />
+2015-08-01  Changed Tour EMail link to a _blank target
+*******************************************************************
+*/	
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Tour Maintenance</title>
+<?php
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//Reason is a required Field
+    if ( document.TourMaint.txtTourName.value == "" )
+    {
+        sErrorMessage += "Tour Name Required\n";
+        bValid = false;
+    }
+
+	//Tour Start Date is a required Field
+    if ( document.TourMaint.TourStartDate.value == "" || document.TourMaint.TourStartDate.value == "0000-00-00" )
+    {
+        sErrorMessage += "Tour Start Date Required\n";
+        bValid = false;
+    }
+
+	//Tour End Date is a required Field
+    if ( document.TourMaint.TourEndDate.value == "" || document.TourMaint.TourEndDate.value == "0000-00-00" )
+    {
+        sErrorMessage += "Tour End Date Required\n";
+        bValid = false;
+    }
+
+	//Tour Start Date can not be greater than the end date
+    if (document.TourMaint.TourStartDate.value > document.TourMaint.TourEndDate.value)
+    {
+        sErrorMessage += "Start Date Can Not Be Greater Than End Date\n";
+        bValid = false;
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+
+</head>
+
+<body>
+
+	<?php
+	
+	//include Tour Class		
+ 	include_once (CLASS_DIR . "/class_Tour.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+	//Array of Tour records from the DB
+	global $aTourRecords;
+	
+	?>
+<form name="TourMaint" action="TourMaintenance.php" method="post">
+
+	<?php
+
+		//Instantiate needed objects
+		$thisTour = new Tour();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisTourID = $_REQUEST['ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisTourID))
+		{
+						
+			$thisTour->nTourID = $nThisTourID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisTour->getTour())
+			{
+			
+				//Records found
+				if (sizeof($thisTour->aTourRecords) > 0)
+				{
+									
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadTour($thisTour->aTourRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "Tour record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisTour->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildTourObject($thisTour);
+				
+				//Insert record
+				if ($thisTour->insertTour())			
+				{
+
+					//reload Tour
+					$nNewTourID = $thisTour->nTourID;
+					$thisTour = new Tour();
+					$thisTour->nTourID = $nNewTourID;
+
+					if ($thisTour->getTour())
+					{	
+						//Load the form fields with the newly populated object
+						loadTour($thisTour->aTourRecords[0], $form);
+						//Store the ID of the performance
+						$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
+						
+						//Success
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->sMessage = "Tour Added";
+						$form->nFormMode = FORM_MODE_EDIT;			
+					}
+					else
+					{
+						//Problem reloading screen
+						clearFormFields($form);
+						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->sMessage = "Tour Added, but error occured while reloading the data";
+						$form->nFormMode = FORM_MODE_NEW;			
+					}
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: {$thisTour->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+			
+				//Load values from form field array into DB object
+				buildTourObject($thisTour);
+				
+				//Update record
+				if ($thisTour->updateTour())			
+				{
+				
+					//Update tour performances
+					if($thisTour->getTourPerformances())
+					{
+						foreach($thisTour->oTourPerformances->aPerformanceRecords as $oTourPerformance)
+						{
+							$sCheckboxName = "chkPerformance{$oTourPerformance->nPerformanceID}";
+							if(!isset($_POST[$sCheckboxName]) || $_POST[$sCheckboxName] != 'PerformanceAssociated')
+							{
+								$oTourPerformance->nTourID = NULL;
+								if(!$oTourPerformance->updatePerformance())
+								{
+									//ERROR NEEDED
+								}
+							}  
+						}
+					}
+
+					//Update potential performances
+					if($thisTour->getPotentialPerformances())
+					{
+						foreach($thisTour->oPotentialPerformances->aPerformanceRecords as $oPotentialPerformance)
+						{
+							$sCheckboxName = "chkPerformance{$oPotentialPerformance->nPerformanceID}";
+							if(isset($_POST[$sCheckboxName]) && $_POST[$sCheckboxName] == 'PerformanceAssociated')
+							{
+								$oPotentialPerformance->nTourID = $thisTour->nTourID;
+								if(!$oPotentialPerformance->updatePerformance())
+								{
+									//ERROR NEEDED
+								}
+							}  
+						}
+					}
+				
+					//reload Tour
+					$thisTour->getTour();
+				
+					//Load the form fields with the newly populated DB object						
+					loadTour($thisTour->aTourRecords[0], $form);
+					//Store the ID of the tour
+					$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Tour Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - {$thisTour->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildTourObject($thisTour);				
+
+				//Delete record
+				if ($thisTour->deleteTour())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "Tour Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: {$thisTour->sErrorMessage}";
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildTourObject($thisTour);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisTour->getTour())
+				{
+					//No records found
+					if(sizeof($thisTour->aTourRecords) < 1)
+					{
+						$form->sMessage = "No Tour records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisTour->aTourRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadTour($thisTour->aTourRecords[0], $form);
+						//Store the ID of the performance
+						$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
+
+						$form->sMessage = "One Tour record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select Tour record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisTour->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				$_POST['hdnTourID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnTourID" value="<?php echo $_POST['hdnTourID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Tour Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Tour ID</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Tour Name</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Start Date</TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>End Date</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisTour->aTourRecords as $oTourRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='" , $sResultStyleClass . "'><A HREF='./TourMaintenance.php?ID={$oTourRecord->nTourID}'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='" , $sResultStyleClass . "'>{$oTourRecord->sTourName}</TD>";
+			echo "	<TD class='" , $sResultStyleClass . "'>{$oTourRecord->dtTourStartDate}</TD>";
+			echo "	<TD class='" , $sResultStyleClass . "'>{$oTourRecord->dtTourEndDate}</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td>
+				 <TABLE>
+					<TR height="25" valign="top">
+						<TD valign="top" >
+						<?php
+						if ($_POST['hdnTourID'] > 0)
+						{
+							echo "<i><small><a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}";
+							echo "'>Edit Expenses</a></small></i>";
+							echo "&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;";
+							echo "<i><small><a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}";
+							echo "&ACTION=ADD_EXPENSE'>Enter Expense</a></small></i>";
+							echo "&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;";
+							echo "<i><small><a href='". ADMIN_DIR . "/TourEmails.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}' target='_blank'>";
+							echo "Tour Emails</a></small></i>";
+							echo "&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;";
+							echo "<i><small><a href='". ADMIN_DIR . "/TourReport.php?ID={$thisTour->aTourRecords[0]->nTourID}";
+							echo "'>Tour Report</a></small></i>";
+						}
+						?>
+
+						</TD>
+					</TR>
+				 	<TR>
+						<TD CLASS="FieldGroupTitle">
+							DETAILS
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td width="206">
+										START DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("TourStartDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Tour Date
+										if ($_POST['TourStartDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aTourStartDateParts = explode("-",$_POST['TourStartDate']);
+											$myCalendar->setDate($aTourStartDateParts[2], $aTourStartDateParts[1], $aTourStartDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>								    
+									</td>								
+									<td width="206">
+										END DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("TourEndDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Tour Date
+										if ($_POST['TourEndDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aTourEndDateParts = explode("-",$_POST['TourEndDate']);
+											$myCalendar->setDate($aTourEndDateParts[2], $aTourEndDateParts[1], $aTourEndDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>								  
+									</td>
+									<td width="206">
+										INCLUDE DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("TourIncludeDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Tour Date
+										if ($_POST['TourIncludeDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aTourIncludeDateParts = explode("-",$_POST['TourIncludeDate']);
+											$myCalendar->setDate($aTourIncludeDateParts[2], $aTourIncludeDateParts[1], $aTourInlcudeDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>								    
+									</td>								
+								</tr>
+								<tr>
+									<td colspan="3">
+										TOUR NAME: <input type="text" name="txtTourName" value="<?php echo $_POST['txtTourName']; ?>" size="60" />&nbsp;&nbsp;								
+									</td>								
+								</tr>
+<tr>
+									<td colspan="3">
+									</td>								
+								</tr>								
+							</table>
+						</TD>
+					</TR>
+				 	<TR>
+						<TD CLASS="FieldGroupTitle">
+							PERFORMANCES
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup">
+							<table>
+							<?php
+								if($thisTour->aTourRecords[0]->nTourID > 0)
+								{
+									echo "<tr>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'></th>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'>Name</th>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'>Date</th>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'>Time</th>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'>Location</th>";
+									echo "<th class='" . RESULT_STYLE_CLASS . "'></th>";
+									echo "</tr>";
+
+									if($thisTour->aTourRecords[0]->getTourPerformances())
+									{
+									 	foreach($thisTour->aTourRecords[0]->oTourPerformances->aPerformanceRecords as $oPerformance)
+										{
+											$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+											echo "<tr>";
+											echo "<td class='{$sResultStyleClass}'>";
+											echo "<input type='checkbox' name='chkPerformance{$oPerformance->nPerformanceID}'";
+											echo " value='PerformanceAssociated' checked >";
+											echo "</td>";
+											echo "<td class='{$sResultStyleClass}'>";
+											echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->nPerformanceID}'>";
+											echo "{$oPerformance->sPerformanceName}</a></td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->dtPerformanceDate}</td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->sPerformanceTime}</td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->sLocation}, ";
+											echo "{$oPerformance->sLocationCity}, {$oPerformance->sLocationState }</td>";
+											echo "<td class='{$sResultStyleClass}'>";
+											if($oPerformance->dtPerformanceDate > $thisTour->aTourRecords[0]->dtTourEndDate || $oPerformance->dtPerformanceDate < $thisTour->aTourRecords[0]->dtTourStartDate)
+											{
+												echo "<font color='red'>Performance date outside of tour dates</font>";
+											}
+											echo "</td>";
+											echo "</tr>";
+											
+										}
+									}
+									else
+									{
+										echo "ERROR RETRIEIVING PERORMANCES";
+									}
+									
+									if($thisTour->aTourRecords[0]->getPotentialPerformances())
+									{
+									 	foreach($thisTour->aTourRecords[0]->oPotentialPerformances->aPerformanceRecords as $oPerformance)
+										{
+											$sResultStyleClass = RESULT_STYLE_CLASS;
+
+											echo "<tr>";
+											echo "<td class='" , $sResultStyleClass . "'>";
+											echo "<input type='checkbox' name='chkPerformance" . $oPerformance->nPerformanceID . "'";
+											echo " value='PerformanceAssociated' >";
+											echo "</td>";
+											echo "<td class='{$sResultStyleClass}'>";
+											echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->nPerformanceID}'>";
+											echo "{$oPerformance->sPerformanceName}</a></td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->dtPerformanceDate}</td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->sPerformanceTime}</td>";
+											echo "<td class='{$sResultStyleClass}'>{$oPerformance->sLocation}, ";
+											echo "{$oPerformance->sLocationCity}, {$oPerformance->sLocationState}</td>";
+											echo "<td class='{$sResultStyleClass}'>";
+											if($oPerformance->nTourID > 0)
+											{
+												echo "<a href='" . ADMIN_DIR . "/TourMaintenance.php?ID={$oPerformance->nTourID}'>";
+												echo "<font color='red'>Performance already associated with tour ";
+												echo "{$oPerformance->nTourID}</font></a>";
+											}
+											echo "</td>";
+											echo "</tr>";
+											
+										}
+									}
+									
+								}
+							?>
+							</table>
+						</TD>
+					</TR>
+					<TR>
+						<TD>
+							<table>
+								<tr>
+									<td CLASS="FormFieldNoEdit">
+										ID: <?php echo $_POST['hdnTourID']; ?>						
+									</td>
+									<td width="20">
+									</td>
+									<td CLASS="FormFieldNoEdit">
+										LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildTourObject
+ * 
+ * This function loads builds a flag object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildTourObject($oTour)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$oTour->nTourID = $_POST['hdnTourID'];
+
+	$oTour->sTourName = html_entity_decode($_POST['txtTourName'], ENT_QUOTES);
+	$oTour->bFuzzyNameSearch = TRUE;
+
+	//Tour Inlcude Date	
+	$dtTourIncludeDate = isset($_REQUEST["TourIncludeDate"]) ? $_REQUEST["TourIncludeDate"] : "";
+	if($dtTourIncludeDate > "0000-00-00")
+	{
+		$oTour->dtTourIncludeDate  	= $dtTourIncludeDate;
+	}
+
+	//Tour Start Date	
+	$dtTourStartDate = isset($_REQUEST["TourStartDate"]) ? $_REQUEST["TourStartDate"] : "";
+	if($dtTourStartDate > "0000-00-00")
+	{
+		$oTour->dtTourStartDate  	= $dtTourStartDate;
+	}
+
+	//Tour End Date	
+	$dtTourEndDate = isset($_REQUEST["TourEndDate"]) ? $_REQUEST["TourEndDate"] : "";
+	if($dtTourEndDate > "0000-00-00")
+	{
+		$oTour->dtTourEndDate  = $dtTourEndDate;
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadTour
+ * 
+ * This function loads the form field array from a populated Tour object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadTour(&$oTour, $form)
+{
+
+	if (!is_null($oTour->nTourID))
+	{
+		//Load Hidden Fields
+		$_POST['hdnTourID'] = $oTour->nTourID;
+		
+
+		$_POST['txtTourName'] = htmlentities($oTour->sTourName, ENT_QUOTES);
+		
+		$_POST['TourStartDate'] = htmlentities($oTour->dtTourStartDate, ENT_QUOTES);
+		$_POST['TourEndDate'] = htmlentities($oTour->dtTourEndDate, ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($oTour->dtLastUpdate, ENT_QUOTES);
+		
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+	//Hidden Fileds must be set to 0
+	$_POST = array();
+	$_POST['hdnTourID'] = 0;
+}
+
+?>
+
+</body>
+</html>

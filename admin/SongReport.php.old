@@ -1,0 +1,262 @@
+<?php
+/*
+*******************************************************************
+SongReport.php
+This PHP file generates a Song Report 
+NOTES
+Date        Change
+-------------------------------------------------------------
+2016-01-05  Created
+*******************************************************************
+*/	
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Song Report</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	//inlcude Common Functions
+ 	include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+</head>
+
+<body>
+	<?php
+	
+	//include Song Class		
+ 	include_once (CLASS_DIR . "/class_Song.php");
+
+	//include Expense Class		
+ 	include_once (CLASS_DIR . "/class_CD.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+	?>
+<form name="SongReport" action="SongReport.php" method="post">
+<?php
+	//If a Song ID is passed, pre-select that Song
+	if (isset($_REQUEST['SONG_ID']) && $_REQUEST['SONG_ID'] != "")
+	{
+		$_POST['selSong'] = $_REQUEST['SONG_ID'];
+		$_POST['btnGenerate'] = "GenerateReport";
+	}
+
+	//If a CD ID is passed, pre-select Songs for that CD
+	if (isset($_REQUEST['CD_ID']) && $_REQUEST['CD_ID'] != "")
+	{
+		$_POST['selCD'] = $_REQUEST['CD_ID'];
+		$_POST['btnGenerate'] = "GenerateReport";
+	}
+
+	//Instantiate needed objects
+	$form = new Form();
+	$aSongData = array();
+	$oThisSong = new Song();
+	
+	//If a Song is selected, retrieve that Song's information
+	if ($_POST['selSong'] > 0)
+	{
+		$oThisSong->nSongID = $_POST['selSong'];
+	}
+	if ($_POST['selSong'] > 0)
+	{
+		$oThisSong->nCDID = $_POST['selCD'];
+	}
+
+	
+	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+	
+	
+?>	
+
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				SONG REPORT:  
+				<?php
+				if($_POST['selSong'] > 0)
+				{
+					echo " {$oThisSong->aSongRecords[0]->sSongName}";
+				}
+				?>
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<input type="submit" name="btnGenerate" value="Generate Report" onclick="javascript: return validate_form()" />
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<table border="0">
+		<tr>
+			<td>
+				 <TABLE>
+					<TR>
+						<TD class="FieldGroup" colspan="2">
+						<?php
+						//Include Filters
+						$bSongFilter = TRUE;
+						$bCDFilter = TRUE;
+						include (ADMIN_INCLUDE_DIR . "/ReportFilters.php");
+						?>
+						</TD>
+					</TR>
+							<?php
+							
+							$oSongs = new Song();
+		
+							if (isset($_POST["btnGenerate"])) 
+							{
+								$oSongs->nSongID = $_POST['selSong'];
+								$oSongs->nCDID = $_POST['selCD'];
+								
+								if ($oSongs->getSong())
+								{
+									foreach ($oSongs->aSongRecords as $oSong)
+									{
+										echo "<TR><TD>";
+										buildSongData($oSong);
+										echo "</TD></TR>";
+									}
+								}
+								else
+								{
+									$form->nMessageType = MESSAGE_TYPE_ERROR;
+									$form->sMessage = "FAILED TO GET SONG DATA: {$oThisSong->sErrorMessage}";
+								}
+							}
+							?>
+						</TD>
+					</TR>		
+			  </TABLE>
+			</td>
+		</tr>
+	</table>
+	
+</form>
+</body>
+</html>
+
+<?php
+/*
+ ********************************************************************************
+ * buildSongData()
+ * 
+ * This function builds a table pf Song Data
+ ********************************************************************************
+*/
+function buildSongData(&$oSong)
+{
+
+	if ($oSong->nCDID > 0)
+	{
+		$oCD = new CD();
+		$oCD->nCDID = $oSong->nCDID;
+		if ($oCD->getCD())
+		{
+			$sCDName = $oCD->aCDRecords[0]->sCDName;
+			
+			if (empty($oSong->sUPC))
+			{
+				$sUPC = $oCD->aCDRecords[0]->sUPC; 
+			}
+			else
+			{
+				$sUPC = $oSong->sUPC; 
+			}
+			
+		} 
+		else
+		{
+			//ERROR RETRIEVING CD
+		}
+	}
+	else
+	{
+		$sUPC = $oSong->sUPC; 
+	}
+
+	echo "<div class='SongInfo'>";
+	echo "<dl>";
+	echo "<div>";
+	echo "<dt>Song Name:</dt>";
+	echo "<dd>{$oSong->sSongName}</dd>";
+	echo "</div>";
+
+	echo "<div>";
+	echo "<dt>CD</dt>";
+	echo "<dd>{$oCD->aCDRecords[0]->sCDName}</dd>";
+	echo "</div>";
+
+	echo "<div>";
+	echo "<dt>UPC</dt>";
+	echo "<dd>{$sUPC}</dd>";
+	echo "</div>";
+
+	echo "<div>";
+	echo "<dt>Run Time</dt>";
+	echo "<dd>{$oSong->sRunTime}</dd>";
+	echo "</div>";
+	
+	echo "<div>";
+	echo "<dt>ISRC</dt>";
+	echo "<dd>{$oSong->sISRC}</dd>";
+	echo "</div>";
+
+	echo "<div>";
+	echo "<dt>Catalog #</dt>";
+	echo "<dd>{$oSong->sCatalogNumber}</dd>";
+	echo "</div>";
+
+	echo "</dl>";
+	echo "</div>";
+}
+?>

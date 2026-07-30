@@ -1,0 +1,549 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Vendor Maintenance</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="./javascript/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//Vendor Name is a required Field
+    if ( document.VendorMaint.txtVendorName.value == "" )
+    {
+        sErrorMessage += "Vendor Name Required\n";
+        bValid = false;
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include Vendor Class		
+ 	include_once (CLASS_DIR . "/class_Vendor.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Array of Vendor records from the DB
+	global $aVendorRecords;
+	
+	?>
+<form name="VendorMaint" action="VendorMaintenance.php" method="post">
+
+	<?php
+
+		//Instantiate needed objects
+		$thisVendor = new Vendor();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisVendorID = $_REQUEST['ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisVendorID))
+		{
+						
+			$thisVendor->nVendorID = $nThisVendorID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisVendor->getVendor())
+			{
+			
+				//Records found
+				if (sizeof($thisVendor->aVendorRecords) > 0)
+				{
+									
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadVendor($thisVendor->aVendorRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "Vendor record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisVendor->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildVendorObject($thisVendor);
+				
+				//Insert record
+				if ($thisVendor->insertVendor())			
+				{
+					//Load the form fields with the newly populated object
+					loadVendor($thisVendor, $form);
+					
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Vendor Added";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: " . $thisVendor->sErrorMessage;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+			
+				//Load values from form field array into DB object
+				buildVendorObject($thisVendor);
+				
+				//Update record
+				if ($thisVendor->updateVendor())			
+				{
+				
+					//reload Vendor
+					$thisVendor->getVendor();
+				
+					//Load the form fields with the newly populated DB object						
+					loadVendor($thisVendor->aVendorRecords[0], $form);
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Vendor Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - " . $thisVendor->sErrorMessage;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildVendorObject($thisVendor);				
+
+				//Delete record
+				if ($thisVendor->deleteVendor())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "Vendor Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: " . $thisVendor->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildVendorObject($thisVendor);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisVendor->getVendor())
+				{
+					//No records found
+					if(sizeof($thisVendor->aVendorRecords) < 1)
+					{
+						$form->sMessage = "No Vendor records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisVendor->aVendorRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadVendor($thisVendor->aVendorRecords[0], $form);			
+
+						$form->sMessage = "One Vendor record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select Vendor record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisVendor->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   CANCEL  *
+			// *************
+			else if (isset($_POST["btnCancel"])) 
+			{
+				clearFormFields($form);
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				copyFormFields($form);
+				$form->aFormFieldValues['hdnVendorID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnVendorID" value="<?php echo $form->aFormFieldValues['hdnVendorID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Vendor Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Vendor Name</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisVendor->aVendorRecords as $oVendorRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='" , $sResultStyleClass . "'><A HREF='./VendorMaintenance.php?ID=" . $oVendorRecord->nVendorID . "'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='" , $sResultStyleClass . "'>" . $oVendorRecord->sVendorName . "</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td width="1094" colspan="3">
+				 <TABLE width="1094">
+				 	<TR>
+						<TD colspan="3">
+							<table>
+								<tr>					
+									<td CLASS="FormFieldNoEdit" width="50">
+										ID: <?php echo $form->aFormFieldValues['hdnVendorID']; ?>						
+									</td>
+									<td >
+										NAME: <input type="text" name="txtVendorName" value="<?php echo $form->aFormFieldValues['txtVendorName']; ?>" size="60" />
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FormFieldNoEdit">
+							LAST UPDATED: <?php echo $form->aFormFieldValues['txtLastUpdate']; ?>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD>
+						</TD>
+						<TD>
+							
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildVendorObject
+ * 
+ * This function loads builds a Vendor object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildVendorObject($vendor)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$vendor->nVendorID = $_POST['hdnVendorID'];
+
+	$vendor->sVendorName = html_entity_decode($_POST['txtVendorName'], ENT_QUOTES);
+	$vendor->bFuzzyNameSearch = TRUE;
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadVendor
+ * 
+ * This function loads the form field array from a populated Vendor object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadVendor(&$vendor, $form)
+{
+
+	if (!is_null($vendor->nVendorID))
+	{
+		//Load Hidden Fields
+		$form->aFormFieldValues['hdnVendorID'] = $vendor->nVendorID;
+
+		$form->aFormFieldValues['txtVendorName'] = htmlentities($vendor->sVendorName, ENT_QUOTES);
+		$form->aFormFieldValues['txtLastUpdate'] = htmlentities($vendor->dtLastUpdate, ENT_QUOTES);
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+	
+		}
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+
+	//Hidden Fileds must be set to 0
+	$form->aFormFieldValues = array();
+	$form->aFormFieldValues['hdnVendorID'] = 0;
+
+
+}
+
+/*
+ ********************************************************************************
+ * copyFormFields
+ * 
+ * This function copies the data from the form back into the form field array
+ ********************************************************************************
+*/
+function copyFormFields($form)
+{
+
+	//Load Form field values into array 
+	foreach($_POST as $fieldName=>$fieldValue) 
+	{
+		$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+	}
+}
+
+?>
+
+</body>
+</html>

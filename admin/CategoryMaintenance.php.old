@@ -1,0 +1,563 @@
+<?php
+/*
+*******************************************************************
+CategoryMaintenance.php
+This PHP file defines the Maintenance page for managing categories.
+NOTES
+Date        Change
+-------------------------------------------------------------
+*******************************************************************
+*/	
+?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Category Maintenance</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include Category Class		
+ 	include_once (CLASS_DIR . "/class_Category.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Array of Category records from the DB
+	global $aCategoryRecords;
+	
+	?>
+<form name="CategoryMaint" action="CategoryMaintenance.php" method="post">
+
+	<?php
+
+		//Instantiate needed objects
+		$thisCategory = new Category();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisCategoryID = $_REQUEST['ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisCategoryID))
+		{
+						
+			$thisCategory->nCategoryID = $nThisCategoryID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisCategory->getCategory())
+			{
+			
+				//Records found
+				if (sizeof($thisCategory->aCategoryRecords) > 0)
+				{
+									
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadCategory($thisCategory->aCategoryRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "Category record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisCategory->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildCategoryObject($thisCategory);
+				
+				//Insert record
+				if ($thisCategory->insertCategory())			
+				{
+					//Load the form fields with the newly populated object
+					loadCategory($thisCategory, $form);
+					
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Category Added";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: " . $thisCategory->sErrorMessage;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+			
+				//Load values from form field array into DB object
+				buildCategoryObject($thisCategory);
+				
+				//Update record
+				if ($thisCategory->updateCategory())			
+				{
+				
+					//reload Category
+					$thisCategory->getCategory();
+				
+					//Load the form fields with the newly populated DB object						
+					loadCategory($thisCategory->aCategoryRecords[0], $form);
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Category Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - " . $thisCategory->sErrorMessage;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildCategoryObject($thisCategory);				
+
+				//Delete record
+				if ($thisCategory->deleteCategory())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "Category Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: " . $thisCategory->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildCategoryObject($thisCategory);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisCategory->getCategory())
+				{
+					//No records found
+					if(sizeof($thisCategory->aCategoryRecords) < 1)
+					{
+						$form->sMessage = "No Category records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisCategory->aCategoryRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadCategory($thisCategory->aCategoryRecords[0], $form);			
+
+						$form->sMessage = "One Category record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select Category record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisCategory->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   CANCEL  *
+			// *************
+			else if (isset($_POST["btnCancel"])) 
+			{
+				clearFormFields($form);
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				copyFormFields($form);
+				$form->aFormFieldValues['hdnCategoryID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnCategoryID" value="<?php echo $form->aFormFieldValues['hdnCategoryID']?>" />	
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Category Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>Category Name</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisCategory->aCategoryRecords as $oCategoryRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='" , $sResultStyleClass . "'><A HREF='./CategoryMaintenance.php?ID=" . $oCategoryRecord->nCategoryID . "'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='" , $sResultStyleClass . "'>" . $oCategoryRecord->sCategoryName . "</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td width="1094" colspan="3">
+				 <TABLE width="1094">
+				 	<TR>
+						<TD colspan="3">
+							<table>
+								<tr>					
+									<td CLASS="FormFieldNoEdit" width="50">
+										ID: <?php echo $form->aFormFieldValues['hdnCategoryID']; ?>						
+									</td>
+									<td >
+										NAME: <input type="text" name="txtCategoryName" value="<?php echo $form->aFormFieldValues['txtCategoryName']; ?>" size="60" />
+									</td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+				 	<TR>
+						<TD colspan="3">
+							<table width="450">
+								<tr>					
+									<td width="220">
+										<input type="checkbox" name="chkExpenseRelated" value="ExpenseRelated"<?php if( $form->aFormFieldValues['chkExpenseRelated']) {echo " checked ";}; ?> /> EXPENSE RELATED
+								  </td>
+									<td width="218" >
+										<input type="checkbox" name="chkRevenueRelated" value="RevenueRelated"<?php if( $form->aFormFieldValues['chkRevenueRelated']) {echo " checked ";}; ?> /> REVENUE RELATED
+								  </td>
+								</tr>
+						  </table>
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FormFieldNoEdit">
+							LAST UPDATED: <?php echo $form->aFormFieldValues['txtLastUpdate']; ?>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD>
+						</TD>
+						<TD>
+							
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildCategoryObject
+ * 
+ * This function loads builds a Category object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildCategoryObject($category)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$category->nCategoryID = $_POST['hdnCategoryID'];
+
+	$category->sCategoryName = html_entity_decode($_POST['txtCategoryName'], ENT_QUOTES);
+	$category->bFuzzyNameSearch = TRUE;
+	if($_POST['chkExpenseRelated'] == "ExpenseRelated")
+	{
+		$category->bExpenseRelated = TRUE;
+	}
+	else
+	{
+		$category->bExpenseRelated = FALSE;
+	}
+ 
+ 	if($_POST['chkRevenueRelated'] == "RevenueRelated")
+	{
+		$category->bRevenueRelated = TRUE;
+	}
+	else
+	{
+		$category->bRevenueRelated = FALSE;
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadCategory
+ * 
+ * This function loads the form field array from a populated Category object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadCategory(&$category, $form)
+{
+
+	if (!is_null($category->nCategoryID))
+	{
+		//Load Hidden Fields
+		$form->aFormFieldValues['hdnCategoryID'] = $category->nCategoryID;
+
+		$form->aFormFieldValues['txtCategoryName'] = htmlentities($category->sCategoryName, ENT_QUOTES);
+		$form->aFormFieldValues['chkExpenseRelated'] = $category->bExpenseRelated;
+		$form->aFormFieldValues['chkRevenueRelated'] = $category->bRevenueRelated;
+		$form->aFormFieldValues['txtLastUpdate'] = htmlentities($category->dtLastUpdate, ENT_QUOTES);
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+	
+		}
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+
+	//Hidden Fileds must be set to 0
+	$form->aFormFieldValues = array();
+	$form->aFormFieldValues['hdnCategoryID'] = 0;
+
+
+}
+
+/*
+ ********************************************************************************
+ * copyFormFields
+ * 
+ * This function copies the data from the form back into the form field array
+ ********************************************************************************
+*/
+function copyFormFields($form)
+{
+
+	//Load Form field values into array 
+	foreach($_POST as $fieldName=>$fieldValue) 
+	{
+		$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+	}
+}
+
+?>
+
+</body>
+</html>

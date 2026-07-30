@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script src="https://kit.fontawesome.com/13b1cdd184.js" crossorigin="anonymous"></script>
+  <body>
+    <div class="heart-container">
+        <div class="like-heart-color">
+          <img src="./images/like-heart.png">
+        </div>
+    </div>
+
+    <div class="heart-container">
+        <div class="like-heart-color2">
+            <img src="./images/like-heart.png">
+        </div>
+    </div>
+    <div class="heart-container">
+        <div class="bottom-heart">
+          <i class="fa-regular fa-heart fa-xl bottom-heart-icon"></i>
+        </div>
+        <div class="top-heart">
+          <i class="fa-solid fa-heart fa-xl top-heart-icon"></i>
+        </div>
+    </div>
+
+    <div class="meal-item-container">
+      
+      <div class="meal-details">
+        <div class="meal-title">
+          Oeuf au Plat
+        </div>
+        <div class="meal-description-container">
+          <div class="meal-description">
+            This is a meal that will absolutely blow your socks off
+          </div>
+          <div class="meal-price">
+            $20
+          </div>
+        </div>
+      </div>
+
+      <div class="meal-like-container">
+        <i class="fa-solid fa-3x fa-check-circle meal-like-icon"></i>
+      </div>
+  </div>
+  </body>
+</html>
+
+<style>
+
+/* LIKE MEAL STYLES */
+
+.meal-item-container {
+  width: 450px;
+  border-radius: 20px;
+  box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
+  display: flex;
+}
+
+/* Expand the like conatainer from right to left.
+   Width must be 100px or it will immediately collapse to the size of the checkmark */ 
+.meal-item-container:hover > .meal-like-container {
+  animation-name: expand;
+  animation-duration: 1s;
+  width: 100px;
+}
+
+/* Show the checkmark and rotate it */ 
+.meal-item-container:hover .meal-like-icon {
+  visibility:visible;
+  transform: rotate(-360deg);
+}
+
+.meal-details {
+  font-family: Arial, Helvetica, sans-serif;
+  min-width: 350px;
+}
+
+.meal-title {
+  font-size: x-large;
+  font-weight: 600;
+  padding: 15px;
+}
+
+.meal-description-container {
+  display: flex;
+  padding-right: 15px;
+}
+.meal-description {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: medium;
+  padding: 15px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.meal-price {
+  font-size: x-large;
+  font-weight: 800;
+}
+
+/* Meal like container starts at 0 width */
+.meal-like-container {
+  width: 0px;
+  float: right;
+  border-radius: 0px 20px 20px 0px;
+  background-color:aquamarine;
+  color: white;
+  text-align: center;
+  padding: 30px 0;
+}
+
+/*checkmark starts invisible */
+.meal-like-icon {
+  visibility: hidden;
+  transition: transform .7s ease-in-out;
+}
+
+/* Animation to grow width from 0 t0 100px  */
+@keyframes expand {
+  0% {
+    width: 0;
+  }
+  100% {
+    width: 100px;
+  }
+}
+
+
+/* FONT AWESOME HEARTS */
+
+.heart-container {
+  height: 100px;
+}
+
+.top-heart {
+  position: relative;
+  top: -19px;
+  display: none;
+  width: 19px;
+  height: 19px;
+
+}
+
+.bottom-heart {
+  width: 19px;
+  height: 19px;
+}
+
+.fa-heart {
+  transition-duration: 2s;
+  transition-property: color;
+  transition-timing-function: ease-out;
+}
+
+.bottom-heart:hover + .top-heart {
+  display: block;
+  color: #9356DC;
+}
+
+
+/*  LIKE HEART */
+.like-heart-color {
+  background: linear-gradient(to top, #9356DC 50%, #fff 50%);
+  background-size: 100% 200%;
+  background-position: top left;
+  transition: all .5s ease-out;
+  width: 58px;
+  height: 58px;
+
+}
+.like-heart-color:hover {
+  background-position: bottom left;
+  color: #fff;
+}
+
+.like-heart-color img {
+    position: relative;
+top: -1px;
+left: -1px;
+}
+
+/*  LIKE HEART 2 */
+.like-heart-color2 {
+    margin: 15px;
+    background: linear-gradient(#9356DC, #FF79DA );
+    max-height: 0px;
+    max-width: 58px;
+    transition: max-height 0.15s ease-out;
+    transform-origin: 0 100%;
+}
+
+.like-heart-color2:hover {
+    max-height: 58px;
+    transition: max-height 0.25s ease-in;
+}
+
+
+.like-heart-color2 img {
+position: relative;
+top: -1px;
+left: -1px;
+
+}
+
+/*  LIKE HEART 3 */
+.like-heart-color3 {
+    background: linear-gradient(#9356DC, #FF79DA );
+    max-width: 58px;
+    height: 58px;
+}
+.like-heart-color3 img {
+    position: relative;
+    top: -60px;
+    left: -1px;
+    background-color: white;
+}
+
+.white-out {
+    transform: scaleY(1);
+    height: 58px;
+    width: 58px;
+}
+
+.white-out:hover {
+    transform: scaleY(0);
+    transition: 1000ms;
+    transform-origin: 100% 0%;
+}
+
+</style>
