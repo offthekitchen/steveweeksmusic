@@ -1,0 +1,21 @@
+﻿# Large / local-only asset trees
+OldSite
+Photoshop Images
+otk
+Production Backup
+Raw Images
+Setlist
+SoulSister
+test
+TheWay
+Backups
+mp3/
+video/
+
+# Runtime / local junk
+error_log
+**/error_log
+*.log
+.DS_Store
+Thumbs.db
+~$*

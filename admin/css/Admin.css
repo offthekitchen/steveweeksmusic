@@ -1,0 +1,223 @@
+/* Steve Weeks Music Admin StyleSheet */
+@charset "UTF-8";
+
+@-webkit-keyframes testAnimation {
+
+	0% {background-color: blue; width: 150px; }
+	50% {background-color: black; width: 150px;}
+	100% {background-color: black; width: 0px;}
+}
+
+/*color guide:
+#e1d8b9 sand
+#cb7d20 orange
+#952 accent orange (dark)
+#3c6b92 main blue
+#2c566a teal
+#c3cebc light green
+#7f7f7f accent gray
+*/
+
+/*limited reset*/
+html, body, div, section, article, aside, header, hgroup, footer, nav, h1, h2, h3, h4, h5, h6, p, blockquote, address, time, span, em, strong, img, ol, ul, li, figure, canvas, video, th, td, tr {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	font: 100% Georgia, "Times New Roman", Times, serif;
+	width: 1100px;
+	margin: 0 auto;
+	padding: 0 50px;
+	text-align:left;
+	position: relative;
+	background: white;
+}
+
+/*general styles*/
+a {
+	text-decoration: none;
+	color: #cb7d20;
+}
+a:hover {
+	color: #952;
+}
+
+/*html5 display rule*/
+address, article, aside, canvas, details, figcaption, figure, footer, header, hgroup, nav, menu, nav, section, summary {
+	display: block;
+}
+
+html {
+	background: #ddd;
+}
+
+/* Reporting Styles */
+.SongInfo {
+  background: #e1d8b9;
+  padding: .5em;
+  -webkit-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -moz-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -ms-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -o-box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  box-shadow: 5px 5px 10px rgba(50, 50, 50, 1.5);
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  -ms-border-radius: 10px;
+  -o-border-radius: 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  width: 800px;
+  margin: 2em;
+
+}
+
+.SongInfo dt {
+	margin: 0em 2em 0em 0em;
+	width: 100px;
+	float:left;
+	clear: left;
+}
+
+.SongInfo dd {
+	font-style:italic;
+	padding: 0em 1em 0em 0em;
+}
+
+dd:empty {
+	width: 300px;
+	content: "n/a";
+	padding: 10px;
+}
+
+.SongInfo div {
+}
+
+/* Table Detail Styles */
+td {
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+
+TD.Title 
+{
+	FONT-FAMILY:Georgia, "Times New Roman", Times, serif;
+    FONT-SIZE: 26px; 
+    FONT-WEIGHT: bold;
+    color:#000066;
+}
+
+TD.Subtitle 
+{
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 16px; 
+    FONT-WEIGHT: bold;
+    color:#000066;
+}
+
+/* Class for Form Messages */
+TD.FormMessage 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 12px; 
+    FONT-WEIGHT: bold;
+	font-style:italic;
+}
+
+TD.FieldGroup 
+{
+	border-width:thin;
+	border-color:#003399;
+	border-style:solid;
+}
+
+TD.FieldGroupTitle
+{
+	FONT-FAMILY:Georgia, "Times New Roman", Times, serif;
+    FONT-SIZE: 11px; 
+    FONT-WEIGHT: bold;
+	font-style:italic;
+    color: #003300;
+}
+
+/* Style for a form field that can not be edited */
+TD.FormFieldNoEdit 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 14px; 
+    FONT-WEIGHT: bold;
+	background-color:#CCCCCC;
+}
+
+/* Style for an image preview link */
+TD.ImagePreview 
+{	
+	FONT-FAMILY: Arial;  
+    FONT-SIZE: 9px; 
+	font-style:italic;
+	text-align:center;
+}
+
+/* Style for form button */
+TD.Buttons 
+{
+	background-color:#9999CC;
+}
+
+/* Styles for alternating search results */
+TD.result 
+{
+	background-color:#FFFFFF;
+	font-size:9px;
+}
+
+TD.altresult 
+{
+	background-color:#FFFFCC;
+	font-size:9px;
+}
+
+/* Styles for alternating report rows */
+TD.reportrow 
+{
+	background-color:#FFFFFF;
+	font-size:16px;
+}
+
+TD.altreportrow
+{
+	background-color:#beccfb;
+	font-size:16px;
+}
+
+TD.FinancialLine
+{
+	background-color:#EFECF2;
+	font-size:16px;
+}
+
+TD.FinancialHeader
+{
+	background-color:#9999FF;
+	font-size:16px;
+	font-weight:bold;
+	width:150px;
+}
+
+TD.FinancialLineItem
+{
+	text-align:right;
+}
+
+TH.result 
+{
+	background-color:#CCCCFF;
+	font-size:9px;
+}
+
+
+
+th {
+	font-family: Arial, Helvetica, sans-serif;
+}

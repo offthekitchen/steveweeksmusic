@@ -1,0 +1,622 @@
+/* Thurdy StyleSheet */
+
+/*limited reset*/
+html, body, div, section, article, aside, header, hgroup, footer, nav, h1, h2, h3, h4, h5, h6, p, blockquote, address, time, span, em, strong, img, ol, ul, li, figure, canvas, video, th, td, tr {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+/*general styles*/
+a {
+	text-decoration: none;
+	color: #cb7d20;
+}
+a:hover {
+	color: #952;
+}
+
+/*html5 display rule*/
+address, article, aside, canvas, details, figcaption, figure, footer, header, hgroup, nav, menu, nav, section, summary {
+	display: block;
+}
+
+blockquote {
+		padding: 5px;	
+		border: 3px solid #999999;
+		-webkit-border-radius: 5px;
+		-moz-border-radius: 5px;
+		-ms-border-radius: 5px;
+		-o-border-radius: 5px;
+		border-radius: 5px;
+		font-size:14px;	
+		font-style:italic;
+		margin: 5px;
+}
+
+/*Prevent horizontal scrolling*/
+body {
+	overflow-x: hidden;
+}
+
+/********************
+ Common Styles
+*********************/
+.floatLeft {
+	float: left;
+}
+
+.floatRight {
+	float: right;
+	clear: left;
+}
+
+header {
+	text-align: center;
+}
+
+header h1 {
+	font-family: 'Amatic SC', bold;
+ 	font-size: 100px;
+	max-width: 750px;
+	margin: 0 auto;
+}
+		
+#headerLogo
+{
+	float: left;
+	/*
+	position: absolute;
+	left: 30px;*/
+}
+
+header #headerLogo img{
+	height: auto;
+	width: 100px;
+}
+
+.email {
+	font-family: 'Amatic SC', bold;
+ 	font-size: 30px;
+}
+
+.email a:hover{
+	text-decoration: none;
+}
+
+/********************
+ Bootstrap Carousel
+ ********************/
+#myCarousel {
+	height: 250px;
+	margin-bottom: 15px;
+}
+
+#myCarousel .item {
+	height: 250px;
+}
+
+#myCarousel .item .slide-container {
+	margin: auto auto;
+	height: 250px;
+	width: 250px;
+	border: 3px solid #999999;
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	-ms-border-radius: 5px;
+	-o-border-radius: 5px;
+	border-radius: 5px;
+}
+
+#myCarousel .item a {
+	text-decoration:none;
+}
+
+#myCarousel .item .slide-title {
+	height: auto;
+	margin-top: 15px;
+	text-align:center;
+	font-family: 'Amatic SC', bold;
+ 	font-size: 35px;
+	color:#990000;
+}
+
+#myCarousel .item img {
+	margin: 10px auto;
+	width: 80px;
+	height: auto;
+	display:block;
+	
+}
+
+#myCarousel .item .slide-caption {
+	height: auto;
+	text-align:center;
+	font-family: 'Rock Salt', Arial, Helvetica, sans-serif;
+	color:#000099;
+	margin: 25px;
+}
+/********************
+ Social Media Styles
+*********************/
+header#pageHeader section.socialMediaMenu {
+	float:right;
+	position: absolute;
+	right: 20px;
+	top: 15px;
+}
+
+section.socialMediaMenu div.socialMediaItem{
+	float: left;
+}
+
+footer section.socialMediaMenu {
+	margin: 15px;
+	position: absolute;
+}
+
+a#FB_Icon {
+	display: block;
+	width: 30px;
+	height: 30px;
+	background-size: contain;
+	background: url(../images/FB_Icon_Small.png) no-repeat 0 0;
+	margin: 0 2px 0;
+	padding: 0 0 0 0;
+}
+
+a#youTube_Icon {
+	display: block;
+	width: 30px;
+	height: 30px;
+	background-size: contain;
+	background: url(../images/YouTube_Icon_Small.png) no-repeat 0 0;
+	margin: 0 2px 0;
+	padding: 0 0 0 0;
+}
+
+a#email_Icon {
+	display: block;
+	width: 30px;
+	height: 30px;
+	background-size: contain;
+	background: url(../images/Email_Icon_Small.png) no-repeat 0 0;
+	margin: 0 2px 0;
+	padding: 0 0 0 0;
+}
+
+/********************
+ Nav Styles
+*********************/
+
+/* display ul items side-by-side */
+nav {
+	text-align: center;
+	padding: 15px 0px;
+}
+nav ul {
+	list-style: none;	
+	margin: 0 0 0 0;
+	height: 34px;
+	display: inline-block;
+}
+
+nav ul li {
+	float: left;
+}
+
+nav ul li.selected {
+	background-color:#CCCCCC;
+}
+
+nav ul li a{
+	display: inline-block;
+	font-family: 'Rock Salt', Arial, Helvetica, sans-serif;
+	font-size: 1.2em;
+	color: #000;
+	padding: 0 20px;
+	text-decoration: none;
+}
+
+nav ul li a:current {
+	color: #cb7d20;
+}
+
+nav ul li a:hover {
+	color: #cb7d20;
+}
+
+figcaption {
+	font-family: 'Rock Salt', cursive;
+	margin: 5px;
+	text-align:center;
+}
+
+footer#pageFooter div.leftCol {
+	float: left;
+	width: 600px;
+	margin: 15px;
+}
+footer#pageFooter div.rightCol {
+	float: right;
+	width: 420px;
+	text-align: right;
+	margin: 15px;
+}
+
+/********************
+ Contact Form Styles
+*********************/
+form#Contact .contact-error {
+	margin-left: 15px;
+	color:#FF0000;
+	font-family: 'Amatic SC', bold;
+	font-size:40px;
+}
+
+form#Contact .contact-success {
+	margin-left: 15px;
+	color:#009900;
+	font-family: 'Amatic SC', bold;
+	font-size:40px;
+}
+
+.formSubmitButton {
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	-ms-border-radius: 5px;
+	-o-border-radius: 5px;
+	border-radius: 5px;
+	text-shadow: 1px 1px 3px #666666;
+	-webkit-box-shadow: 0px 1px 3px #666666;
+	-moz-box-shadow: 0px 1px 3px #666666;
+	-ms-box-shadow: 0px 1px 3px #666666;
+	-o-box-shadow: 0px 1px 3px #666666;
+	box-shadow: 0px 1px 3px #666666;
+	color:#666666;
+	font-size: 15px;
+	-webkit-text-decoration: none;
+	-moz-text-decoration: none;
+	-ms-text-decoration: none;
+	-o-text-decoration: none;
+	text-decoration: none;
+	text-align:center;
+	width: 140px;
+	height: 40px;
+	margin: 0 0 0 15px;;
+	font-family: 'Rock Salt', cursive;
+	font-size:13px;
+}
+
+/*****************
+ Drop Page Styles
+******************/
+
+.drop-image {
+	
+	height: 360px;
+	width:auto;
+	text-align: center;
+}
+
+.drop-image img {
+	max-height: 280px;
+	max-width: 100%;
+}
+
+/********************
+ Lyrics Page Styles
+*********************/
+.song-title {
+	font-family: 'Amatic SC', bold;
+	font-size:25px;
+	color:#CC6600;
+}
+.lyrics-title {
+	font-family: 'Amatic SC', bold;
+	font-size:35px;
+	color:#CC6600;
+}
+
+.lyrics-contents {
+	width: 100%;
+	padding-bottom: 10px;
+	text-align:center;
+	font-family: 'Rock Salt', cursive;
+	font-size:14px;
+}
+
+/********************
+ Song Page Styles
+*********************/
+.listen {
+	text-align:center;
+	font-family: 'Amatic SC', bold;
+	font-size:35px;
+	color:#CC6600;
+}
+
+.playa .btn-group {
+	text-align:center;
+}
+	
+.art-image img, .art-drop-image img {
+	margin: 0 auto;
+	display: block;
+}
+
+.song-link {
+	background-color: darkgreen;
+	color:#FFFFFF;
+	text-decoration:none;	
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	-ms-border-radius: 5px;
+	-o-border-radius: 5px;
+	border-radius: 5px;
+	text-shadow: 1px 1px 3px #666666;
+	-webkit-box-shadow: 0px 1px 3px #666666;
+	-moz-box-shadow: 0px 1px 3px #666666;
+	-ms-box-shadow: 0px 1px 3px #666666;
+	-o-box-shadow: 0px 1px 3px #666666;
+	box-shadow: 0px 1px 3px #666666;
+	padding: 10px 20px 10px 20px;
+	-webkit-text-decoration: none;
+	-moz-text-decoration: none;
+	-ms-text-decoration: none;
+	-o-text-decoration: none;
+	text-align:center;
+	width: 200px;
+	margin: 15px auto;
+	font-family: 'Amatic SC', bold;
+	font-size:30px;	
+}
+
+.video-link {
+	background-color: darkblue;
+}
+
+.lyrics-link {
+	background-color: darkred;
+}
+
+.live-link {
+	background-color: purple;
+}
+
+/********************
+ Comment Page Styles
+*********************/
+#form-container {
+	padding: 0px;
+}
+
+form#Thurdy {
+	padding: 5px;
+	background-color:#CCCCCC;
+}
+
+.comment {
+	margin: 10px 0;
+}
+
+.comment-date {
+	font-weight: bold
+}
+
+.comment-answer {
+	font-weight: bold
+}
+
+.answer-text {
+	font-family: 'Amatic SC', bold;
+	font-size:20px;
+	color:#000099;
+}
+
+/* Bootstrap SM Styles */
+@media only screen and (max-width: 992px)
+{
+
+	header h1 {
+		font-size: 80px;
+		max-width: 500px;
+		margin: 0 auto;
+	}
+
+	footer  section.socialMediaMenu .content .socialMediaItem {
+		margin-left: 5px;
+		margin-right: 5px;
+	}
+
+}
+/* Bootstrap XS Styles */
+@media only screen and (max-width: 768px)
+{
+	nav {
+		padding-bottom: 0px;
+	}
+	
+	nav ul li a{
+		font-size: 1em;
+		padding: 0 10px;	
+	}
+
+	.drop-image {
+		width: 100%;
+		height: auto;
+		margin-bottom: 1em;
+	}	
+
+	header h1 {
+	 	font-size: 60px;
+	}
+
+
+	header#pageHeader section.socialMediaMenu {
+		display: none;
+	}
+	#myCarousel .item .slide-title {
+		font-size: 25px;
+	}
+
+	#seek-wrapper, #volume-wrapper {
+		width: 120px;
+	}
+
+}
+
+/* Phone landscape Specific Styles */
+@media only screen and (max-width: 490px)
+{
+	nav ul li a{
+		font-size: 1em;
+		padding: 0 8px;
+	}
+	
+	header h1 {
+	 	font-size: 50px;
+	}
+
+	header #headerLogo{
+		left: 0px;
+	}
+	header #headerLogo img{
+		width: 50px;
+		height: auto;
+	}	
+	
+
+	footer#pageFooter div.rightCol {
+		width: 100%;
+	}
+	
+	footer .email {
+ 		font-size: 25px;
+	}
+
+	#seek-wrapper, #volume-wrapper {
+		width: 100px;
+	}
+
+
+	.art-image {
+		width: 100%;
+	}
+
+	.art-image img {
+		width: 100%;
+		height: auto;
+	}
+	
+	#seek-wrapper, #volume-wrapper {
+		width: 70px;
+	}	
+}
+
+/* Phone Portait Specific Styles */
+@media only screen and (max-width: 350px)
+{
+
+	/* Elements that span entire width of phone must negative default Bootstrap 15px padding */
+	.full-width-phone {
+		margin-left: -15px;
+		margin-right: -15px;
+	}
+	
+	nav ul {
+		width: 100%;
+		height: auto;
+	}
+	
+	nav ul li {
+		height: 35px;
+		float: none;
+		border: 3px solid #999999;
+		-webkit-border-radius: 5px;
+		-moz-border-radius: 5px;
+		-ms-border-radius: 5px;
+		-o-border-radius: 5px;
+		border-radius: 5px;
+		margin-bottom: 2px;
+		padding: auto;
+	}
+
+	nav ul li a{
+		display:block;
+		width: 100%;
+		height: 100%;
+		padding:0px;
+		text-decoration: none;	
+		font-size: 1.2em;
+	}
+	
+	nav ul li a:hover {
+		background-color:#CCCCCC;
+		color: #FFFFFF;
+		text-decoration: none;
+	}
+
+	header h1 {
+	 	font-size: 40px;
+	}
+
+	header #headerLogo{
+		float: none;
+		left: 0px;
+		width: 100%;
+		margin: 10px auto;
+		position: relative;
+	}
+
+	header #headerLogo img {
+		width: 85px;
+		height: auto;
+	}
+
+	#myCarousel .item .slide-container {
+		width: 100%;
+	}
+	#myCarousel .item .slide-title {
+		font-size: 30px;
+	}
+	footer#pageFooter div.rightCol {
+		text-align: center;
+	}
+
+	footer  section.socialMediaMenu {
+		float: none;
+		width: 100%;
+		position: relative;
+		margin: 0;
+		padding-bottom: 10px;
+		text-align: center;
+	}
+
+	footer  section.socialMediaMenu .content {
+		display: inline-block;
+	}
+
+	footer  section.socialMediaMenu .content .socialMediaItem {
+		margin-left: 15px;
+		margin-right: 15px;
+	}
+
+	footer .email {
+ 		/*font-size: 35px;*/
+		float: none;
+	}
+	
+	#seek-wrapper, #volume-wrapper {
+		display:none;
+	}
+
+	.art-image img {
+		width: 100%;
+		height: auto;
+	}
+	.song-link {
+		width: 100%;
+	}
+
+}

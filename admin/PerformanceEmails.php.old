@@ -1,0 +1,353 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Performance Emails</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+</head>
+
+<body>
+	<?php
+	
+	//include Performance Class		
+ 	include_once (CLASS_DIR . "/class_Performance.php");
+
+
+	//Array of Performance records from the DB
+	global $aPerformanceRecords;
+	
+	?>
+
+	<?php
+
+		//Instantiate needed objects
+		$thisPerformance = new Performance();
+
+		//Get the ID query string parameter
+		$nThisPerformanceID = $_REQUEST['ID'];
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisPerformanceID))
+		{
+						
+			$thisPerformance->nPerformanceID = $nThisPerformanceID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisPerformance->getPerformance())
+			{
+			
+				//Records found
+				if (sizeof($thisPerformance->aPerformanceRecords) > 0)
+				{
+					$sPerformanceURL = "http://www.steveweeksmusic.com/Schedule.php?year=" . date("Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . "&eventID=" . $thisPerformance->aPerformanceRecords[0]->nPerformanceID . "#BM" . $thisPerformance->aPerformanceRecords[0]->nPerformanceID;
+				}
+				else
+				{
+					//The record was not found
+				}
+			}
+			else
+			{
+				//Error
+			}
+		}
+		else
+		{
+			//NO ID Passed
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnPerformanceID" value="<?php echo $form->aFormFieldValues['hdnPerformanceID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Verification Email (right after LOA) </td>
+		</tr>
+		<tr>
+			<td><p>Thanks so much for getting the Letter of Agreement back to  me for my performance there at <b> <?php echo $thisPerformance->aPerformanceRecords[0]->sLocation . " (" . date("l",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . " at " . $thisPerformance->aPerformanceRecords[0]->sPerformanceTime . ")" ?></b>.&nbsp;&nbsp;&nbsp; If you could  verify the 3 items below, I&rsquo;d greatly appreciate it.<br />
+			  <br />
+                <strong>WEB SITE LISTING</strong><br />
+I&rsquo;ve posted the event on my web site.&nbsp; If you could  check out the following link and let me know if you&rsquo;d like to see any  adjustments to the information or verbiage.&nbsp;  I can list whatever phone and/or email you want for the contact  information:<br />
+			  	<?php
+				echo "<BR><a href='" . $sPerformanceURL . "'>";
+				echo $thisPerformance->aPerformanceRecords[0]->sLocation . " (" . date("l",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . " at " . $thisPerformance->aPerformanceRecords[0]->sPerformanceTime . ")";
+				echo "</a>";
+				?>
+				<br /><br />
+		      <p><strong>PERFORMANCE SPACE AND  SOUND</strong><br />
+			    If you could tell me a little about the performance space so  that I can show up prepared with the appropriate sound system I&rsquo;d greatly  appreciate it.&nbsp; I don&rsquo;t need technical  specifications, just a basic idea of the space to give me an idea of what to  expect.&nbsp; <br />
+			    My show easily scales, and I&rsquo;ve performed everywhere from  &ldquo;between the stacks&rdquo; (literally) to larger theaters.<br />
+			    If the space has a sound system, I&rsquo;ll happily use that.&nbsp; Otherwise I&rsquo;ll provide all my own equipment  and only require access to an electrical outlet.<br />
+  <strong><br />
+    PROMOTION</strong><br />
+			    If you have a list of media contacts in the area, I will  happily contact them and promote the show.&nbsp;  &nbsp;&nbsp;<br />
+			    Also, you can find hi-res photos, verbiage, flyers etc. on  my press kit at:<br />
+  <a href="http://www.steveweeksmusic.com/PressKit/">http://www.steveweeksmusic.com/PressKit/</a><br />
+			    Please feel free to use anything you find there or anywhere  on my web site.<br />
+  <br />
+			    We&rsquo;ll be in touch, but in the meantime, please don&rsquo;t  hesitate to contact me if you need anything.&nbsp; <br />
+  <br />
+			    Thanks so much and have a great day!</p>
+			  Steve  Weeks<br />
+719-640-9986<br />
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2" class="Title">
+				3 Month Email
+			</td>
+		</tr>
+		<tr>
+			<td><p>Hope all is well with you.<br /><br />
+			  I usually like to reach out about 3 months before a performance, and here we are!<br></br>
+			  I think I'm all set on my end for the performance at <b> <?php echo $thisPerformance->aPerformanceRecords[0]->sLocation . " (" . date("l",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . " at " . $thisPerformance->aPerformanceRecords[0]->sPerformanceTime . ")" ?></b>.
+			  <br><br>Please don't hesitate to contact me if you have any questions or need anything.&nbsp;&nbsp;Otherwise I'll get back in touch about a month out.<br><br>
+			  I&rsquo;m really looking forward to it!<br /><br />
+			  Take care,<br /><br />
+			  Steve Weeks<br />
+		    719-640-9986</p>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2" class="Title">
+				1 Month Email
+			</td>
+		</tr>
+		<tr>
+			<td><p>Hope all is well with you.<br /><br />
+			  Since it&rsquo;s about a month from my performance there at <b> <?php echo $thisPerformance->aPerformanceRecords[0]->sLocation . " (" . date("l",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . " at " . $thisPerformance->aPerformanceRecords[0]->sPerformanceTime . ")" ?></b>, I thought I&rsquo;d  check in to see if you need anything.&nbsp; <br /><br />
+			  I&rsquo;m attaching a copy of the invoice so you have it.&nbsp; I do not expect payment until the performance  is complete, but I thought you might want the invoice ahead of time.<br /><br />
+			  Please note, that any checks should be made payable to <b>&rdquo;Steve Weeks&rdquo;</b>, not Steve Weeks Music (my  bank has a little heartburn with that).<br /><br />
+			  I usually arrive at least 1 hour before my performance to  give myself plenty of time to load in and set up.&nbsp; I provide all my own equipment and only  require access to an electrical outlet. <br /><br />
+			  I think I&rsquo;m all set on my end, but please feel free to  contact me if there&rsquo;s anything you need or anything you think I need to know.<br /><br />
+			  I&rsquo;ll check back in one last time before I leave.<br /><br />
+			  I&rsquo;m really looking forward to it!<br /><br />
+			  Take care,<br /><br />
+			  Steve Weeks<br />
+		    719-640-9986</p>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2" class="Title">
+				1 Week Email
+			</td>
+		</tr>
+		<tr>
+			<td><p>Well, it&rsquo;s only about a week until my performance there at <b> <?php echo $thisPerformance->aPerformanceRecords[0]->sLocation . " (" . date("l",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($thisPerformance->aPerformanceRecords[0]->dtPerformanceDate)) . " at " . $thisPerformance->aPerformanceRecords[0]->sPerformanceTime . ")" ?></b>, so I thought I&rsquo;d  check in one last time.&nbsp;&nbsp;I think I'm set on my end, but please contact me if you need anything. &nbsp; <br />
+			    <br />
+I&rsquo;ve created an activity sheet for the Fizz Boom Read theme  if you&rsquo;re using it.&nbsp;&nbsp;You can find it (and  other activity sheets) at:<br /><BR />
+<a href="http://steveweeksmusic.com/ActivityPages.php">http://steveweeksmusic.com/ActivityPages.php</a> <br /><br />
+This is NOT required for my show and is totally  optional.&nbsp; Each year I create an activity  to support the summer reading program theme in case libraries want something  for the kids.&nbsp; Feel free to print this  off if you want, but again, it&rsquo;s completely up to you.<br /><BR />
+As I&rsquo;m en route, you can reach me on my cell phone if you  need to contact me <strong>719-640-9986</strong>.<br />
+<BR />
+Otherwise, I&rsquo;ll see you soon!<br /><BR />
+Thanks!<br /><BR />
+
+Steve Weeks<br />
+719-640-9986</p>
+</td>
+		</tr>
+	</table>
+	
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildPerformanceObject
+ * 
+ * This function loads builds a flag object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildPerformanceObject($oPerformance)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$oPerformance->nPerformanceID = $_POST['hdnPerformanceID'];
+
+	$oPerformance->sPerformanceName = html_entity_decode($_POST['txtPerformanceName'], ENT_QUOTES);
+	$oPerformance->bFuzzyNameSearch = TRUE;
+	$oPerformance->sPerformanceWebsite = html_entity_decode($_POST['txtPerformanceWebsite'], ENT_QUOTES);
+	$oPerformance->sPerformanceTime = html_entity_decode($_POST['txtPerformanceTime'], ENT_QUOTES);
+	$oPerformance->sLocation = html_entity_decode($_POST['txtLocation'], ENT_QUOTES);
+	$oPerformance->sLocationWebsite = html_entity_decode($_POST['txtLocationWebsite'], ENT_QUOTES);
+	$oPerformance->sLocationAddr1 = html_entity_decode($_POST['txtLocationAddr1'], ENT_QUOTES);
+	$oPerformance->sLocationAddr2 = html_entity_decode($_POST['txtLocationAddr2'], ENT_QUOTES);
+	$oPerformance->sLocationCity = html_entity_decode($_POST['txtLocationCity'], ENT_QUOTES);
+	$oPerformance->sLocationState = html_entity_decode($_POST['txtLocationState'], ENT_QUOTES);
+	$oPerformance->sLocationZip = html_entity_decode($_POST['txtLocationZip'], ENT_QUOTES);
+	$oPerformance->sDescription = html_entity_decode($_POST['txtDescription'], ENT_QUOTES);
+	$oPerformance->sAdmission = html_entity_decode($_POST['txtAdmission'], ENT_QUOTES);
+	$oPerformance->sContactName = html_entity_decode($_POST['txtContactName'], ENT_QUOTES);
+	$oPerformance->sContactEmail = html_entity_decode($_POST['txtContactEmail'], ENT_QUOTES);
+	$oPerformance->sContactPhone = html_entity_decode($_POST['txtContactPhone'], ENT_QUOTES);
+	$oPerformance->sVenuePhone = html_entity_decode($_POST['txtVenuePhone'], ENT_QUOTES);
+	$oPerformance->sPhotoAlbum = html_entity_decode($_POST['txtPhotoAlbum'], ENT_QUOTES);
+	$oPerformance->sVideoURL = html_entity_decode($_POST['txtVideoURL'], ENT_QUOTES);
+	$oPerformance->sNotes = html_entity_decode($_POST['txtNotes'], ENT_QUOTES);
+	$oPerformance->sAirfare = $_POST['selAirfare'];
+	$oPerformance->sHotel = $_POST['selHotel'];
+	$oPerformance->sRentalCar = $_POST['selRentalCar'];
+
+	$oPerformance->nBookedAmount = html_entity_decode($_POST['txtBookedAmount'], ENT_QUOTES);
+
+	//Performance Date	
+	$dtPerformanceDate = isset($_REQUEST["PerformanceDate"]) ? $_REQUEST["PerformanceDate"] : "";
+	if($dtPerformanceDate > "0000-00-00")
+	{
+		$oPerformance->dtPerformanceDate  = $dtPerformanceDate;
+	}
+
+	//Booked Date	
+	$dtBookedDate = isset($_REQUEST["BookedDate"]) ? $_REQUEST["BookedDate"] : "";
+	if($dtBookedDate > "0000-00-00")
+	{
+		$oPerformance->dtBookedDate  = $dtBookedDate;
+	}
+	
+	//Load Contract Boolean only if checked (don't search for this field if not checked)
+	if(isset($_POST['chkContract']) && $_POST['chkContract'] == 'contract')  
+	{  
+		$oPerformance->bContract = TRUE;
+	}
+	//If we are searching and the Contract checkbox isn't checked, don't use it in the search
+	else if (!isset($_POST["btnSearch"]))
+	{
+		$oPerformance->bContract = FALSE;
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadPerformance
+ * 
+ * This function loads the form field array from a populated Performance object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadPerformance(&$oPerformance, $form)
+{
+
+	if (!is_null($oPerformance->nPerformanceID))
+	{
+		//Load Hidden Fields
+		$form->aFormFieldValues['hdnPerformanceID'] = $oPerformance->nPerformanceID;
+		
+
+		$form->aFormFieldValues['txtPerformanceName'] = htmlentities($oPerformance->sPerformanceName, ENT_QUOTES);
+		$form->aFormFieldValues['txtPerformanceWebsite'] = htmlentities($oPerformance->sPerformanceWebsite, ENT_QUOTES);
+		$form->aFormFieldValues['PerformanceDate'] = htmlentities($oPerformance->dtPerformanceDate, ENT_QUOTES);
+		$form->aFormFieldValues['txtPerformanceTime'] = htmlentities($oPerformance->sPerformanceTime, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocation'] = htmlentities($oPerformance->sLocation, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationWebsite'] = htmlentities($oPerformance->sLocationWebsite, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationAddr1'] = htmlentities($oPerformance->sLocationAddr1, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationAddr2'] = htmlentities($oPerformance->sLocationAddr2, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationCity'] = htmlentities($oPerformance->sLocationCity, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationState'] = htmlentities($oPerformance->sLocationState, ENT_QUOTES);
+		$form->aFormFieldValues['txtLocationZip'] = htmlentities($oPerformance->sLocationZip, ENT_QUOTES);
+		$form->aFormFieldValues['txtDescription'] = htmlentities($oPerformance->sDescription, ENT_QUOTES);
+		$form->aFormFieldValues['txtAdmission'] = htmlentities($oPerformance->sAdmission, ENT_QUOTES);
+		$form->aFormFieldValues['txtContactName'] = htmlentities($oPerformance->sContactName, ENT_QUOTES);
+		$form->aFormFieldValues['txtContactEmail'] = htmlentities($oPerformance->sContactEmail, ENT_QUOTES);
+		$form->aFormFieldValues['txtContactPhone'] = htmlentities($oPerformance->sContactPhone, ENT_QUOTES);
+		$form->aFormFieldValues['txtVenuePhone'] = htmlentities($oPerformance->sVenuePhone, ENT_QUOTES);
+		$form->aFormFieldValues['txtPhotoAlbum'] = htmlentities($oPerformance->sPhotoAlbum, ENT_QUOTES);
+		$form->aFormFieldValues['txtVideoURL'] = htmlentities($oPerformance->sVideoURL, ENT_QUOTES);
+		$form->aFormFieldValues['txtBookedAmount'] = htmlentities($oPerformance->nBookedAmount, ENT_QUOTES);
+		$form->aFormFieldValues['BookedDate'] = htmlentities($oPerformance->dtBookedDate, ENT_QUOTES);
+		$form->aFormFieldValues['txtNotes'] = htmlentities($oPerformance->sNotes, ENT_QUOTES);
+		$form->aFormFieldValues['selAirfare'] = htmlentities($oPerformance->sAirfare, ENT_QUOTES);
+		$form->aFormFieldValues['selHotel'] = htmlentities($oPerformance->sHotel, ENT_QUOTES);
+		$form->aFormFieldValues['selRentalCar'] = htmlentities($oPerformance->sRentalCar, ENT_QUOTES);
+		$form->aFormFieldValues['txtLastUpdate'] = htmlentities($oPerformance->dtLastUpdate, ENT_QUOTES);
+		
+		if($oPerformance->bContract)
+		{
+			$form->aFormFieldValues['chkContract'] = TRUE;
+		}
+		else
+		{
+			$form->aFormFieldValues['chkContract'] = FALSE;
+		}
+		
+		
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			//$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+			$form->aFormFieldValues[$fieldName]= $fieldValue;
+	
+		}
+		
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+
+	//Hidden Fileds must be set to 0
+	$form->aFormFieldValues = array();
+	$form->aFormFieldValues['hdnPerformanceID'] = 0;
+
+
+}
+
+/*
+ ********************************************************************************
+ * copyFormFields
+ * 
+ * This function copies the data from the form back into the form field array
+ ********************************************************************************
+*/
+function copyFormFields($form)
+{
+
+	//Load Form field values into array 
+	foreach($_POST as $fieldName=>$fieldValue) 
+	{
+		$form->aFormFieldValues[$fieldName]= htmlentities(stripslashes($fieldValue));
+	}
+}
+
+?>
+
+</body>
+</html>

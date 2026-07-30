@@ -1,0 +1,741 @@
+<?php
+/*
+*******************************************************************
+CDMaintenance.php
+This PHP file defines the Maintenance page for managing Artists.
+NOTES
+Date        Change
+-------------------------------------------------------------
+2015-12-18	Added Artist 
+2016-02-11	Added renderArtistDropDown()
+2016-07-04	Added Thumbnail, Purcahse Link, SHoprt Name and Desc
+*******************************************************************
+*/	
+?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> CD Maintenance</title>
+	<?php
+	error_reporting(E_ALL ^ E_NOTICE);
+
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	//inlcude Common Functions
+	include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="./javascript/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//CD Name is a required Field
+    if ( document.CDMaint.txtCDName.value == "" )
+    {
+        sErrorMessage += "CD Name Required\n";
+        bValid = false;
+    }
+	
+	//Artist is a required Field
+    if ( document.SongMaint.selArtist.value == "0" )
+    {
+        sErrorMessage += "Artist Required\n";
+        bValid = false;
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include CD Class		
+ 	include_once (CLASS_DIR . "/class_CD.php");
+	include_once (CLASS_DIR . "/class_Artist.php");
+	
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Array of CD records from the DB
+	global $aCDRecords;
+	
+	?>
+<form name="CDMaint" action="CDMaintenance.php" method="post">
+
+	<?php
+		//Get Artists for drop-down list
+		$oArtists = new Artist();
+		if (!$oArtists->getArtist())
+		{
+			//ERROR
+		}
+
+		//Instantiate needed objects
+		$thisCD = new CD();
+		$form = new Form();
+
+		//Get the ID query string parameter
+		$nThisCDID = $_REQUEST['CD_ID'];
+
+		//If an artist ID is passed, go ahead and search CDs for that artist
+		if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "")
+		{
+			$_POST['selArtist'] = $_REQUEST['ARTIST_ID'];
+			$_POST['btnSearch'] = "Search";
+		}
+		
+		//If an ID was passed to the page, retrieve that record for update		
+		if (!is_null($nThisCDID))
+		{
+						
+			$thisCD->nCDID = $nThisCDID;
+
+			//Search the Database for records matching the search criteria			
+			if ($thisCD->getCD())
+			{
+			
+				//Records found
+				if (sizeof($thisCD->aCDRecords) > 0)
+				{
+									
+					//Only One Record should be returned.  Add this to the form field array
+					//so that it displays in the form fields and to the values in the
+					//current Object.
+					loadCD($thisCD->aCDRecords[0], $form);
+
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+				else
+				{
+					//The record was not found
+					$form->sMessage = "CD record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}
+			}
+			else
+			{
+				//Error
+				$form->sMessage = $thisCD->sErrorMessage;
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+		}
+		else
+		{
+			//Based on which button was selected, perform processing necessary 
+			//before the page is rendered
+			// **************
+			// *   ADD      *
+			// **************
+		 	if (isset($_POST["btnAdd"])) 
+			{
+				//Load values into DB array
+				buildCDObject($thisCD);
+				
+				//Insert record
+				if ($thisCD->insertCD())			
+				{
+					//Load the form fields with the newly populated object
+					loadCD($thisCD, $form);
+					
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "CD Added";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+				
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ADD RECORD FAILED: {$thisCD->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+					
+				}
+					
+			}					
+			// **************
+			// *   UPDATE   *
+			// **************
+			else if (isset($_POST["btnUpdate"])) 
+			{
+			
+				//Load values from form field array into DB object
+				buildCDObject($thisCD);
+				
+				//Update record
+				if ($thisCD->updateCD())			
+				{
+				
+					//reload CD
+					$thisCD->getCD();
+				
+					//Load the form fields with the newly populated DB object						
+					loadCD($thisCD->aCDRecords[0], $form);
+				
+					//Success
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "CD Updated";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else
+				{
+					//Failure
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "ERROR: Update Failed - {$thisCD->sErrorMessage}";
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+			}
+			// **************
+			// *   DELETE   *
+			// **************
+			else if (isset($_POST["btnDelete"])) 
+			{
+			
+				//Load DB record
+				buildCDObject($thisCD);				
+
+				//Delete record
+				if ($thisCD->deleteCD())
+				{
+					//Clear the form fields
+					clearFormFields($form);
+					
+					//Success
+					$form->sMessage = "CD Deleted";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_NEW;					
+				}
+				else
+				{
+					$form->sMessage = "DELETE FAILED: {$thisCD->sErrorMessage}";
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;					
+				}
+			
+			}
+			// **************
+			// *   SEARCH   *
+			// **************
+			else if (isset($_POST["btnSearch"])) 
+			{
+				//Load Array of Search Values
+				buildCDObject($thisCD);
+
+				//Search the Database for records matching the search criteria			
+				if ($thisCD->getCD())
+				{
+					//No records found
+					if(sizeof($thisCD->aCDRecords) < 1)
+					{
+						$form->sMessage = "No CD records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;			
+					}			
+					else if (sizeof($thisCD->aCDRecords) == 1)
+					{
+						//Only One Record returned.  Add this to the form field array
+						//so that it displays in the form fields
+						loadCD($thisCD->aCDRecords[0], $form);			
+
+						$form->sMessage = "One CD record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;			
+						
+					}
+					//If Multiple records found, the array of search reults will be populated
+					else 
+					{
+						//Multiiple records returned
+						$form->sMessage = "Select CD record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;			
+					}
+
+				}
+				else
+				{
+					//Attempt to get records failed
+					$form->sMessage = $thisCD->sErrorMessage;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_NEW;
+				}
+			}
+			// *************
+			// *   CLEAR   *
+			// *************
+			else if (isset($_POST["btnClear"])) 
+			{	
+
+				clearFormFields($form);
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   CANCEL  *
+			// *************
+			else if (isset($_POST["btnCancel"])) 
+			{
+				clearFormFields($form);
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}
+			// *************
+			// *   COPY  *
+			// *************
+			else if (isset($_POST["btnCopy"])) 
+			{
+				copyFormFields($form);
+				$_POST['hdnCDID'] = NULL;
+				
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;	
+			}			
+			// ***************
+			// *  1st TIME   *
+			// ***************
+			else 
+			{
+				$form->sMessage = "Search for records or Add new record";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_NEW;			
+			}	
+
+		}	
+
+	?>
+	<!-- Hidden Fields -->
+	<input type="hidden" name="hdnCDID" value="<?php echo $_POST['hdnCDID']?>" />	
+
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				CD Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<?php	
+	if ($form->nFormMode == FORM_MODE_SELECT)
+	{
+	 ?>
+	
+	<table border="0"> 
+		<?php
+			
+		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+		//Header row for Results
+		echo "<TR>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'></TH>";
+		echo "	<TH class='" . RESULT_STYLE_CLASS . "'>CD Name</TH>";
+		echo "</TR>";
+
+				
+		foreach($thisCD->aCDRecords as $oCDRecord)
+		{
+			
+			//Alternate the result style
+			if ($sResultStyleClass == RESULT_STYLE_CLASS)
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+			}
+			else
+			{
+				$sResultStyleClass = RESULT_STYLE_CLASS;
+			}
+			echo "<TR>";
+			
+			//The first column is the ID and is used to build a link
+			echo "	<TD class='{$sResultStyleClass}'><A HREF='./CDMaintenance.php?CD_ID={$oCDRecord->nCDID}'>Select</A></TD>";
+			
+			$i = 1;
+		
+			echo "	<TD class='{$sResultStyleClass}'>{$oCDRecord->sCDName}</TD>";
+			echo "</TR>";
+		}
+		?>
+	
+	</table>	
+		
+	<?php
+	}
+	else
+	{
+	?>
+	
+	<table border="0">
+		<tr>
+			<td width="1094" colspan="3">
+				 <TABLE width="1094">
+				 	<TR>
+						<TD width="545" >
+							<table>
+								<tr>	
+									<td colspan="2">
+										<?php
+										if ($_POST['hdnCDID'] > 0)
+										{
+											echo "<i><small><a href='". ADMIN_DIR . "/SongReport.php?CD_ID={$thisCD->aCDRecords[0]->nCDID}";
+											echo "'>CD Report</a></small></i>";
+										}
+										?>
+									</td>
+								</tr>
+								<tr>					
+									<td CLASS="FormFieldNoEdit" width="70">
+										ID: <?php echo $_POST['hdnCDID']; ?>						
+									</td>
+									<td >
+										NAME: <input type="text" name="txtCDName" value="<?php echo $_POST['txtCDName']; ?>" size="40" />
+									</td>
+								</tr>
+								<tr>					
+								<tr>					
+									<td></td>
+									<td>
+										SHORT NAME: <input type="text" name="txtCDShortName" value="<?php echo $_POST['txtCDShortName']; ?>" size="40" />
+									</td>
+								</tr>
+									<td></td>
+									<td>
+										UPC: <input type="text" name="txtUPC" value="<?php echo $_POST['txtUPC']; ?>" size="40" />
+									</td>
+								</tr>
+								<tr>					
+									<td></td>
+									<td>
+										RUN TIME: <input type="text" name="txtRunTime" value="<?php echo $_POST['txtRunTime']; ?>" size="30" />
+									</td>
+								</tr>							
+								<tr>					
+									<td></td>
+									<td>
+										PURCHASE LINK: <input type="text" name="txtPurchaseLink" value="<?php echo $_POST['txtPurchaseLink']; ?>" size="30" />
+									</td>
+								</tr>							
+								<tr>					
+									<td></td>
+									<td>
+										<?php
+										renderArtistDropDown($_POST['selArtist']);
+										?>
+									</td>
+								</tr>
+								<tr>					
+									<td></td>
+									<td>
+										DESCRIPTION: <textarea name="txtCDDescription"  rows="4" cols="50"><?php echo $_POST['txtCDDescription']; ?></textarea>
+									</td>
+								</tr>							
+								<tr>					
+									<td></td>
+									<td>
+										RELEASE DATE: <br> 
+										<?php	  
+			
+										$myCalendar = new tc_calendar("ReleaseDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Payment Date
+										if ($_POST['ReleaseDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aReleaseDateParts = explode("-",$_POST['ReleaseDate']);
+											$myCalendar->setDate($aReleaseDateParts[2], $aReleaseDateParts[1], $aReleaseDateParts[0]); 	  
+										}
+			
+										$myCalendar->writeScript();	  
+										?>
+									</td>
+								</tr>	
+							</table>
+					  	</TD>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td class="Subtitle">
+										Image												
+									</td>
+								</tr>
+								<tr>
+									<td align="center">
+										<?php
+										if (!empty($_POST['txtImage']))
+										{
+											$sFullImagePath =IMG_DIR . "/{$_POST['txtImage']}";
+										}
+										else
+										{
+											$sFullImagePath = NULL;
+										}
+										$form->renderImagePreview($sFullImagePath, ""); 
+										?>												
+									</td>
+								</tr>
+								<tr>
+									<td>
+										<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage']; ?>" size="30" /><BR />
+										<input type="button" name="btnPreviewImage" onclick="preview_image('txtImage','<?php echo IMG_DIR ?>')" value="Preview" />												
+									</td>
+								</tr>
+							</table>									
+					  </TD>
+						<TD class="FieldGroup">
+							<table>
+								<tr>
+									<td class="Subtitle">
+										Thumbnail												
+									</td>
+								</tr>
+								<tr>
+									<td align="center">
+										<?php
+										if (!empty($_POST['txtThumbnail']))
+										{
+											$sFullImagePath =IMG_DIR . "/{$_POST['txtThumbnail']}";
+										}
+										else
+										{
+											$sFullImagePath = NULL;
+										}
+										$form->renderImagePreview($sFullImagePath, ""); 
+										?>												
+									</td>
+								</tr>
+								<tr>
+									<td>
+										<input type="text" name="txtThumbnail" id="txtThumbnail" value="<?php echo $_POST['txtThumbnail']; ?>" size="30" /><BR />
+										<input type="button" name="btnPreviewThumbnail" onclick="preview_image('txtThumbnail','<?php echo IMG_DIR ?>')" value="Preview" />												
+									</td>
+								</tr>
+							</table>									
+					  </TD>
+					</TR>
+					<TR>
+						<TD CLASS="FormFieldNoEdit" colspan="2">
+							LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						</TD>
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD>
+						</TD>
+						<TD>
+							
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<?php
+				$form->renderButtons();
+				?>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	
+	<?php
+	}
+	?>
+	
+</form>
+
+<?php		
+
+
+/*
+ ********************************************************************************
+ * buildCDObject
+ * 
+ * This function loads builds a CD object from the data typed into the 
+ * form fields.
+ ********************************************************************************
+*/
+function buildCDObject($CD)
+{
+
+	//Load the Array used to populate the form fields based on the newly loaded object
+	$CD->nCDID = $_POST['hdnCDID'];
+
+	$CD->sCDName = html_entity_decode($_POST['txtCDName'], ENT_QUOTES);
+	$CD->sCDShortName = html_entity_decode($_POST['txtCDShortName'], ENT_QUOTES);
+	$CD->sCDDescription = html_entity_decode($_POST['txtCDDescription'], ENT_QUOTES);
+	$CD->sCDImage = html_entity_decode($_POST['txtImage'], ENT_QUOTES);
+	$CD->sCDThumbnail = html_entity_decode($_POST['txtThumbnail'], ENT_QUOTES);
+	$CD->sUPC = html_entity_decode($_POST['txtUPC'], ENT_QUOTES);
+	$CD->sRunTime = html_entity_decode($_POST['txtRunTime'], ENT_QUOTES);
+	$CD->sPurchaseLink = html_entity_decode($_POST['txtPurchaseLink'], ENT_QUOTES);
+	$CD->bFuzzyNameSearch = TRUE;
+	$CD->nArtistID = $_POST['selArtist'];
+
+	//Release Date	
+	$dtReleaseDate = isset($_REQUEST["ReleaseDate"]) ? $_REQUEST["ReleaseDate"] : "";
+	if($dtReleaseDate > "0000-00-00")
+	{
+		$CD->dtReleaseDate  	= $dtReleaseDate;
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * loadCD
+ * 
+ * This function loads the form field array from a populated CD object
+ * so that it will be displayed in the form fields
+ ********************************************************************************
+*/
+function loadCD(&$CD, $form)
+{
+
+	if (!is_null($CD->nCDID))
+	{
+		//Load Hidden Fields
+		$_POST['hdnCDID'] = $CD->nCDID;
+
+		$_POST['txtCDName'] = htmlentities($CD->sCDName, ENT_QUOTES);
+		$_POST['txtCDShortName'] = htmlentities($CD->sCDShortName, ENT_QUOTES);
+		$_POST['txtCDDescription'] = $CD->sCDDescription;
+		$_POST['txtImage'] = htmlentities($CD->sCDImage, ENT_QUOTES);
+		$_POST['txtThumbnail'] = htmlentities($CD->sCDThumbnail, ENT_QUOTES);
+		$_POST['txtUPC'] = htmlentities($CD->sUPC, ENT_QUOTES);
+		$_POST['txtRunTime'] = htmlentities($CD->sRunTime, ENT_QUOTES);
+		$_POST['txtPurchaseLink'] = htmlentities($CD->sPurchaseLink, ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($CD->dtLastUpdate, ENT_QUOTES);
+		$_POST['ReleaseDate'] = htmlentities($CD->dtReleaseDate, ENT_QUOTES);
+		$_POST['selArtist'] = $CD->nArtistID;
+		
+	}
+	else
+	{
+		//Load Form field values into array 
+		foreach($_POST as $fieldName=>$fieldValue) {
+	
+			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
+	
+		}
+
+	}
+
+}
+
+
+/*
+ ********************************************************************************
+ * clearFormFields
+ * 
+ * This function clears the form fields
+ ********************************************************************************
+*/
+function clearFormFields($form)
+{
+	$_POST = array();
+}
+
+/*
+ ********************************************************************************
+ * copyFormFields
+ * 
+ * This function copies the data from the form back into the form field array
+ ********************************************************************************
+*/
+function copyFormFields($form)
+{
+
+	//Load Form field values into array 
+	foreach($_POST as $fieldName=>$fieldValue) 
+	{
+		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
+	}
+}
+
+?>
+
+</body>
+</html>

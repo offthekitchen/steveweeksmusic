@@ -1,0 +1,88 @@
+.menustyle{
+width: 820px;
+font-weight: bold;
+font-size:15px;
+color:#FFFFFF;
+}
+
+.menustyle a:visited{
+color:#FFFFFF;
+}
+
+.menustyle:after{ /*Add margin between menu and rest of content in Firefox*/
+content: "."; 
+display: block; 
+height: 0; 
+clear: both; 
+visibility: hidden;
+color:#FFFFFF;
+}
+
+.menustyle ul{
+border: 1px solid #BBB;
+width: 100%;
+/*background: url(../_images/MenuBG-Off.gif) center center repeat-x; /*THEME CHANGE HERE*/
+background:#000099;
+color:#FFFFFF;
+padding: 4px 0;
+margin: 0;
+text-align: left; /*set value to "left", "center", or "right"*/
+}
+
+.menustyle ul li{
+display: inline;
+color:#FFFFFF;
+}
+
+.menustyle ul li a{
+color: #FFFFFF;
+padding: 4px 7px;
+margin: 0;
+text-decoration: none;
+border-right: 1px solid #ADED7C; /*THEME CHANGE HERE*/
+}
+
+.menustyle ul li a:hover{
+/*background: url(../_images/MenuBG-On.gif) center center repeat-x; /*THEME CHANGE HERE*/
+background: #3399FF;
+color: #000099;
+}
+
+.menustyle ul li a[rel]:after{ /*HTML to indicate drop down link*/
+/*content: " v";*/
+/*content: " " url(downimage.gif); /*uncomment this line to use an image instead*/
+}
+
+
+/* ######### Style for Drop Down Menu ######### */
+
+.dropmenudiv{
+position:absolute;
+top: 0;
+border: 1px solid #ADED7C; /*THEME CHANGE HERE*/
+border-bottom-width: 0;
+font:normal 12px Verdana;
+line-height:18px;
+z-index:100;
+background-color: white;
+width: 200px;
+visibility: hidden;
+filter: progid:DXImageTransform.Microsoft.Shadow(color=#CACACA,direction=135,strength=4); /*Add Shadow in IE. Remove if desired*/
+}
+
+
+.dropmenudiv a{
+width: 100%;
+display: block;
+text-indent: 3px;
+border: 1px solid #ADED7C; /*THEME CHANGE HERE*/
+padding: 2px 0;
+text-decoration: none;
+font-weight: bold;
+color: black;
+}
+
+.dropmenudiv a:hover{ /*THEME CHANGE HERE*/
+background-color: #EAFADC;
+}
+

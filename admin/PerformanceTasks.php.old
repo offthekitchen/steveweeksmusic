@@ -1,0 +1,196 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Performance Maintenance</title>
+	<?php
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+</head>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
+
+	<?php
+	
+	//include Performance Class		
+ 	include_once (CLASS_DIR . "/class_Performance.php");
+
+ 	//include Form Class		
+ 	//include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	//require_once (CLASS_DIR . "/tc_calendar.php");
+
+	//Array of Performance records from the DB
+	global $aPerformanceRecords;
+	
+	?>
+
+	<?php
+	
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+
+	//Instantiate needed objects
+	$oPerformances = new Performance();
+	
+	?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				Performance Maintenance
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD CLASS="FieldGroupTitle">
+							CONTRACT/LOA NEEDED
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FieldGroup">
+							<?php
+							$oPerformances = new Performance();
+							$oPerformances->sContract = "N";
+							$oPerformances->bFuturePerformances = TRUE;
+							if($oPerformances->getPerformance())
+							{
+								if(sizeof($oPerformances->aPerformanceRecords) > 0)
+								{
+									foreach($oPerformances->aPerformanceRecords as $oPerformance)
+									{
+										echo "<A HREF='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID=" . $oPerformance->nPerformanceID . "'>" . $oPerformance->sPerformanceName . "</A> " .  $oPerformance->dtPerformanceDate . " " .  $oPerformance->sLocationCity . ", " .  $oPerformance->sLocationState . "<BR>";
+									}
+								}
+								else
+								{
+									echo "NONE";
+								}
+							}
+							?>
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD CLASS="FieldGroupTitle">
+							NEED TO BOOK AIRFARE
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FieldGroup">
+							<?php
+							$oPerformances = new Performance();
+							$oPerformances->sAirfare = "N";
+							$oPerformances->bFuturePerformances = TRUE;
+							if($oPerformances->getPerformance())
+							{
+								if (sizeof($oPerformances->aPerformanceRecords) > 0)
+								{
+									foreach($oPerformances->aPerformanceRecords as $oPerformance)
+									{
+										echo "<A HREF='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID=" . $oPerformance->nPerformanceID . "'>" . $oPerformance->sPerformanceName . "</A> " .  $oPerformance->dtPerformanceDate . " " .  $oPerformance->sLocationCity . ", " .  $oPerformance->sLocationState . "<BR>";
+									}
+								}
+								else
+								{
+									echo "NONE";
+								}
+							}
+							?>
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD CLASS="FieldGroupTitle">
+							NEED TO BOOK HOTEL
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FieldGroup">
+							<?php
+							$oPerformances = new Performance();
+							$oPerformances->sHotel = "N";
+							$oPerformances->bFuturePerformances = TRUE;
+							if($oPerformances->getPerformance())
+							{
+								if (sizeof($oPerformances->aPerformanceRecords) > 0)
+								{
+									foreach($oPerformances->aPerformanceRecords as $oPerformance)
+									{
+										echo "<A HREF='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID=" . $oPerformance->nPerformanceID . "'>" . $oPerformance->sPerformanceName . "</A> " .  $oPerformance->dtPerformanceDate . " " .  $oPerformance->sLocationCity . ", " .  $oPerformance->sLocationState . "<BR>";
+									}
+								}
+								else
+								{
+									echo "NONE";
+								}
+							}
+							?>
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3">
+				<TABLE>
+					<TR>
+						<TD CLASS="FieldGroupTitle">
+							NEED TO BOOK RENTAL CAR
+						</TD>
+					</TR>
+					<TR>
+						<TD CLASS="FieldGroup">
+							<?php
+							$oPerformances = new Performance();
+							$oPerformances->sRentalCar = "N";
+							$oPerformances->bFuturePerformances = TRUE;
+							if($oPerformances->getPerformance())
+							{
+								if (sizeof($oPerformances->aPerformanceRecords) > 0)
+								{
+									foreach($oPerformances->aPerformanceRecords as $oPerformance)
+									{
+										echo "<A HREF='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID=" . $oPerformance->nPerformanceID . "'>" . $oPerformance->sPerformanceName . "</A> " .  $oPerformance->dtPerformanceDate . " " .  $oPerformance->sLocationCity . ", " .  $oPerformance->sLocationState . "<BR>";
+									}
+								}
+								else
+								{
+									echo "NONE";
+								}
+							}
+							?>
+						</TD>
+					</TR>
+				</TABLE>
+			</td>
+		</tr>
+	</table>	
+</body>
+</html>

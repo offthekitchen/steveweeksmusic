@@ -1,0 +1,517 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Sales Tax Report</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+//******************************************
+// validate_form
+// This script is called when the user
+// presses the Generate Report button
+//******************************************
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//If no Dates are chosen, default to the previous quarter
+    if ( document.SalesTaxReport.StartDate.value == "" || document.SalesTaxReport.StartDate.value == "0000-00-00" || document.SalesTaxReport.EndDate.value == "" || document.SalesTaxReport.EndDate.value == "0000-00-00" )
+    {
+		//Determine the start and end dates for the previous quarter
+		nYear = new Date().getFullYear();
+		nMonth = new Date().getMonth();
+ 		switch(nMonth)
+		{
+			case 0:
+			case 1:
+			case 2:
+				nReportYear = nYear-1;
+				nReportStartMonth = 10;
+				nReportEndMonth = 12;
+				nReportEndDay = 31;
+				break;
+			case 3:
+			case 4:
+			case 5:
+				nReportYear = nYear;
+				nReportStartMonth = 1;
+				nReportEndMonth = 3;
+				nReportEndDay = 31;
+				break;
+			case 6:
+			case 7:
+			case 8:
+				nReportYear = nYear;
+				nReportStartMonth = 4;
+				nReportEndMonth = 6;
+				nReportEndDay = 30;
+				break;
+			case 9:
+			case 10:
+			case 11:
+				nReportYear = nYear;
+				nReportStartMonth = 7;
+				nReportEndMonth = 9;
+				nReportEndDay = 30;
+				break;
+		}
+		
+		//Set the Dates on the form 
+		document.SalesTaxReport.StartDate.value = nReportYear + "-" + nReportStartMonth + "-01";
+		document.SalesTaxReport.EndDate.value = nReportYear + "-" + nReportEndMonth + "-" + nReportEndDay;
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+</head>
+
+<?php
+
+	//include Revenue Class		
+ 	include_once (CLASS_DIR . "/class_Revenue.php");
+
+	//include Revenue_Type Class		
+ 	include_once (CLASS_DIR . "/class_RevenueType.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+	//Sales Tax Rate Constants
+ 	define("EL_PASO_TAX_RATE",0.01);
+ 	define("DISTRICT_TAX_RATE",0.01);
+ 	define("COLORADO_TAX_RATE",0.029);
+
+	if (isset($_POST["btnGenerate"])) 
+	{
+		$nSalesRevenueTotal = 0.00;
+		$nCDSalesRevenueTotal = 0.00;
+		$nColoradoRevenueTotal = 0.00;
+		$nElPasoRevenueTotal = 0.00;
+		$nCharitableSalesTotal = 0.00;
+		$nPerformanceFeesTotal = 0.00;
+		$nDeductibleTotal = 0.00;
+		$nResaleTotal = 0.00;
+	
+		//Get all revenues in the date range
+		$oRevenues = new Revenue();
+		$oRevenues->dtStartDate = isset($_POST["StartDate"]) ? $_POST["StartDate"] : "";
+		$oRevenues->dtEndDate = isset($_POST["EndDate"]) ? $_POST["EndDate"] : "";
+		if ($oRevenues->getRevenue())
+		{
+			foreach($oRevenues->aRevenueRecords as $oRevenue)
+			{
+				//Keep a running sum of performance fees
+				if($oRevenue->nRevenueTypeID == REVENUE_TYPE_PERFORMANCE_FEE)
+				{
+					$nPerformanceFeesTotal += $oRevenue->nRevenueAmount;
+				}
+				elseif($oRevenue->nRevenueTypeID == REVENUE_TYPE_CD_SALE)
+				{
+					$nCDSalesRevenueTotal += $oRevenue->nRevenueAmount;
+					
+					//Revenues can only be Charitable or Resale and if neither they are eligible for tax
+					if($oRevenue->bCharitable)
+					{
+						$nCharitableSalesTotal += $oRevenue->nRevenueAmount;
+					}
+					elseif($oRevenue->bResale)
+					{
+						$nResaleTotal += $oRevenue->nRevenueAmount;
+					}
+					else
+					{
+						if($oRevenue->bColoradoRevenue)
+						{
+							$nColoradoRevenueTotal += $oRevenue->nRevenueAmount;
+						}
+						if($oRevenue->bElPasoRevenue)
+						{
+							$nElPasoRevenueTotal += $oRevenue->nRevenueAmount;
+						}
+					}
+				}
+				
+			}
+			
+			//Store some sums for convenient use later
+			$nDeductibleTotal = $nCharitableSalesTotal + $nPerformanceFeesTotal;
+			$nExemptTotal = $nDeductibleTotal + $nResaleTotal;
+			$nSalesRevenueTotal = $nCDSalesRevenueTotal + $nPerformanceFeesTotal;
+		}
+		else
+		{
+			//Error getting revenue data
+			$form->sMessage = "Error retrieving Revenue Data: " . $oRevenues->sErrorMessage;
+		}
+									
+	}
+
+?>
+<body>
+<form name="SalesTaxReport" action="SalesTaxReport.php" method="post">
+
+<?php
+
+		//Instantiate needed objects
+		$form = new Form();
+	
+	 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				SALES TAX REPORT
+				<?php
+				if(isset($_POST['StartDate']) && isset($_POST['EndDate']))
+				{
+					echo " (" . $_POST['StartDate'] . " to " . $_POST['EndDate'] . ")";
+				}
+				?>
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<input type="submit" name="btnGenerate" value="Generate Report" onclick="javascript: return validate_form()" />
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<table border="0">
+		<tr>
+			<td>
+				 <TABLE>
+					<TR>
+						<TD class="FieldGroup" colspan="2">
+							<table>
+								<tr>
+									<td width="206">
+										START DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("StartDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Start Date
+										if ($_POST['StartDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aStartDateParts = explode("-",$_POST['StartDate']);
+											$myCalendar->setDate($aStartDateParts[2], $aStartDateParts[1], $aStartDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>
+								  </td>
+									<td width="206">
+										END DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("EndDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse End Date
+										if ($_POST['EndDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aEndDateParts = explode("-",$_POST['EndDate']);
+											$myCalendar->setDate($aEndDateParts[2], $aEndDateParts[1], $aEndDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>
+								  </td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup" valign="top">
+							<table class="FinancialData">
+								<tr>
+									<td colspan="2" class="FieldGroupTitle">
+										DEDUCTIONS
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										Service Sales									
+									</td>
+									<td>
+										<?php echo number_format((float)$nPerformanceFeesTotal, 2, '.', ''); ?>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										Charitable Sales									
+									</td>
+									<td>
+										<?php echo number_format((float)$nCharitableSalesTotal, 2, '.', ''); ?>
+									</td>
+								</tr>
+								<tr>
+									<td>
+										<b>Total</b>									
+									</td>
+									<td>
+										<?php echo number_format((float)$nDeductibleTotal, 2, '.', ''); ?>
+									</td>
+								</tr>
+							</table>
+						</TD>							
+						<TD height="10px">
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup" valign="top">
+							<table class="FinancialData">
+								<tr>
+									<td colspan="4" class="FieldGroupTitle">
+										TAX TABLE
+									</td>
+								</tr>
+								<tr>
+									<td>
+									</td>
+									<td class="FinancialHeader">
+										El Paso
+									</td>
+									<td class="FinancialHeader">
+										Special District
+									</td>
+									<td class="FinancialHeader">
+										State
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										1. Gross Sales									
+									</td>
+									<td class="FinancialLineItem">
+										<?php echo number_format((float)$nPerformanceFeesTotal + $nCDSalesRevenueTotal, 2, '.', ''); ?>
+									</td>
+									<td>
+									</td>
+									<td>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										2a. Resale									
+									</td>
+									<td class="FinancialLineItem">
+										<?php echo number_format((float)$nResaleTotal, 2, '.', ''); ?>
+									</td>
+									<td>
+									</td>
+									<td>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										2b. Deductions									
+									</td>
+									<td class="FinancialLineItem">
+										<?php echo number_format((float)$nDeductibleTotal, 2, '.', ''); ?>
+									</td>
+									<td>
+									</td>
+									<td>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										2c. Total									
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nExemptTotal, 2, '.', ''); 
+										?>
+									</td>
+									<td>
+									</td>
+									<td>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										3. Net Sales									
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										$nNetSales = $nSalesRevenueTotal - $nExemptTotal;
+										echo number_format((float)$nNetSales, 2, '.', ''); 
+										?>
+									</td>
+									<td>
+									</td>
+									<td>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										3. Net Sales<BR />Outside of Taxing Area									
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nNetSales - $nElPasoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nNetSales - $nElPasoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nNetSales - $nColoradoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										3b.Exemptions									
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										3c. Overpayment									
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+									<td class="FinancialLineItem">
+										0.00
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										4. Net Taxable									
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nElPasoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nElPasoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nColoradoRevenueTotal, 2, '.', ''); 
+										?>
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										5. Amount of Tax									
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										$nElPasoTax = round($nElPasoRevenueTotal * EL_PASO_TAX_RATE,0);
+										echo number_format((float)$nElPasoTax, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										$nDistrictTax = round($nElPasoRevenueTotal * DISTRICT_TAX_RATE,0);
+										echo number_format((float)$nDistrictTax, 2, '.', ''); 
+										?>
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										$nColoradoTax = round($nColoradoRevenueTotal * COLORADO_TAX_RATE,0);
+										echo number_format((float)$nColoradoTax, 2, '.', ''); 
+										?>
+									</td>
+								</tr>
+								<tr>
+									<td colspan="4">
+									<HR />
+									</td>
+								</tr>
+								<tr>
+									<td class="FinancialLine">
+										Total									
+									</td>
+									<td class="FinancialLineItem">
+									</td>
+									<td class="FinancialLineItem">
+									</td>
+									<td class="FinancialLineItem">
+										<?php
+										echo number_format((float)$nElPasoTax + $nDistrictTax + $nColoradoTax, 2, '.', ''); 
+										?>
+									</td>
+								</tr>
+							</table>
+						</TD>							
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+	</table>
+	
+</form>
+</body>
+</html>

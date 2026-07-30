@@ -1,0 +1,1215 @@
+<?php
+/*
+*******************************************************************
+RevenueMaintenance.php
+This PHP file defines the Maintenance page for 
+managing Revenues.
+NOTES
+Date        Change
+-------------------------------------------------------------
+2015-04-29	Refactored and Added product info to search results
+2015-05-05  Added Dynamic Building of Drop-down
+2015-06-02  Changed formvalidation to allow negative amount
+2015-10-19	Added PERF_RELATED parm processing
+2015-10-23	Added YEAR parm processing
+2016-02-11	Refactored<br />
+2017-04-30	Improved Layout
+2019-08-14  Added Artist Dropdown
+2020-03-14	Added logic to return revenues for no product (ID=0)
+2020-09-30	Added Logic to use hidden date field for update if no datepicker value found
+2021-08-30	Updated for PHP 8
+2022-01-25	Added ability for no product search
+2024-05-09	Fixed error with Performance Dropdown
+*******************************************************************
+*/
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+
+//This include defines the relative path to the root directory from this sub-directory
+include_once("root.inc.php");
+
+//inlcude web site settings
+include_once($ROOT . "/includes/websiteSettings.php");
+
+//inlcude web site settings
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+
+//inlcude admin settings
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
+//inlcude Common Functions
+include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
+//include Revenue Class		
+include_once(CLASS_DIR . "/class_Revenue.php");
+
+//include Category Class		
+include_once(CLASS_DIR . "/class_Category.php");
+
+//include Performance Class		
+include_once(CLASS_DIR . "/class_Performance.php");
+
+//include Payment Class		
+include_once(CLASS_DIR . "/class_Payment.php");
+
+//include Product Class		
+include_once(CLASS_DIR . "/class_Product.php");
+
+//include Revenue Type Class		
+include_once(CLASS_DIR . "/class_RevenueType.php");
+
+//Include Artist Class 
+include_once(CLASS_DIR . "/class_Artist.php");
+
+//include Form Class		
+include(CLASS_DIR . "/class_Form.php");
+
+//Require the Class for the calendar picker
+require_once(CLASS_DIR . "/tc_calendar.php");
+
+//Array of Revenue records from the DB
+global $aRevenueRecords;
+
+global $nThisRevenueID;
+
+$oRevenueCategories = NULL;
+
+$sActiveMenuItem = FINANCES_ACTIVE;
+$sPageName = "Revenue Maintenance";
+
+?>
+
+<!DOCTYPE html
+	PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<?php
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+?>
+
+<body>
+
+	<!-- DIV used for Image Preview Popup -->
+	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15"
+		id="preview_div"></div>
+
+	<div class="container-fluid">
+
+		<form name="RevenueMaint" action="RevenueMaintenance.php" method="post">
+
+			<?php
+
+			//Get Artists for drop-down list
+			$oArtists = new Artist();
+			if (!$oArtists->getArtist()) {
+				//ERROR
+			}
+
+			//Instantiate needed objects
+			$thisRevenue = new Revenue();
+			$form = new Form();
+
+			//If a Product ID is passed, go ahead and search revenues for that Product
+			if (isset($_REQUEST['PRODUCT_ID']) && $_REQUEST['PRODUCT_ID'] != "") {
+				$_POST['selProduct'] = $_REQUEST['PRODUCT_ID'];
+				$_POST['btnSearch'] = "Search";
+			} else {
+				$_POST['selProduct'] = isset($_POST['selProduct']) ? $_POST['selProduct'] : null;
+			}
+
+			//If an Artist ID is passed, go ahead and search products for that artist
+			if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "") {
+				$_POST['selArtist'] = $_REQUEST['ARTIST_ID'];
+				$_POST['btnSearch'] = "Search";
+			} else {
+				$_POST['selArtist'] = isset($_POST['selArtist']) ? $_POST['selArtist'] : 0;
+			}
+
+			//If a Payment ID is passed, go ahead and search revenues for that Payment
+			if (isset($_REQUEST['PAYMENT_ID']) && $_REQUEST['PAYMENT_ID'] != "") {
+				$_POST['hdnPaymentID'] = $_REQUEST['PAYMENT_ID'];
+				//If an action is passed to add the revenue, go into add mode 
+				if (!isset($_REQUEST['ACTION']) || $_REQUEST['ACTION'] != "ADD_REVENUE") {
+					$_POST['selPayment'] = $_REQUEST['PAYMENT_ID'];
+					$_POST['btnSearch'] = "Search";
+				} else {
+					$oPayment = new Payment();
+					$oPayment->nPaymentID = $_REQUEST['PAYMENT_ID'];
+
+					if ($oPayment->getPayment()) {
+						//If entering a new revenue for a payment, go ahead and populate form with the payment data 
+						$_POST['txtRevenueAmount'] = $oPayment->aPaymentRecords[0]->nPaymentAmount;
+						$_POST['txtRevenueDescription'] = htmlentities($oPayment->aPaymentRecords[0]->sPaymentDescription, ENT_QUOTES);
+						$_POST['PaidDate'] = htmlentities($oPayment->aPaymentRecords[0]->dtPaymentDate, ENT_QUOTES);
+						$_POST['RevenueDate'] = htmlentities($oPayment->aPaymentRecords[0]->dtPaymentDate, ENT_QUOTES);
+					}
+
+				}
+			} else {
+				$_POST['hdnPaymentID'] = isset($_POST['hdnPaymentID']) ? $_POST['hdnPaymentID'] : 0;
+			}
+
+			//If a Performance ID is passed, go ahead and search revenues for that Performance
+			if (isset($_REQUEST['PERFORMANCE_ID']) && $_REQUEST['PERFORMANCE_ID'] != "") {
+				$_POST['hdnPerformanceID'] = $_REQUEST['PERFORMANCE_ID'];
+				//If an action is passed to add the revenue, go into add mode 
+				if (!isset($_REQUEST['ACTION']) || $_REQUEST['ACTION'] != "ADD_REVENUE") {
+					$_POST['selPerformance'] = $_REQUEST['PERFORMANCE_ID'];
+					$_POST['btnSearch'] = "Search";
+				}
+			} else {
+				$_POST['hdnPerformanceID'] = isset($_POST['hdnPerformanceID']) ? $_POST['hdnPerformanceID'] : 0;
+			}
+
+			//If a Revenue Type ID is passed, go ahead and search revenues for that Revenue Type
+			if (isset($_REQUEST['REVENUE_TYPE_ID']) && $_REQUEST['REVENUE_TYPE_ID'] != "") {
+				$_POST['selRevenueType'] = $_REQUEST['REVENUE_TYPE_ID'];
+				$_POST['btnSearch'] = "Search";
+			} else {
+				$_POST['selRevenueType'] = isset($_POST['selRevenueType']) ? $_POST['selRevenueType'] : 0;
+			}
+
+			//If a Category ID is passed, go ahead and search revenues for that Category
+			if (isset($_REQUEST['CATEGORY_ID']) && $_REQUEST['CATEGORY_ID'] != "") {
+				$_POST['chkCategory' . $_REQUEST['CATEGORY_ID']] = "CategoryAssociated";
+				$_POST['btnSearch'] = "Search";
+			}
+
+			//If a Start Date is passed, go ahead and search revenues for that date
+			if (isset($_REQUEST['START_DATE']) && $_REQUEST['START_DATE'] != "") {
+				$_POST['hdnStartDate'] = $_REQUEST['START_DATE'];
+				$_POST['btnSearch'] = "Search";
+			}
+
+			//If a End Date is passed, go ahead and search revenues for that date
+			if (isset($_REQUEST['END_DATE']) && $_REQUEST['END_DATE'] != "") {
+				$_POST['hdnEndDate'] = $_REQUEST['END_DATE'];
+				$_POST['btnSearch'] = "Search";
+			}
+
+			//If a Year is passed, go ahead and search expenses for that Year
+			if (isset($_REQUEST['YEAR']) && $_REQUEST['YEAR'] != "") {
+				$_POST['nYear'] = $_REQUEST['YEAR'];
+				$_POST['btnSearch'] = "Search";
+			}
+
+			//If a Performance Related indicator is passed, go ahead and search revenues for that date
+			if (isset($_REQUEST['PERF_RELATED']) && $_REQUEST['PERF_RELATED'] == "TRUE") {
+				$_POST['bPerformanceRelated'] = TRUE;
+				$_POST['btnSearch'] = "Search";
+			}
+			//If a Colorado Sessions indicator is passed, go ahead and search revenues for Colorado Sessions revenues
+			if (isset($_REQUEST['COLORADO_SESSIONS']) && $_REQUEST['COLORADO_SESSIONS'] == "TRUE") {
+				$sColoradoSessionsFormId = 'chkCategory' . COLORAD_SESSIONS_CAT_ID;
+				$_POST[$sColoradoSessionsFormId] = TRUE;
+				$_POST['btnSearch'] = "Search";
+			}
+
+			//Get the ID query string parameter
+			if (isset($_REQUEST['ID']) && $_REQUEST['ID'] != "") {
+				$nThisRevenueID = $_REQUEST['ID'];
+			}
+
+			//Get the Revenue Categories
+			$oRevenueCategories = new Category();
+			$oRevenueCategories->bRevenueRelated = TRUE;
+
+			//Get all Revenue Categories
+			if (!$oRevenueCategories->getCategory()) {
+				$form->sMessage = "Error Retrieving Revenue Categories: {$oRevenueCategories->sErrorMessage}";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				//If an ID was passed to the page, retrieve that record for update		
+				if (!is_null($nThisRevenueID)) {
+					$thisRevenue->nRevenueID = $nThisRevenueID;
+
+					//Search the Database for records matching the search criteria			
+					if ($thisRevenue->getRevenue()) {
+
+						//Records found
+						if (sizeof($thisRevenue->aRevenueRecords) > 0) {
+
+							//Only One Record should be returned.  Add this to the form field array						
+							//so that it displays in the form fields and to the values in the
+							//current Object.
+							loadRevenue($thisRevenue->aRevenueRecords[0], $form);
+
+							$form->sMessage = "Update record.";
+							$form->nMessageType = MESSAGE_TYPE_INFO;
+							$form->nFormMode = FORM_MODE_EDIT;
+						} else {
+							//The record was not found
+							$form->sMessage = "Revenue record not found.";
+							$form->nMessageType = MESSAGE_TYPE_WARNING;
+							$form->nFormMode = FORM_MODE_NEW;
+						}
+					} else {
+						//Error
+						$form->sMessage = $thisRevenue->sErrorMessage;
+						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+				} else {
+					//Based on which button was selected, perform processing necessary 
+					//before the page is rendered
+					// **************
+					// *   ADD      *
+					// **************
+					if (isset($_POST["btnAdd"])) {
+						//Load values into DB array
+						buildRevenueObject($thisRevenue);
+
+						//Insert record
+						if ($thisRevenue->insertRevenue()) {
+
+							//If the insert was successful, update the category associations
+							if (updateRevenueCategories($thisRevenue)) {
+
+								//Reload Revenue newly inserted revenue
+								$nNewRevenueID = $thisRevenue->nRevenueID;
+								$thisRevenue = new Revenue();
+								$thisRevenue->nRevenueID = $nNewRevenueID;
+
+								if ($thisRevenue->getRevenue()) {
+									//Load the form fields with the newly populated object
+									loadRevenue($thisRevenue->aRevenueRecords[0], $form);
+									//Store the ID of the performance
+									$nThisRevenueID = $thisRevenue->aRevenueRecords[0]->nRevenueID;
+
+									//Success
+									$form->nMessageType = MESSAGE_TYPE_INFO;
+									$form->sMessage = "Revenue Added";
+									$form->nFormMode = FORM_MODE_EDIT;
+								} else {
+									//Problem reloading screen
+									clearFormFields($form);
+									$form->nMessageType = MESSAGE_TYPE_ERROR;
+									$form->sMessage = "Revenue Added, but error occured while reloading the performance data";
+									$form->nFormMode = FORM_MODE_NEW;
+								}
+							} else {
+								//The update of the category associations failed 
+								$form->nMessageType = MESSAGE_TYPE_ERROR;
+								$form->sMessage = "ERROR: {$thisRevenue->sErrorMessage}";
+								$form->nFormMode = FORM_MODE_EDIT;
+							}
+						} else {
+
+							//The insert of the new revenue failed
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "ADD RECORD FAILED: {$thisRevenue->sErrorMessage}";
+							$form->nFormMode = FORM_MODE_EDIT;
+
+						}
+
+					}
+					// **************
+					// *   UPDATE   *
+					// **************
+					else if (isset($_POST["btnUpdate"])) {
+
+						//Load values from form field array into DB object
+						buildRevenueObject($thisRevenue);
+
+						//Update record
+						if ($thisRevenue->updateRevenue()) {
+
+							//If the update was successful, update the category associations
+							if (updateRevenueCategories($thisRevenue)) {
+
+								//reload the updated Revenue record
+								$thisRevenue->getRevenue();
+
+								//Load the form fields with the newly populated DB object						
+								loadRevenue($thisRevenue->aRevenueRecords[0], $form);
+								//Store the ID of the performance
+								$nThisRevenueID = $thisRevenue->aRevenueRecords[0]->nRevenueID;
+
+								//Success
+								$form->nMessageType = MESSAGE_TYPE_INFO;
+								$form->sMessage = "Revenue Updated";
+								$form->nFormMode = FORM_MODE_EDIT;
+							} else {
+								//Failed to updated categories
+								$form->nMessageType = MESSAGE_TYPE_ERROR;
+								$form->sMessage = "ERROR: {$thisRevenue->sErrorMessage}";
+								$form->nFormMode = FORM_MODE_EDIT;
+							}
+
+						} else {
+							//Failed to update revenue record
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "ERROR: Update Failed - {$thisRevenue->sErrorMessage}";
+							$form->nFormMode = FORM_MODE_EDIT;
+						}
+					}
+					// **************
+					// *   DELETE   *
+					// **************
+					else if (isset($_POST["btnDelete"])) {
+
+						//Load DB record
+						buildRevenueObject($thisRevenue);
+
+						//Delete record
+						if ($thisRevenue->deleteRevenue()) {
+							//Clear the form fields
+							clearFormFields($form);
+
+							//Success
+							$form->sMessage = "Revenue Deleted";
+							$form->nMessageType = MESSAGE_TYPE_INFO;
+							$form->nFormMode = FORM_MODE_NEW;
+						} else {
+							$form->sMessage = "DELETE FAILED: {$thisRevenue->sErrorMessage}";
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->nFormMode = FORM_MODE_EDIT;
+						}
+
+					}
+					// **************
+					// *   SEARCH   *
+					// **************
+					else if (isset($_POST["btnSearch"])) {
+						//Load Array of Search Values
+						buildRevenueObject($thisRevenue);
+						$thisRevenue->bIncludeProductInfo = TRUE;
+
+						//Search the Database for records matching the search criteria			
+						if ($thisRevenue->getRevenue()) {
+							//No records found
+							if (sizeof($thisRevenue->aRevenueRecords) < 1) {
+								$form->sMessage = "No Revenue records found matching search criteria";
+								$form->nMessageType = MESSAGE_TYPE_WARNING;
+								$form->nFormMode = FORM_MODE_NEW;
+							} else if (sizeof($thisRevenue->aRevenueRecords) == 1) {
+								//Only One Record returned.  Add this to the form field array
+								//so that it displays in the form fields
+								loadRevenue($thisRevenue->aRevenueRecords[0], $form);
+								//Store the ID of the performance
+								$nThisRevenueID = $thisRevenue->aRevenueRecords[0]->nRevenueID;
+
+								$form->sMessage = "One Revenue record found.";
+								$form->nMessageType = MESSAGE_TYPE_INFO;
+								$form->nFormMode = FORM_MODE_EDIT;
+
+							}
+							//If Multiple records found, the array of search reults will be populated
+							else {
+								//Multiiple records returned
+								$form->sMessage = "Select Revenue record to edit from results list below.";
+								$form->nMessageType = MESSAGE_TYPE_INFO;
+								$form->nFormMode = FORM_MODE_SELECT;
+							}
+
+						} else {
+							//Attempt to get records failed
+							$form->sMessage = $thisRevenue->sErrorMessage;
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->nFormMode = FORM_MODE_NEW;
+						}
+					}
+					// *************
+					// *   CLEAR   *
+					// *************
+					else if (isset($_POST["btnClear"]) || isset($_POST["btnCancel"])) {
+
+						clearFormFields($form);
+
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+					// *************
+					// *   COPY  *
+					// *************
+					else if (isset($_POST["btnCopy"])) {
+						//copyFormFields($form);
+						$_POST['hdnRevenueID'] = NULL;
+
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+					// ***************
+					// *  1st TIME   *
+					// ***************
+					else {
+						//copyFormFields($form);
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+
+				}
+			}
+
+			?>
+			<!-- Hidden Fields -->
+			<input type="hidden" name="hdnRevenueID" value="<?php echo $_POST['hdnRevenueID'] ?>" />
+			<input type="hidden" id="hdnPerformanceID" name="hdnPerformanceID"
+				value="<?php echo $_POST['hdnPerformanceID'] ?>" />
+			<input type="hidden" id="hdnPaymentID" name="hdnPaymentID" value="<?php echo $_POST['hdnPaymentID'] ?>" />
+			<div class="row">
+				<?php
+				include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
+				?>
+			</div>
+			<div class="row">
+				<div class="col-xs-12">
+					<div class="row">
+						<div class="col-xs-12 Title">
+							Revenue Maintenance
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-xs-12 Buttons">
+							<?php
+							$form->renderButtons();
+							?>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-xs-12 FormMessage">
+							<?php
+							$form->renderFormMessage();
+							?>
+						</div>
+					</div>
+				</div>
+			</div>
+			<?php
+			if ($form->nFormMode == FORM_MODE_SELECT) {
+				?>
+				<div class="row">
+
+					<div class="col-xs-12">
+						<?php
+
+						$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+						//Header row for Results
+						echo "<div class='row result-header'>";
+						echo "	<div class='hidden-xs col-sm-3 result-header'>Date</div>";
+						echo "	<div class='hidden-xs col-sm-3 result-header'>Amount</div>";
+						echo "	<div class='hidden-xs col-sm-3 result-header'>Description</div>";
+						echo "	<div class='hidden-xs col-sm-2 result-header'>Product</div>";
+						echo "	<div class='hidden-xs col-sm-1 result-header'>Quantity</div>";
+						echo "	<div class='visible-xs col-xs-12 result-header'>Revenues</div>";
+						echo "</div>";
+
+						$nRevenueAmountTotal = 0;
+						$nQuantityTotal = 0;
+						foreach ($thisRevenue->aRevenueRecords as $oRevenueRecord) {
+
+							//Alternate the result style
+							if ($sResultStyleClass == RESULT_STYLE_CLASS) {
+								$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+							} else {
+								$sResultStyleClass = RESULT_STYLE_CLASS;
+							}
+							echo "<div class=\"row {$sResultStyleClass}\">";
+
+							echo "	<div class='col-xs-12 col-sm-3'><A HREF='./RevenueMaintenance.php?ID={$oRevenueRecord->nRevenueID}'>{$oRevenueRecord->dtRevenueDate}</div>";
+							echo "	<div class='col-xs-12 col-sm-3'><A HREF='./RevenueMaintenance.php?ID={$oRevenueRecord->nRevenueID}'> $ {$oRevenueRecord->nRevenueAmount}</div>";
+							echo "	<div class='col-xs-12 col-sm-3'><A HREF='./RevenueMaintenance.php?ID={$oRevenueRecord->nRevenueID}'>{$oRevenueRecord->sRevenueDescription}</div>";
+							$nRevenueAmountTotal += $oRevenueRecord->nRevenueAmount;
+							echo "	<div class='col-xs-12 col-sm-2'><A HREF='./RevenueMaintenance.php?ID={$oRevenueRecord->nRevenueID}'>{$oRevenueRecord->sProductName}</div>";
+							echo "	<div class='col-xs-12 col-sm-1'><A HREF='./RevenueMaintenance.php?ID={$oRevenueRecord->nRevenueID}'>{$oRevenueRecord->nProductQty}</div>";
+							$nQuantityTotal += $oRevenueRecord->nProductQty;
+							echo "</A>";
+							echo "</div>";
+						}
+
+						echo "<div class=\"row\">";
+						echo "	<div class='col-xs-12' style='border-top: 1px solid #e3e3e3'></div>";
+						echo "</div>";
+
+						echo "<div class=\"row\">";
+						echo "	<div class='col-xs-12 col-sm-3'>Total</div>";
+						echo "	<div class='col-xs-12 col-sm-3'><span class='visible-xs'>Revenue:</span> \$ {$nRevenueAmountTotal}</div>";
+						echo "	<div class='col-xs-12 col-sm-5'></div>";
+						echo "	<div class='col-xs-12 col-sm-1'><span class='visible-xs'>Quantity:</span>{$nQuantityTotal}</div>";
+						echo "</div>";
+						?>
+
+					</div>
+
+					<?php
+			} else {
+				?>
+
+					<div class="row">
+						<div class="col-xs-12 col-md-8 FieldGroupTitle">
+							DETAILS
+						</div>
+						<div class="col-xs-12 col-md-8 FieldGroup">
+							<div class="row">
+								<div class="col-xs-6">
+									<div class="date-selector">
+										PAID DATE:<BR />
+										<?php
+										renderDatePicker("PaidDate", $_POST['PaidDate']);
+										?>
+									</div>
+								</div>
+								<div class="col-xs-6">
+									<div class="date-selector">
+										REVENUE DATE:<BR />
+										<?php
+										renderDatePicker("RevenueDate", $_POST['RevenueDate']);
+										?>
+									</div>
+								</div>
+								<div class="col-xs-12">
+									DESCRIPTION:
+									<input type="text" name="txtRevenueDescription"
+										value="<?php echo $_POST['txtRevenueDescription']; ?>" size="60" />
+								</div>
+								<div class="col-xs-12 col-sm-6">
+									AMOUNT:
+									<input type="text" name="txtRevenueAmount"
+										value="<?php echo $_POST['txtRevenueAmount']; ?>" size="20" />
+								</div>
+								<div class="col-xs-12 col-sm-6">
+									REVENUE TYPE:
+									<SELECT NAME="selRevenueType" ID="selRevenueType">
+										<OPTION VALUE="0">NONE</OPTION>
+										<?php
+										$oRevenueTypes = new RevenueType();
+										if ($oRevenueTypes->getRevenueType()) {
+											foreach ($oRevenueTypes->aRevenueTypeRecords as $oRevenueType) {
+												echo "<OPTION VALUE=\"{$oRevenueType->nRevenueTypeID}\" ";
+												if ($oRevenueType->nRevenueTypeID == $_POST['selRevenueType']) {
+													echo " SELECTED ";
+												}
+												echo ">{$oRevenueType->sRevenueTypeName}</OPTION>";
+
+											}
+										}
+										?>
+									</SELECT>
+								</div>
+							</div>
+							<div class="row">
+								<div class="col-xs-12 col-sm-6">
+									<?php
+									renderProductDropDown($_POST['selProduct']);
+									?>
+									<BR>
+									QUANTITY:
+									<input type="text" name="txtProductQty" value="<?php echo $_POST['txtProductQty']; ?>"
+										size="4" />
+								</div>
+								<div class="col-xs-12 col-sm-6">
+									PAYMENT:
+									<SELECT NAME="selPayment" ID="selPayment" onchange="buildPaymentLink()">
+										<OPTION VALUE="0">NONE</OPTION>
+										<?php
+										$nThisPaymentID = 0;
+										if (!is_null($_POST['hdnPaymentID']) && $_POST['hdnPaymentID'] > 0) {
+											$oThisPayment = new Payment();
+											$oThisPayment->nPaymentID = $_POST['hdnPaymentID'];
+
+											if ($oThisPayment->getPayment()) {
+												if (sizeof($oThisPayment->aPaymentRecords) > 0) {
+													echo "<OPTION VALUE={$oThisPayment->aPaymentRecords[0]->nPaymentID} SELECTED>{$oThisPayment->aPaymentRecords[0]->sPaymentDescription} - {$oThisPayment->aPaymentRecords[0]->nPaymentAmount}</OPTION>";
+												}
+											}
+
+										}
+
+										?>
+									</SELECT>
+									<INPUT type="button" ID="btnAssignPayment" value="Assign Payment"
+										onclick="getPayments()" />
+
+									<?php
+									if ($_POST['hdnPaymentID'] > 0) {
+										echo "<SPAN ID=\"lnkPaymentMaint\" name=\"lnkPaymentMaint\">";
+										echo "<A HREF='" . ADMIN_DIR . "/PaymentMaintenance.php?ID={$_POST['hdnPaymentID']}' class='secondaryLinkButton'>Edit Payment</A>";
+										echo "</SPAN>";
+									}
+									?>
+
+								</div>
+							</div>
+							<div class="row">
+								<?php if ($form->nFormMode == FORM_MODE_SEARCH || $form->nFormMode == FORM_MODE_NEW) {
+									?>
+									<div class="col-xs-12">
+										<?php
+										renderArtistDropDown($_POST['selArtist']);
+										?>
+									</div>
+									<?php
+								}
+								?>
+
+								<div class="col-xs-12">
+									PERFORMANCE:
+									<SELECT NAME="selPerformance" ID="selPerformance" onchange="buildPerformanceLink()">
+										<OPTION VALUE="0">NONE</OPTION>
+										<?php
+										$nThisPerformanceID = 0;
+										if (!is_null($_POST['hdnPerformanceID']) && $_POST['hdnPerformanceID'] > 0) {
+											$oThisPerformance = new Performance();
+											$oThisPerformance->nPerformanceID = $_POST['hdnPerformanceID'];
+											if ($oThisPerformance->getPerformance()) {
+												if (sizeof($oThisPerformance->aPerformanceRecords) > 0) {
+													echo "<OPTION VALUE={$oThisPerformance->aPerformanceRecords[0]->nPerformanceID} SELECTED>{$oThisPerformance->aPerformanceRecords[0]->sPerformanceName} - {$oThisPerformance->aPerformanceRecords[0]->sLocation}</OPTION>";
+												}
+											}
+
+										}
+
+										?>
+									</SELECT>
+									<INPUT type="button" ID="btnAssignPerformance" value="Assign Performance"
+										onclick="getPerformances()" />
+									<SPAN ID="lnkPerformanceMaint" name="lnkPerformanceMaint">
+										<?php
+										if ($_POST['hdnPerformanceID'] > 0) {
+											echo "<A HREF='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$_POST['hdnPerformanceID']}' class='secondaryLinkButton'>Edit Performance</A>";
+										}
+										?>
+									</SPAN>
+								</div>
+							</div>
+							<div class="row">
+								<div class="col-xs-12">
+									<div>TAX CATEGORIES</div>
+									<div class="FieldGroup">
+										<div class="row">
+											<div class="col-xs-3 col-sm-2">
+												<input type="checkbox" name="chkColoradoRevenue" class="result-checkbox"
+													value="ColoradoRevenue" <?php if ($_POST['chkColoradoRevenue']) {
+														echo " checked ";
+													}
+													; ?> />
+											</div>
+											<div class="col-xs-9 col-sm-4 result-checkbox-text">
+												COLORADO REVENUE
+											</div>
+											<div class="col-xs-3 col-sm-2">
+												<input type="checkbox" name="chkElPasoRevenue" class="result-checkbox"
+													value="ElPasoRevenue" <?php if ($_POST['chkElPasoRevenue']) {
+														echo " checked ";
+													}
+													; ?> />
+											</div>
+											<div class="col-xs-9 col-sm-4 result-checkbox-text">
+												EL PASO REVENUE
+											</div>
+											<div class="col-xs-3 col-sm-2">
+												<input type="checkbox" name="chkCharitable" class="result-checkbox"
+													value="Charitable" <?php if ($_POST['chkCharitable']) {
+														echo " checked ";
+													}
+													; ?> />
+											</div>
+											<div class="col-xs-9 col-sm-4 result-checkbox-text">
+												CHARITABLE
+											</div>
+											<div class="col-xs-3 col-sm-2">
+												<input type="checkbox" name="chkResale" class="result-checkbox"
+													value="Resale" <?php if ($_POST['chkResale']) {
+														echo " checked ";
+													}
+													; ?> />
+											</div>
+											<div class="col-xs-9 col-sm-4 result-checkbox-text">
+												RESALE
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-xs-12 col-md-4 FieldGroup">
+							<div class="row">
+								<div class="col-xs-12">
+									CATEGORIES
+								</div>
+								<?php
+
+								foreach ($oRevenueCategories->aCategoryRecords as $oCategory) {
+									$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+
+									echo "<div class='col-xs-2 category-selector {$sResultStyleClass}'>";
+									echo "<input type='checkbox' name='chkCategory{$oCategory->nCategoryID}' class='result-checkbox'";
+									echo " value='CategoryAssociated'";
+									if (isset($_POST['chkCategory' . $oCategory->nCategoryID])) {
+										echo " checked ";
+									}
+									echo ">";
+									echo "</div>";
+									echo "<div class='col-xs-10 category-name result-checkbox-text {$sResultStyleClass}'>";
+									echo $oCategory->sCategoryName . "</div>";
+								}
+								?>
+							</div>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-xs-3 FormFieldNoEdit">
+							ID: <?php echo $_POST['hdnRevenueID']; ?>
+						</div>
+						<div class="col-xs-9 FormFieldNoEdit">
+							LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-xs-12 Buttons">
+							<?php
+							$form->renderButtons();
+							?>
+						</div>
+					</div>
+					<div class="row">
+						<dic class="col-xs-12 FormMessage">
+							<?php
+							$form->renderFormMessage();
+							?>
+					</div>
+				</div>
+
+				<?php
+			}
+			?>
+		</form>
+	</div>
+	<?php
+
+
+	/*
+	 ********************************************************************************
+	 * buildRevenueObject
+	 * 
+	 * This function loads builds a flag object from the data typed into the 
+	 * form fields.
+	 ********************************************************************************
+	 */
+	function buildRevenueObject($oRevenue)
+	{
+		global $oRevenueCategories;
+
+		//Load the Array used to populate the form fields based on the newly loaded object
+		$oRevenue->nRevenueID = $_POST['hdnRevenueID'];
+		$oRevenue->nPerformanceID = $_POST['hdnPerformanceID'];
+		$oRevenue->nPaymentID = $_POST['hdnPaymentID'];
+		$oRevenue->dtStartDate = $_POST['hdnStartDate'];
+		$oRevenue->dtEndDate = $_POST['hdnEndDate'];
+		$oRevenue->nPaidYear = $_POST['nYear'];
+		$oRevenue->bPerformanceRelated = $_POST['bPerformanceRelated'];
+
+		$oRevenue->nRevenueAmount = isset($_POST['txtRevenueAmount']) ? html_entity_decode($_POST['txtRevenueAmount'], ENT_QUOTES) : '';
+
+		if (empty($_POST['txtRevenueDescription'])) {
+			$_POST['txtRevenueDescription'] = " ";
+		}
+		$oRevenue->sRevenueDescription = html_entity_decode($_POST['txtRevenueDescription'], ENT_QUOTES);
+		$oRevenue->bFuzzyNameSearch = TRUE;
+
+		if ($_POST['chkColoradoRevenue'] == "ColoradoRevenue") {
+			$oRevenue->bColoradoRevenue = TRUE;
+		}
+
+		if ($_POST['chkElPasoRevenue'] == "ElPasoRevenue") {
+			$oRevenue->bElPasoRevenue = TRUE;
+		}
+
+		if ($_POST['chkCharitable'] == "Charitable") {
+			$oRevenue->bCharitable = TRUE;
+		}
+
+		if ($_POST['chkResale'] == "Resale") {
+			$oRevenue->bResale = TRUE;
+		}
+
+		//Revenue Date	
+		$dtRevenueDate = isset($_REQUEST["RevenueDate"]) ? $_REQUEST["RevenueDate"] : "";
+		if ($dtRevenueDate == "0000-00-00") {
+			//If no datepicker is displayed, use the hidden field
+			$dtRevenueDate = isset($_POST["RevenueDate"]) ? $_POST["RevenueDate"] : "";
+		}
+
+
+		if ($dtRevenueDate > "0000-00-00") {
+			$oRevenue->dtRevenueDate = $dtRevenueDate;
+		}
+
+		//Paid Date	
+		$dtPaidDate = isset($_REQUEST["PaidDate"]) ? $_REQUEST["PaidDate"] : "";
+		if ($dtPaidDate == "0000-00-00") {
+			//If no datepicker is displayed, use the hidden field
+			$dtPaidDate = isset($_POST["PaidDate"]) ? $_POST["PaidDate"] : "";
+
+		}
+
+		if ($dtPaidDate > "0000-00-00") {
+			$oRevenue->dtPaidDate = $dtPaidDate;
+		}
+
+		$oRevenue->nRevenueTypeID = $_POST['selRevenueType'];
+		$oRevenue->nProductID = $_POST['selProduct'];
+
+		if ($oRevenue->nProductID > 0) {
+			$oRevenue->bIncludeProductInfo = TRUE;
+		}
+
+		$oRevenue->nProductQty = $_POST['txtProductQty'];
+
+		$oRevenue->nArtistID = $_POST['selArtist'];
+
+		$aRevenueCategoryIDs = array();
+		$iRevenueIndex = 0;
+
+		//Load an array of all Category IDs for Checked Categories
+		foreach ($oRevenueCategories->aCategoryRecords as $oRevenueCategory) {
+			if (isset($_POST['chkCategory' . $oRevenueCategory->nCategoryID])) {
+				$aRevenueCategoryIDs[$iRevenueIndex] = $oRevenueCategory->nCategoryID;
+				$oRevenue->aRevenueCategoryIDs = $aRevenueCategoryIDs;
+			}
+
+			$iRevenueIndex++;
+		}
+
+	}
+
+
+	/*
+	 ********************************************************************************
+	 * loadRevenue
+	 * 
+	 * This function loads the form field array from a populated Revenue object
+	 * so that it will be displayed in the form fields
+	 ********************************************************************************
+	 */
+	function loadRevenue(&$oRevenue, $form)
+	{
+		global $oRevenueCategories;
+
+		if (!is_null($oRevenue->nRevenueID)) {
+			//Load Hidden Fields
+			$_POST['hdnRevenueID'] = $oRevenue->nRevenueID;
+			$_POST['hdnPerformanceID'] = $oRevenue->nPerformanceID;
+			$_POST['hdnPaymentID'] = $oRevenue->nPaymentID;
+
+			$_POST['txtRevenueDescription'] = htmlentities($oRevenue->sRevenueDescription, ENT_QUOTES);
+			$_POST['RevenueDate'] = htmlentities($oRevenue->dtRevenueDate, ENT_QUOTES);
+			$_POST['PaidDate'] = htmlentities($oRevenue->dtPaidDate, ENT_QUOTES);
+			$_POST['txtRevenueAmount'] = htmlentities($oRevenue->nRevenueAmount, ENT_QUOTES);
+			$_POST['txtProductQty'] = htmlentities($oRevenue->nProductQty ?? '', ENT_QUOTES);
+
+			$_POST['chkColoradoRevenue'] = $oRevenue->bColoradoRevenue;
+			$_POST['chkElPasoRevenue'] = $oRevenue->bElPasoRevenue;
+			$_POST['chkCharitable'] = $oRevenue->bCharitable;
+			$_POST['chkResale'] = $oRevenue->bResale;
+
+			$_POST['selArtist'] = $oRevenue->nArtistID;
+
+			if ($oRevenue->nProductID > 0) {
+				$_POST['selProduct'] = $oRevenue->nProductID;
+			} else {
+				$_POST['selProduct'] = 0;
+			}
+
+			if ($oRevenue->nRevenueTypeID > 0) {
+				$_POST['selRevenueType'] = $oRevenue->nRevenueTypeID;
+			} else {
+				$_POST['selRevenueType'] = 0;
+			}
+
+			//Load the form field array with Category IDs assoiated with this Revenue
+			$aThisRevenueCategories = array();
+			$i = 0;
+			foreach ($oRevenueCategories->aCategoryRecords as $oRevenueCategory) {
+				if ($oRevenue->categoryExists($oRevenueCategory->nCategoryID)) {
+					$_POST['chkCategory' . $oRevenueCategory->nCategoryID] = "CategoryAssociated";
+				}
+			}
+
+
+			$_POST['txtLastUpdate'] = htmlentities($oRevenue->dtLastUpdate, ENT_QUOTES);
+
+		}
+
+	}
+
+	/*
+	 ********************************************************************************
+	 * clearFormFields
+	 * 
+	 * This function clears the form fields
+	 ********************************************************************************
+	 */
+	function clearFormFields($form)
+	{
+
+		$_POST = array();
+	}
+
+	/*
+	 ********************************************************************************
+	 * copyFormFields
+	 * 
+	 * This function copies the data from the form back into the form field array
+	 ********************************************************************************
+	 */
+	function copyFormFields($form)
+	{
+
+		//Load Form field values into array 
+		foreach ($_POST as $fieldName => $fieldValue) {
+			$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
+
+		}
+
+	}
+
+	/*
+	 ********************************************************************************
+	 * updateRevenueCategories()
+	 * 
+	 * This function updates the revenue categories based on which categories are
+	 * selected on the page.
+	 ********************************************************************************
+	 */
+	function updateRevenueCategories(&$oRevenue)
+	{
+		$oRevenueCategories = new Category();
+		$oRevenueCategories->bRevenueRelated = TRUE;
+		if ($oRevenueCategories->getCategory()) {
+
+			//First delete all Revenue Category Xref records
+			if ($oRevenue->removeRevenueCategory(NULL)) {
+				//Then add back any xrefs for Categories selected
+				foreach ($oRevenueCategories->aCategoryRecords as $oRevenueCategory) {
+					$sCheckboxName = "chkCategory{$oRevenueCategory->nCategoryID}";
+					if (isset($_POST[$sCheckboxName]) || $_POST[$sCheckboxName] == 'CategoryAssociated') {
+						if (!$oRevenue->addRevenueCategory($oRevenueCategory->nCategoryID)) {
+							//ERRROR
+							return FALSE;
+						}
+					}
+				}
+
+				return TRUE;
+			} else {
+				//ERRROR
+				return FALSE;
+			}
+		} else {
+			//ERROR
+			return FALSE;
+		}
+
+	}
+
+	?>
+
+</body>
+<script type="text/javascript">
+<!--
+//******************************************
+// validate_form
+// This script checks the user imnput for
+// errors or missing data 
+//******************************************
+function validate_form ( )
+{
+	bValid = true;
+	sErrorMessage = "";
+
+	//Revenue Name is a required Field
+	if ( document.RevenueMaint.txtRevenueDescription.value == "" )
+	{
+		sErrorMessage += "Revenue Description Required\n";
+		bValid = false;
+	}
+
+	//Revenue Date is a required Field
+	if ( document.RevenueMaint.RevenueDate.value == "" || document.RevenueMaint.RevenueDate.value == "0000-00-00" )
+	{
+		sErrorMessage += "Revenue Date Required\n";
+		bValid = false;
+	}
+
+	//Paid Date is a required Field
+	if ( document.RevenueMaint.PaidDate.value == "" || document.RevenueMaint.PaidDate.value == "0000-00-00" )
+	{
+		sErrorMessage += "Paid Date Required\n";
+		bValid = false;
+	}
+
+	//Revenue Type is a required Field
+	if ( document.RevenueMaint.selRevenueType.value == "" || document.RevenueMaint.selRevenueType.value == 0 )
+	{
+		sErrorMessage += "Revenue Type Required\n";
+		bValid = false;
+	}
+
+	//Revenue Amount is a required, numeric, positive Field
+	if ( document.RevenueMaint.txtRevenueAmount.value == "" )
+	{
+		sErrorMessage += "Revenue Amount Required\n";
+		bValid = false;
+	}
+	else if(!isNumeric(document.RevenueMaint.txtRevenueAmount.value)) 
+	{
+		sErrorMessage += "Revenue Amount Must be Numeric\n";
+		bValid = false;
+	}
+	
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+	return bValid;
+}
+
+//*********************************************
+// buildPerformanceLink
+// This script builds a link to the Performance
+// Maintenance page based on the performance
+// chosen in the drop-down list
+//*********************************************
+function buildPerformanceLink() 
+{
+	setPerformanceID();
+	if(document.getElementById("selPerformance").value > 0)
+	{
+		sPerformanceMaintLink = "<A CLASS='secondaryLinkButton' HREF='./PerformanceMaintenance.php?ID=" + document.getElementById("selPerformance").value + "'>Edit Performance</A>";  
+		document.getElementById("lnkPerformanceMaint").innerHTML = sPerformanceMaintLink;
+	}
+	else
+	{
+		document.getElementById("lnkPerformanceMaint").innerHTML = "";
+	}
+}
+
+//*********************************************
+// buildPaymenteLink
+// This script builds a link to the Payment
+// Maintenance page based on the payment
+// chosen in the drop-down list
+//*********************************************
+function buildPaymentLink() 
+{
+	setPaymentID();
+	if(document.getElementById("selPayment").value > 0)
+	{
+		sPaymentMaintLink = "<SMALL><I><A HREF='./PaymentMaintenance.php?ID=" + document.getElementById("selPayment").value + "'>Edit Payment</A></I></SMALL>";  
+		document.getElementById("lnkPaymentMaint").innerHTML = sPaymentMaintLink;
+	}
+	else
+	{
+		document.getElementById("lnkPaymentMaint").innerHTML = "";
+	}
+}
+
+//*********************************************
+// getPerformances
+// This script makes an AJAX call to retrieve
+// potential performances based on the revenue 
+// date chosen in the calender and updates the
+// performance dropdown with the returned HTML. 
+//*********************************************
+function getPerformances() {
+	sDate = document.getElementById("RevenueDate").value;
+
+	if (sDate == "" || sDate == "0000-00-00") {
+		document.getElementById("selPerformance").innerHTML = "<OPTION Value='0'>NONE</OPTION>";
+		document.getElementById("hdnPerformanceID").value = 0;
+		return;
+	} else { 
+		if (window.XMLHttpRequest) {
+			// code for IE7+, Firefox, Chrome, Opera, Safari
+			xmlhttp = new XMLHttpRequest();
+		} else {
+			// code for IE6, IE5
+			xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+		}
+		xmlhttp.onreadystatechange = function() {
+			if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+				document.getElementById("selPerformance").innerHTML = xmlhttp.responseText;
+//alert("VALUE is " + document.getElementById("selPerformance").value);
+				if(document.getElementById("selPerformance").value == 0)
+				{	
+					document.getElementById("hdnPerformanceID").value = 0;
+				}
+			}
+		}
+//alert("CALLING GetPotentialPerformances.php?date="+sDate);		
+		xmlhttp.open("GET","GetPotentialPerformances.php?date="+sDate,true);
+		xmlhttp.send();
+	}
+	
+}
+
+//*********************************************
+// getPayments
+// This script makes an AJAX call to retrieve
+// potential payments based on the paid 
+// date chosen in the calender and updates the
+// payment dropdown with the returned HTML. 
+//*********************************************
+function getPayments() {
+	sDate = document.getElementById("PaidDate").value;
+
+	if (sDate == "" || sDate == "0000-00-00") {
+		document.getElementById("selPayment").innerHTML = "<OPTION Value='0'>NONE</OPTION>";
+		document.getElementById("hdnPaymentID").value = 0;
+		return;
+	} else { 
+		if (window.XMLHttpRequest) {
+			// code for IE7+, Firefox, Chrome, Opera, Safari
+			xmlhttp = new XMLHttpRequest();
+		} else {
+			// code for IE6, IE5
+			xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+		}
+		xmlhttp.onreadystatechange = function() {
+			if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+				document.getElementById("selPayment").innerHTML = xmlhttp.responseText;
+//alert("VALUE is " + document.getElementById("selPayment").value);
+				if(document.getElementById("selPayment").value == 0)
+				{	
+					document.getElementById("hdnPaymentID").value = 0;
+				}
+			}
+		}
+//alert("CALLING GetPotentialPerformances.php?date="+sDate);		
+		xmlhttp.open("GET","GetPotentialPayments.php?date="+sDate,true);
+		xmlhttp.send();
+	}
+	
+}
+
+//*********************************************
+// setPerformanceID
+// This script sets the Performance ID hidden 
+// form field based on the performance chosen 
+// in the performance dropdown. 
+//*********************************************
+function setPerformanceID() {
+
+//alert("Setting PerformanceID to " + document.getElementById("selPerformance").value);
+	document.getElementById("hdnPerformanceID").value = document.getElementById("selPerformance").value;
+}
+
+//*********************************************
+// setPaymentID
+// This script sets the Payment ID hidden 
+// form field based on the payment chosen 
+// in the payment dropdown. 
+//*********************************************
+function setPaymentID() {
+
+//alert("Setting PaymentID to " + document.getElementById("selPayment").value);
+	document.getElementById("hdnPaymentID").value = document.getElementById("selPayment").value;
+}
+</script>
+</html>

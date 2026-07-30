@@ -1,0 +1,1088 @@
+*, *::before, *::after {
+  box-sizing: border-box;  /* to set border box box-sizing */
+  text-decoration: none;  /* clears the text decorations for the links */
+  padding: 0;
+  margin: 0;
+ 
+  
+  
+}
+html{
+  
+  font-family: "Raleway", sans-serif;
+  color: black;
+
+  
+
+}
+
+
+header{
+  display: flex;  /*arranges the header so items stack on same row */
+  height: 60px;
+  justify-content: space-between;  /* spreads out the logo and nav items */
+  width: 100%;
+  padding: 1% 3%; 
+}
+.nav-links{
+  width: 18%;
+  padding-right: 1%;
+}
+
+.logo img{
+  height: 60px;
+}
+
+nav ul{
+  display: flex;
+  justify-content: space-around;
+}
+
+nav li{
+  padding: 10px; 
+  list-style-type: none;  /*removes the bullets from the nav list */
+  color:black;
+  font-size: 18px;
+  
+}
+
+nav a:hover{
+  border-top: 2px solid #0065FC;
+  color: #0065FC;
+}
+
+nav {
+  clear: right;
+}
+
+/* Search Section */
+
+/*to style the headings in the search container */
+
+.searchcontainer h1 {
+  padding-bottom: none;  /*to remove padding between h1 and h3 */
+  margin-bottom: 0%;    /*to remove padding between h1 and h3 */
+  margin-top: 2%; /* to add a margin to the top between the header and the search container */
+ 
+  padding: 0% 3%; 
+  
+}
+
+.searchcontainer h3{
+  padding-top: 2px;  /*to adjust padding between h1 and h3 */
+  font-size: 24px;
+  font-weight: 500;
+  padding: 0% 3%; 
+  
+}
+
+/* styling search bar */
+
+/* to add padding between the search bar and h3 */
+.search {
+  padding: 2% 3% 2% 3%;
+  width: 100%;
+  font-size: 20px;
+}
+
+/* styling the location dot in search bar*/
+.search .fa {
+  padding: 15px 20px 12px 20px; /*lines up the text input into one row */
+  background-color: #f2f2f2;
+  border: 2px solid #f2f2f2;
+  border-radius: 10px 0  0 10px;
+  
+
+  
+}
+
+/* styling the placeholder area in search bar*/
+.search form input{
+  border: 2px solid #f2f2f2;
+  width: 24%; /*lines up to h1*/
+  margin: 0 -20px 20px -10px; /*stretches margin to blend in with icon */
+  border-left: 0;
+  border-right: 0;
+  padding: 15px 20px 10px 20px;
+  font-weight: bold;
+}
+
+.search button{
+  padding: 15px 15px 10px 15px;
+  margin: 0;
+  border: 2px solid #0065FC;
+  background-color: #0065FC;
+  color: white;
+  border-radius: 0 25px 25px 0;
+  border-left: 0;
+}
+
+.search button:hover {
+  background-color: #DEEBFF;
+  color: #0065FC;
+}
+.submitmobile {
+  display: none;
+}
+
+
+/* styling for filter area and buttons */
+
+.filters {
+  display: flex;
+  width: 67%;
+  align-items: center;
+  margin-bottom: 40px;
+  justify-content: space-between;
+  padding: 0% 3%;
+  
+  
+}
+
+.filters h2{
+  font-size: 26px;
+  margin-right: 40px;
+  
+  
+}
+
+.filterbtns i{
+  color: #0065FC;
+  background-color: #DEEBFF;
+  border-radius: 50%; 
+  padding: 20px;
+  margin-right: 20px;
+  
+ 
+}
+.filterbtns{
+  justify-content: right;
+  
+}
+
+.filterbtns button{
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0 20px;
+  padding: 0px 30px 0px 0px;
+  border: 2px solid #f2f2f2;
+  border-radius: 40px;
+  background-color: white;
+  
+}
+
+.filterbtns button:hover {
+  background-color: #0065FC;
+  color: white;
+}
+.info{
+  display: flex;
+  padding: 0% 3%;
+  width: 33%;
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+.info .fa{
+  color: #0065FC;
+  margin-right: 10px;
+}
+
+/* accommodation section */
+
+.container-accom{
+  display: inline-flex;
+  flex-flow: row wrap;
+  background-color: #f2f2f2;
+  border-radius: 20px;
+  width: 62%;
+  padding: 20px;
+  margin: 0 0 40px 3%;
+  float: left;
+  justify-content: space-evenly;
+  height: 680px;
+  
+}
+
+.accom-title{
+  width: 100%;
+  padding: 0;
+  font-size: 12px;
+  margin-left: 30px;
+}
+
+
+.card-accom{
+  background-color: white;
+  border-radius: 20px;
+  flex: 0 1 30%;
+  padding: 5px;
+  margin: 0 10px 10px 10px;
+  height: 35%;
+ 
+  width: 33%;
+  box-shadow: 5px 5px 15px 5px #bfc2c5;
+}
+.card-accom h3{
+  margin-left: 10px;
+  
+}
+
+.card-accom p{
+  margin-left: 10px;
+  padding: 5px 0 5px 0;
+}
+
+.card-accom img{
+  width: 100%;
+  height: 65%;
+  border-radius: 20px 20px 0 0;
+  object-fit: cover;
+}
+.stars{
+  color: #0065FC;
+  margin-left: 10px;
+  font-size: 14px;
+}
+.more{
+  width: 100%;
+  justify-content: left;
+  font-weight: bold;
+}
+.more button {
+  border: none;
+  padding: 10px;
+  margin-left:20px;
+}
+.more button:hover {
+  background-color: white;
+  border-radius: 10%;
+  
+}
+
+/* this container is for the most popular area
+*/
+
+
+.container-pop{
+  display: inline-flex;
+  flex-flow: column nowrap;
+  background-color: #f2f2f2;
+  border-radius: 20px;
+  width: 28%;
+  margin: 0 3% 40px 10px;
+  float: right;
+  justify-content: space-evenly;
+  height: 680px;
+  padding: 20px;
+}
+.container-pop::after{
+  clear: both;
+}
+
+.title-pop{
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+
+.card-pop{
+  background-color: white;
+  border-radius: 20px;
+  flex: 0 1 30%;
+  padding: 5px;
+  margin: 0 25px 25px 25px;
+  height: 18%;
+  box-shadow: 5px 5px 15px 5px #bfc2c5;
+}
+
+.card-pop img{
+  width: 45%;
+  height: 100%;
+  border-radius: 20px 0 0 20px;
+  float: left;  /* puts the picture to the left and the text on the right */
+  margin-right: 20px;
+  object-fit: cover;
+}
+
+.card-pop img::after{
+  clear: left;
+}
+.poptitle h3{
+  padding-bottom: 5px;
+  margin: 10px 0; 
+} 
+.poptitle p{
+  padding-bottom: 5px;
+  margin: 20px 0 0px 0; 
+  justify-content: center;
+}
+.popstars {
+  font-size: 14px;
+  padding: 20px 0 1px 20px;
+  margin: 15px 0 0 15px;
+  color: #0065FC;
+  
+}
+
+/* Activities Section Styling */
+.act-title h2{
+  margin-top: 20px;
+  padding: 0 3%;
+}
+.container-activities{
+  display: flex;
+  flex-flow: column wrap;
+  justify-content: space-between;
+  width: 100%;
+  height: 500px;
+  margin: 20px 0 40px 0;
+  padding: 0 3%;
+ 
+
+}
+
+.container-activities > div:nth-child(1){
+  height: 100%;
+  margin: 0;
+}
+
+.container-activities > div:nth-child(4){
+  height: 100%;
+  margin: 0;
+    } 
+
+.container-activities > div:nth-child(2){
+  height: 56%;
+  margin: 0;
+
+ 
+      } 
+.container-activities > div:nth-child(3){
+  height: 36%;
+  margin: 0;
+ 
+
+        } 
+.container-activities > div:nth-child(5),
+.container-activities > div:nth-child(6){
+  height: 46%;
+  margin: 0;
+  
+  } 
+
+.activity {
+  width: 23%;
+  height: 600px;
+  background-color: white;
+  box-shadow: 5px 0px 5px 0px #bfc2c5;
+  border-radius: 20px;
+  padding-bottom:40px;
+}
+
+.activity img{
+  width: 100%;
+  height:100%;
+  border-radius: 20px 20px 0 0;
+  object-fit: cover;
+}
+
+.activity p{
+  padding: 10px;
+
+}
+
+
+
+/*footer styling */
+
+#footer{
+  display: inline-flex;
+  flex-direction: row;
+  width: 100%;
+  background-color: #f2f2f2;
+  padding: 60px;
+}
+.column{
+  width: 30%;
+}
+
+.column h3{
+  padding-bottom: 20px;
+}
+
+.column li, ul {
+  text-decoration: none;
+  list-style: none;
+  line-height: 2;
+}
+
+
+
+
+
+
+/*  media sizes:  desktop - 992px  tablet - 768-991px, mobile - up to 767px */
+@media (min-width:769px) and (max-width:991px) {
+
+  html {
+    padding: 0;  /*space around the page  also makes the background color stretch across*/
+    margin: 0;
+  }
+  header{
+    display: flex; /*to play with the header order*/
+    flex-direction: column;  /* puts the logo in a column*/
+    
+  }
+  .logo {
+    text-align: center;  /* to align logo in the centre on smaller screens */
+    padding-bottom:30px;
+   
+   }
+
+    nav ul{
+      justify-content: right;
+      padding-bottom: -10px;
+    }
+  .nav-links{
+    width: 100%;
+    order: -1;
+    
+  }
+
+  .nav-links li {
+    padding: 10px;  /*puts space between the two items and the margin*/
+  
+    font-weight: bold;
+    }
+     
+   .nav-links a:hover{
+      border-top: hidden;
+      color: #0065FC;
+    }
+
+    .nav-links li:hover {
+      border-bottom: 2px solid #0065FC;
+      
+    }
+
+    .searchcontainer {
+     padding-top: 60px;
+      font-size: 14px;
+      margin: 0px;
+      width: 100%;
+     text-align: center;
+     
+    }
+    .searchcontainer h1{
+      font-size: 22px;
+      
+    }
+
+    .searchcontainer h3 {
+    
+      font-size: 16px;
+
+    }
+    .search form input{
+      width: 50%;
+      font-weight: bold;
+    }
+
+/*filter section tablet */
+#filterarea {
+  margin: 0px;
+  padding: 0;
+  display: flex;
+  flex-flow: row nowrap;
+  width: 100%;
+  justify-content: center;
+}
+.filters {
+  padding: 0;
+  margin: 0;
+  width: fit-content; /*makes the filters section stay in its one line */
+
+
+}
+.filters h2 {
+  margin:0 20px 0 10px; 
+  font-size: 16px;
+
+}
+
+
+.filterbtns button {
+ justify-content: center;
+  font-size: 12px;
+  text-align: left;
+  margin: 5px;
+padding-right: 5px;
+}
+
+.filterbtns i{
+      
+  padding: 10px;
+  margin-right: 5px;
+}
+
+  
+/* style for info section */
+.info{
+  justify-content: center;
+  padding: 30px 0 0 3%;
+  margin-bottom: 2px;
+  width: 100%;
+  font-size: 16px;
+}
+ /* style  to change the order for the accommodation and most popular sections */
+#results {
+  clear: both;
+  display: flex;
+  flex-flow: column wrap;
+  font-size: 14px;
+  padding: 0;
+  margin: 0;
+  height: fit-content;
+  }
+#results .container-accom {
+    order: 2;
+    width: 100%;
+    background-color: white;
+    height: fit-content;
+  }
+  #results .container-pop {
+    background-color: transparent;
+    flex-flow: row nowrap;
+    order: 1;
+    width: fit-content;
+   margin: 0;
+    border-radius: 10px;
+   
+    height: fit-content;
+   
+  }  
+  .background {
+    display: flex;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    background-color: #f2f2f2;
+    width: 100%;
+  }
+ 
+  
+  .title-pop {
+   font-size: 12px;
+   margin:0px;
+   padding: 0;
+   margin-left: 0px;
+  
+  justify-content: center;
+   align-items: center; /*puts the title in the center */
+  }
+  .title-pop i {
+    display: none; /*hides the star in the title */
+   padding: 0;
+   margin: 0;
+  }
+  
+  .card-pop{
+    flex-flow: row nowrap;
+    position: relative;
+    box-shadow: none;
+    height: 125px;
+    margin: 10px;
+    padding:5px;
+    font-size: 12px;
+ justify-content: center;
+  }
+  
+ .card-pop img {
+  object-fit: cover;
+  padding: 0 5px 0 0;
+  margin: 0;
+ }
+
+  .poptitle h3{
+    font-size: 11px;
+    padding-bottom: 0;
+   margin-top: 8px;
+ 
+   font-weight: bold;
+  } 
+  .poptitle p{
+    padding-bottom: 0;
+    margin: 0;
+  justify-content: center;
+ align-items: center;
+ margin-left: 1px;
+  }
+  .popstars {
+   
+    clear: both;
+    font-size: 10px;
+    padding: 0px;
+    margin: 0 25px 5px -5px;
+    position: relative;
+    bottom: 10px;
+    text-align: right;
+  
+}
+ /* style for the accommodation section*/
+
+ .container-accom {
+  margin-left: 0;
+  height: auto;
+ }
+
+ .accom-title {
+  font-size: 10px;
+ }
+.card-accom{
+  font-size: 12px;
+  border-radius: 10px;
+ 
+  height: 175px;
+ 
+  width: 50%;
+  box-shadow: 5px 5px 5px 5px #bfc2c5;
+}
+.card-accom h3{
+ 
+  font-size: 14px;
+}
+
+.card-accom p{
+ 
+  font-size: 12px;
+}
+
+.card-accom img{
+  
+  border-radius: 10px 10px 0 0;
+  object-fit: cover;
+}
+.stars{
+  
+  font-size: 12px;
+}
+
+
+.more button {
+  border: none;
+  background-color: transparent;
+  padding: 10px 10px 0 10px;
+  margin-left:20px;
+  margin-bottom: 0;
+}
+.more button:hover {
+  background-color: #0065FC;
+  border-radius: 10%;
+  
+}
+.container-activities{
+  height: 325px;
+ 
+}
+.act-title{
+  margin-top: 0;
+  padding-top: 0;
+  font-size: 16px;
+}
+
+.activity p {
+  font-size: 10px;
+  font-weight: bold;
+}
+
+
+/*footer styling */
+
+#footer{
+  display: flex;
+  width: 100%;
+  background-color: #f2f2f2;
+  padding: 30px;
+  
+  justify-content: space-between;
+}
+.column{
+  width: auto;
+  padding-left: 0px;
+ 
+}
+
+
+
+
+}
+
+/* On screens that are 768px wide or less */
+@media(max-width:768px){
+  html {
+    padding: 0;  /*space around the page  also makes the background color stretch across*/
+  }
+  header{
+    display: block; /*puts the logo on its one block */
+  
+    width: 100%;
+  }
+  .logo {
+    text-align: center;  /* to align logo in the centre on smaller screens */
+    }
+  .nav-links{
+    width: 100%;
+  
+  }
+
+  .nav-links li {
+    padding: 0;  /*puts space between the two items and the margin*/
+    width: 100%;
+    text-align: center;
+    font-weight: bold;
+    }
+     
+   .nav-links a:hover{
+      border-top: hidden;
+      color: #0065FC;
+    }
+
+    .nav-links li:hover {
+      border-bottom: 2px solid #0065FC;
+      
+    }
+
+    /* changes for search and info sections */
+    .searchcontainer {
+     
+      margin-left: 5%;
+      
+    }
+
+    .searchcontainer h1 {
+     margin-top: 80px;
+      font-size: 24px;
+    }
+    .searchcontainer h3{
+      font-size: 18px;
+      font-weight: 600;
+      margin: 10px 0;
+      
+    }
+    /* styling the placeholder area in search bar*/
+    .search {
+      padding-top: 15px;
+      width: 100%;
+      font-size: 18px;
+    }
+    
+    /* styling the location dot in search bar*/
+   
+  
+ 
+    
+   .search form input{
+      width: 70%;
+      font-weight: bold;
+    }
+    .search button{
+      border-radius: 15px;
+      margin-right: 0;
+      border: none;
+    }
+
+    .submit {
+      display: none;
+    }
+    .submitmobile{
+      display: inline;
+      
+    }
+
+  /* styling for the filter area */
+    .filters {
+      display: inline;
+    
+    }
+
+    
+    .filters h2{
+      font-size: 20px;
+      margin: 0 0 2.5% 8% ;
+      
+      
+    }
+    
+    .filterbtns i{
+      
+      padding: 15px;
+      margin-right: 15px;
+      
+     
+    }
+    .filterbtns{
+      display: flex;
+      flex-flow: row wrap;
+     
+      margin-left: 5%;
+      justify-content: left;
+   
+    }
+    
+    .filterbtns button{
+      font-size: 14px;
+      margin: 5px 5px; 
+      text-align: left;
+     
+    }
+    #cost {
+  order: 1;
+    }
+
+  #family {
+  order: 3;
+  }
+
+  #romance {
+  order: 2;
+  }
+  #pets {
+  order: 4;
+  }
+
+
+/* style for info section */
+.info{
+  
+  padding: 0% 5%;
+  width: 100%;
+  font-size: 16px;
+}
+
+
+
+
+    /* style  to change the order for the accommodation and most popular sections */
+    
+  #results {
+    clear: both;
+    display: flex;
+    flex-flow: row wrap;
+    font-size: 16px;
+    
+    }
+  #results .container-accom {
+      order: 2;
+      width: 100%;
+      background-color: white;
+      height: fit-content;
+    }
+    #results .container-pop {
+      order: 1;
+      width: 100%;
+     
+      background-color: transparent;
+    
+    }  
+
+     /* style for the accommodation section*/
+    .background {
+
+      margin: 0;
+      padding: 0;
+      background-color: #f2f2f2;
+      width: 100%;
+    }
+   
+    
+    .card-accom{
+      flex: 0 1 100%;
+      padding: 5px;
+      margin: 8px 5px;
+      font-size: 12px;
+      width: 100%;
+      height: 160px;
+      box-shadow: 2px 2px 2px 2px #e2dddd;
+    }
+    .accom-title{
+      padding: 0;
+      margin: 0;
+      font-size: 10px;
+      text-align: center;
+  }
+
+    .stars{
+      
+      margin-left: 10px;
+      font-size: 10px;
+    }
+     /*style change for search icon to magnifying glass and size and shape to a square with rounded corners */
+
+      /* style for the most popular section */
+      
+     .poptitle h3{
+      position: relative;
+      padding-bottom: 10px;
+      margin: 12px 0 10px 0; 
+      font-size: 14px;
+    
+     
+    } 
+    .poptitle p{
+      position: relative;
+      padding-bottom: 10px 0 0 0px;
+      margin: 10px 0 0px 0;
+      font-size: 12px;
+     
+    
+   
+  
+     
+    }
+    .popstars {
+      position: relative;
+      font-size: 10px;
+      padding: 25px 0 0px 0px;
+      line-height: 25px;
+      justify-items: baseline;
+     
+    }
+
+    .popstars i{
+      align-items: bottom;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+    
+    .container-pop{
+      border-radius: 10px;
+      width: 100%;
+      margin: 0 0 5px 0px;
+      height: 580px;
+      padding: 5px;
+    
+    
+    }
+    
+    .title-pop{
+      padding: 20px 15px 5px 15px;
+      font-size: 14px;
+    }
+    
+    
+    .card-pop{
+      justify-content: space-evenly;
+      
+      border-radius: 15px;
+      width: 92%;
+      padding: 5px;
+      margin: 10px;
+    
+      height: 18%;
+      box-shadow: 2px 2px 2px 2px #e2dddd;
+    }
+    
+    .card-pop img{
+      border-radius: 10px 0 0 10px;
+   
+    }
+
+  /* style for more button */
+  .more {
+    margin: 0;
+    padding: 0;
+ 
+  
+  }
+ .more button{
+  background-color: transparent;
+  font-weight: bold;
+
+    padding-top:  20px;
+    margin-left:-5px;
+  
+ }
+
+
+     /* style for activities gallery section */
+
+     /* Activities Section Styling */
+     .act-title h2{
+    margin-top: -30px; /*moves the activities section higher in mobile */
+     
+     }
+
+.container-activities{
+  display: flex;
+  flex-flow: column nowrap;
+  height: fit-content;
+  align-items: center;
+  margin: 10px 0 20px 0%;
+  padding: 0%;
+  font-weight: bold;
+
+}
+
+
+.container-activities > div:nth-child(1){
+  height: 200px;
+  width: 92%;
+  margin: 15px;
+
+
+}
+
+.container-activities > div:nth-child(4){
+  height: 200px;
+  width: 92%;
+  margin: 15px;
+    } 
+
+.container-activities > div:nth-child(2){
+  height: 200px;
+  width: 92%;
+  margin: 15px;
+
+ 
+      } 
+.container-activities > div:nth-child(3){
+  height: 200px;
+  width: 92%;
+  margin: 15px;
+ 
+
+        } 
+.container-activities > div:nth-child(5),
+.container-activities > div:nth-child(6){
+  height: 200px;
+  width: 92%;
+  margin: 15px;
+  
+  
+}
+  /* footer styling */
+  
+  #footer{
+    display: inline-flex;
+    flex-direction: column;
+    width: 100%;
+    font-weight: 500;
+    padding-left: 15px;
+    
+  }
+  .column{
+    text-align: left;
+    width: 100%;
+    padding: 10px 0 0px 10px;
+    margin: 10px 0;
+  }
+  
+  .column h3 {
+   padding-bottom: 5px 0;
+  }
+     
+ }
+ 
+
+  

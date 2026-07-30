@@ -1,0 +1,349 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title> Income Tax Report</title>
+	<?php
+	
+	error_reporting(E_ALL ^ E_NOTICE);
+	
+	//This include defines the relative path to the root directory from this sub-directory
+ 	include_once ("root.inc.php");
+
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/WebsiteSettings.php");
+	//inlcude admin settings
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+	?>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<?php
+ 	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
+?>
+
+<!-- Javascript required for Calendar picker -->
+<script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+
+<script type="text/javascript">
+<!--
+function validate_form ( )
+{
+    bValid = true;
+	sErrorMessage = "";
+
+	//If no Dates are chosen, default then to current year
+    if ( document.IncomeTaxReport.StartDate.value == "" || document.IncomeTaxReport.StartDate.value == "0000-00-00" || document.IncomeTaxReport.EndDate.value == "" || document.IncomeTaxReport.EndDate.value == "0000-00-00" )
+    {
+		sYear = new Date().getFullYear();
+		document.IncomeTaxReport.StartDate.value = sYear + "-01-01";
+		document.IncomeTaxReport.EndDate.value = sYear + "-12-31";
+    }
+
+	//If any errors, alert
+	if (!bValid)
+	{
+		alert(sErrorMessage);
+	}
+
+    return bValid;
+}
+//-->
+</script>
+</head>
+
+<body>
+	<?php
+	
+	//include TaxCategory Class		
+ 	include_once (CLASS_DIR . "/class_TaxCategory.php");
+
+	//include Expense Class		
+ 	include_once (CLASS_DIR . "/class_Expense.php");
+
+	//include Revenue Class		
+ 	include_once (CLASS_DIR . "/class_Revenue.php");
+
+	//include Revenue_Type Class		
+ 	include_once (CLASS_DIR . "/class_RevenueType.php");
+
+ 	//include Form Class		
+ 	include (CLASS_DIR . "/class_Form.php");
+
+	//Require the Class for the calendar picker
+ 	require_once (CLASS_DIR . "/tc_calendar.php");
+
+	?>
+<form name="IncomeTaxReport" action="IncomeTaxReport.php" method="post">
+
+<?php
+
+		//Instantiate needed objects
+		$oExpenseTaxCategories = new TaxCategory();
+		$form = new Form();
+	
+	 	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
+?>	
+	<table border="0" width="90%">
+		<tr>
+			<td colspan="2" class="Title">
+				INCOME TAX REPORT
+				<?php
+				if(isset($_POST['StartDate']) && isset($_POST['EndDate']))
+				{
+					echo " (" . $_POST['StartDate'] . " to " . $_POST['EndDate'] . ")";
+				}
+				?>
+			</td>
+			<td align="right">
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="Buttons">
+				<input type="submit" name="btnGenerate" value="Generate Report" onclick="javascript: return validate_form()" />
+			</td>
+		</tr>
+		<tr>
+			<td colspan="3" class="FormMessage">
+				<?php
+				$form->renderFormMessage();
+				?>
+			</td>
+		</tr>
+	</table>
+	<table border="0">
+		<tr>
+			<td>
+				 <TABLE>
+					<TR>
+						<TD class="FieldGroup" colspan="2">
+							<table>
+								<tr>
+									<td width="206">
+										START DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("StartDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse Start Date
+										if ($_POST['StartDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aStartDateParts = explode("-",$_POST['StartDate']);
+											$myCalendar->setDate($aStartDateParts[2], $aStartDateParts[1], $aStartDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>
+								  </td>
+									<td width="206">
+										END DATE:<BR /> 
+									  	<?php	  
+
+									  	$myCalendar = new tc_calendar("EndDate", true, false);	  
+										$myCalendar->setIcon(ADMIN_IMG_DIR . "/iconCalendar.gif");
+										$myCalendar->setPath("./calendar/");	  
+										$myCalendar->setYearInterval(2012, 2020);	  
+										$myCalendar->dateAllow('2003-01-01', '2020-03-01');	  
+										$myCalendar->setDateFormat('j F Y');	  
+										$myCalendar->setAlignment('left', 'bottom');	  
+										//Parse End Date
+										if ($_POST['EndDate'] > "0000-00-00")
+										{
+											//Must parse out date parts to set the date on the calendar picker
+											$aEndDateParts = explode("-",$_POST['EndDate']);
+											$myCalendar->setDate($aEndDateParts[2], $aEndDateParts[1], $aEndDateParts[0]); 	  
+										}
+	  
+										$myCalendar->writeScript();	  
+										?>
+								  </td>
+								</tr>
+							</table>
+						</TD>
+					</TR>
+				 	<TR>
+						<TD CLASS="FieldGroupTitle">
+							REVENUE
+						</TD>
+						<TD width="60px">
+						</TD>
+						<TD CLASS="FieldGroupTitle">
+							EXPENSES
+						</TD>
+					</TR>
+					<TR>
+						<TD class="FieldGroup" valign="top">
+							<table>
+							<?php
+							if (isset($_POST["btnGenerate"])) 
+							{
+								$nTotalRevenueAmount = 0;
+								$oRevenueTypes = new RevenueType();
+								if ($oRevenueTypes->getRevenueType())
+								{
+									foreach($oRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+									{
+									
+										//Alternate the report style
+										if ($sReportStyleClass == REPORT_STYLE_CLASS)
+										{
+											$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
+										}
+										else
+										{
+											$sReportStyleClass = REPORT_STYLE_CLASS;
+										}
+										
+										$oRevenue = new Revenue();
+										$oRevenue->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
+										$oRevenue->dtStartDate = isset($_POST["StartDate"]) ? $_POST["StartDate"] : "";
+										$oRevenue->dtEndDate = isset($_POST["EndDate"]) ? $_POST["EndDate"] : "";
+										$nTotalRevenueTypeAmount = $oRevenue->getRevenueAmountTotal();
+										if($nTotalRevenueTypeAmount == -1)
+										{
+											echo "FAILED TO GET REVENUES: " . $oRevenue->sErrorMessage . "<BR>";
+										}
+										else
+										{
+											if(empty($nTotalRevenueTypeAmount))
+											{	
+												$nTotalRevenueTypeAmount = 0.00;
+											}
+											$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
+											
+											echo "<tr>";
+											echo "<td width='200px' class='" . $sReportStyleClass . "'>" . $oRevenueType->sRevenueTypeName . "</td>";
+											echo "<td class='" . $sReportStyleClass . "'>$";
+											if ($nTotalRevenueTypeAmount > 0)
+											{
+												echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
+												echo "&END_DATE=" . $_POST['EndDate'];
+												echo "&REVENUE_TYPE_ID=" . $oRevenue->nRevenueTypeID . "'>";  
+												echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
+												echo "</a>";
+											}
+											else
+											{
+												echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
+											}
+											echo"</td>";
+											echo "</tr>";
+										}
+										
+									}			
+
+									echo "<tr><td colspan=2><HR></td></tr>";
+									echo "<tr>";
+									echo "<td>Total</td>";
+									echo "<td> $";
+									if ($nTotalRevenueAmount > 0)
+									{
+										echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
+										echo "&END_DATE=" . $_POST['EndDate'] . "'>";
+										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+										echo "</a>";
+									}
+									else
+									{
+										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+									}
+									echo "</td>";
+									echo "</tr>";
+								}
+								else
+								{
+									//ERROR
+								}
+							}
+							?>
+							</table>
+						</TD>							
+						<TD>
+						</TD>
+						<TD class="FieldGroup" valign="top">
+						<?php
+						if (isset($_POST["btnGenerate"])) 
+						{
+							$oExpenseTaxCategories = new TaxCategory();
+							$oExpenseTaxCategories->bExpenseRelated = TRUE;
+							if($oExpenseTaxCategories->getTaxCategory())
+							{
+								echo "<table>";
+								$nExpenseTotal = 0;
+								foreach($oExpenseTaxCategories->aTaxCategoryRecords as $oExpenseTaxCategory)
+								{
+
+									//Alternate the report style
+									if ($sReportStyleClass == REPORT_STYLE_CLASS)
+									{
+										$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
+									}
+									else
+									{
+										$sReportStyleClass = REPORT_STYLE_CLASS;
+									}
+
+									$oTaxCategoryExpenses = new Expense();
+									$oTaxCategoryExpenses->nTaxCategoryID = $oExpenseTaxCategory->nTaxCategoryID;
+									$oTaxCategoryExpenses->dtStartDate = isset($_POST["StartDate"]) ? $_POST["StartDate"] : "";
+									$oTaxCategoryExpenses->dtEndDate = isset($_POST["EndDate"]) ? $_POST["EndDate"] : "";
+
+									$nTotalTaxCategoryAmount = $oTaxCategoryExpenses->getExpenseAmountTotal();
+									if($nTotalTaxCategoryAmount == -1)
+									{
+										echo "FAILED TO GET EXPENSES: " . $oTaxCategoryExpenses->sErrorMessage . "<BR>";
+									}
+									else
+									{
+										if(empty($nTotalTaxCategoryAmount))
+										{	
+											$nTotalTaxCategoryAmount = 0.00;
+										}
+										$nTotalExpenseAmount += $nTotalTaxCategoryAmount;
+										
+										echo "<tr>";
+										echo "<td width='200px' class='" . $sReportStyleClass . "'>" . $oExpenseTaxCategory->sTaxCategoryName . "</td>";
+										echo "<td class='" . $sReportStyleClass . "'>$";
+										if ($nTotalTaxCategoryAmount > 0)
+										{
+											echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
+											echo "&END_DATE=" . $_POST['EndDate'];
+											echo "&TAX_CATEGORY_ID=" . $oExpenseTaxCategory->nTaxCategoryID . "'>";  
+											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
+											echo "</a>";
+										}
+										else
+										{
+											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
+										}
+										echo"</td>";
+										echo "</tr>";
+									}
+								}
+								echo "<tr><td colspan=2><HR></td></tr>";
+								echo "<tr>";
+								echo "<td>Total</td>";
+								echo "<td> $" . number_format((float)$nTotalExpenseAmount, 2, '.', '') . "</td>";
+								echo "</tr>";
+								echo "</table>";
+
+							}
+							else
+							{
+								echo "FAILED TO GET EXPENSE TAX CATEGORIES: " . $oExpenseTaxCategories->sErrorMessage;
+							}
+						}
+						?>
+						</TD>							
+					</TR>
+			  </TABLE>
+			</td>
+		</tr>
+	</table>
+	
+</form>
+</body>
+</html>
