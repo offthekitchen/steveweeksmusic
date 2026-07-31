@@ -15,36 +15,28 @@
 
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	
-	//include Payment Class		
- 	include_once (CLASS_DIR . "/class_Payment.php");
-	
-	$dtPaymentDate = $_GET['date'];
 
-	$oPotentialPayments = new Payment();
-	
-	$oPotentialPayments->dtPaymentDate = $dtPaymentDate;
-	
-	if($oPotentialPayments->getPayment())
-	{
-		if(sizeof($oPotentialPayments->aPaymentRecords) > 0) 
-		{
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Payment.php");
+	include_once(DATALAYER_DIR . "/PaymentRepository.php");
+
+	$dtPaymentDate = $_GET['date'] ?? '';
+
+	try {
+		$paymentRepo = new \Datalayer\PaymentRepository();
+		$aPaymentRecords = $paymentRepo->find(['paymentDate' => $dtPaymentDate]);
+
+		if (sizeof($aPaymentRecords) > 0) {
 			echo "<OPTION VALUE='0'>NONE</OPTION>";
-			foreach($oPotentialPayments->aPaymentRecords as $oPotentialPayment)
-			{
-				echo "<OPTION VALUE=". $oPotentialPayment->nPaymentID . ">" . $oPotentialPayment->sPaymentDescription;
-				echo " - "  . $oPotentialPayment->nPaymentAmount ."</OPTION>"; 
+			foreach ($aPaymentRecords as $oPotentialPayment) {
+				echo "<OPTION VALUE=" . $oPotentialPayment->id . ">" . $oPotentialPayment->description;
+				echo " - " . $oPotentialPayment->amount . "</OPTION>";
 			}
-		}
-		else
-		{
+		} else {
 			echo "<OPTION VALUE='0' SELECTED>NONE</OPTION>";
 		}
-	
-	}
-	else
-	{
-		echo "<OPTION>ERROR RETRIEVING PAYMENTS" . $oPotentialPayments->sErrorMessage . "</OPTION>";
+	} catch (\Throwable $e) {
+		echo "<OPTION>ERROR RETRIEVING PAYMENTS" . $e->getMessage() . "</OPTION>";
 	}
 
 ?>

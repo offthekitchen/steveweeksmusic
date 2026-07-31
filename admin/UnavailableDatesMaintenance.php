@@ -10,6 +10,7 @@ Date        Change
 2016-12-09	Made Responsive
 2016-12-29	Improved Responsivity for phone
 2019-11-05	Changed Datepickers to use common function
+2026-07-30	Migrated to new Datalayer UnavailableDate repository
 *******************************************************************
 */
 
@@ -30,14 +31,19 @@ include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
-//include UnavailableDate Class		
-include_once(CLASS_DIR . "/class_UnavailableDate.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/UnavailableDate.php");
+include_once(DATALAYER_DIR . "/UnavailableDateRepository.php");
 
 //include Form Class		
 include(CLASS_DIR . "/class_Form.php");
 
+//Require the Class for the calendar picker
+require_once(CLASS_DIR . "/tc_calendar.php");
+
 //Array of UnavailableDate records from the DB
-global $aUnavailableDateRecords;
+$aUnavailableDateRecords = [];
 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;
 $sPageName = "Unavailable Dates Maintenance";
@@ -58,42 +64,30 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			<?php
 
 			//Instantiate needed objects
-			$thisUnavailableDate = new UnavailableDate();
+			$unavailableDateRepo = new \Datalayer\UnavailableDateRepository();
+			$thisUnavailableDate = new \Datalayer\UnavailableDate();
 			$form = new Form();
 
 			//Get the ID query string parameter
-			$nThisUnavailableDateID = $_REQUEST['ID'];
+			$nThisUnavailableDateID = $_REQUEST['ID'] ?? null;
 
+			try {
 			//If an ID was passed to the page, retrieve that record for update		
-			if (!is_null($nThisUnavailableDateID)) {
+			if (!is_null($nThisUnavailableDateID) && $nThisUnavailableDateID !== '') {
 
-				$thisUnavailableDate->nUnavailableID = $nThisUnavailableDateID;
+				$entity = $unavailableDateRepo->findById((int) $nThisUnavailableDateID);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisUnavailableDate->getUnavailableDate()) {
+				if ($entity) {
+					$thisUnavailableDate = $entity;
+					$aUnavailableDateRecords = [$entity];
+					loadUnavailableDate($thisUnavailableDate, $form);
 
-					//Records found
-					if (sizeof($thisUnavailableDate->aUnavailableDateRecords) > 0) {
-
-						//Only One Record should be returned.  Add this to the form field array
-						//so that it displays in the form fields and to the values in the
-						//current Object.
-						echo "*****DATE IS: {$thisUnavailableDate->aUnavailableDateRecords[0]->dtUnavailableStartDate}";
-						loadUnavailableDate($thisUnavailableDate->aUnavailableDateRecords[0], $form);
-
-						$form->sMessage = "Update record.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;
-					} else {
-						//The record was not found
-						$form->sMessage = "Unavailable Date record not found.";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;
-					}
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;
 				} else {
-					//Error
-					$form->sMessage = $thisUnavailableDate->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "Unavailable Date record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 			} else {
@@ -103,40 +97,44 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// *   ADD      *
 				// **************
 				if (isset($_POST["btnAdd"])) {
-					//Load values into DB array
 					buildUnavailableDateObject($thisUnavailableDate);
+					$startDate = getUnavailableDateFromRequest('UnavailableStartDate');
+					$endDate = getUnavailableDateFromRequest('UnavailableEndDate');
+					$datesToInsert = getUnavailableDateRange($startDate, $endDate);
 
-					//Insert record
-					if ($thisUnavailableDate->insertUnavailableDate()) {
+					if (empty($datesToInsert)) {
+						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->sMessage = "ADD RECORD FAILED";
+						$form->nFormMode = FORM_MODE_EDIT;
+					} else {
+						$insertFailed = false;
+						$lastInserted = null;
 
-						//reload UnavailableDate
-						$nNewUnavailableDateID = $thisUnavailableDate->nUnavailableID;
-						$thisUnavailableDate = new UnavailableDate();
-						$thisUnavailableDate->nUnavailableID = $nNewUnavailableDateID;
+						foreach ($datesToInsert as $dateToInsert) {
+							$newDate = new \Datalayer\UnavailableDate();
+							$newDate->unavailableDate = $dateToInsert;
+							$newDate->reason = $thisUnavailableDate->reason;
 
-						if ($thisUnavailableDate->getUnavailableDate()) {
-							//Load the form fields with the newly populated object
-							loadUnavailableDate($thisUnavailableDate->aUnavailableDateRecords[0], $form);
-							//Store the ID of the performance
-							$nThisUnavailableDateID = $thisUnavailableDate->aUnavailableDateRecords[0]->nUnavailableID;
+							if (!$unavailableDateRepo->insert($newDate)) {
+								$insertFailed = true;
+								break;
+							}
+							$lastInserted = $newDate;
+						}
 
-							//Success
+						if ($insertFailed || $lastInserted === null) {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "ADD RECORD FAILED";
+							$form->nFormMode = FORM_MODE_EDIT;
+						} else {
+							$thisUnavailableDate = $unavailableDateRepo->findById((int) $lastInserted->id) ?? $lastInserted;
+							$aUnavailableDateRecords = [$thisUnavailableDate];
+							loadUnavailableDate($thisUnavailableDate, $form);
+
 							$form->nMessageType = MESSAGE_TYPE_INFO;
 							$form->sMessage = "Unavailable Date Added";
 							$form->nFormMode = FORM_MODE_EDIT;
-						} else {
-							//Problem reloading screen
-							clearFormFields($form);
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "Unavailable Date Added, but error occured while reloading the data";
-							$form->nFormMode = FORM_MODE_NEW;
 						}
-					} else {
-
-						//Failure
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ADD RECORD FAILED: {$thisUnavailableDate->sErrorMessage}";
-						$form->nFormMode = FORM_MODE_EDIT;
 					}
 				}
 				// **************
@@ -144,28 +142,19 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// **************
 				else if (isset($_POST["btnUpdate"])) {
 
-					//Load values from form field array into DB object
 					buildUnavailableDateObject($thisUnavailableDate);
 
-					//Update record
-					if ($thisUnavailableDate->updateUnavailableDate()) {
+					if ($unavailableDateRepo->update($thisUnavailableDate)) {
+						$thisUnavailableDate = $unavailableDateRepo->findById((int) $thisUnavailableDate->id) ?? $thisUnavailableDate;
+						$aUnavailableDateRecords = [$thisUnavailableDate];
+						loadUnavailableDate($thisUnavailableDate, $form);
 
-						//reload UnavailableDate
-						$thisUnavailableDate->getUnavailableDate();
-
-						//Load the form fields with the newly populated DB object						
-						loadUnavailableDate($thisUnavailableDate->aUnavailableDateRecords[0], $form);
-						//Store the ID of the performance
-						$nThisUnavailableDateID = $thisUnavailableDate->aUnavailableDateRecords[0]->nUnavailableID;
-
-						//Success
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->sMessage = "Unavailable Date Updated";
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-						//Failure
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ERROR: Update Failed - {$thisUnavailableDate->sErrorMessage}";
+						$form->sMessage = "ERROR: Update Failed";
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
 				}
@@ -176,33 +165,24 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 					$_POST['chkBooked'] = TRUE;
 
-					//Load Booked Dates
-					buildUnavailableDateObject($thisUnavailableDate);
-					if ($thisUnavailableDate->getUnavailableDate()) {
-						if (sizeof($thisUnavailableDate->aUnavailableDateRecords) < 1) {
-							$form->sMessage = "No Booked Unavailable Date records found to delete " . sizeof($thisUnavailableDate->aUnavailableDateRecords);
-							$form->nMessageType = MESSAGE_TYPE_WARNING;
-							$form->nFormMode = FORM_MODE_NEW;
-						} else {
-							$deleteCount = 0;
-							$failedCount = 0;
-							foreach ($thisUnavailableDate->aUnavailableDateRecords as $oUnavailableDateRecord) {
-								//Delete record
-								if ($oUnavailableDateRecord->deleteUnavailableDate()) {
-									$deleteCount++;
-								} else {
-									$failedCount++;
-								}
+					$aUnavailableDateRecords = $unavailableDateRepo->find(['bookedDate' => true]);
+
+					if (sizeof($aUnavailableDateRecords) < 1) {
+						$form->sMessage = "No Booked Unavailable Date records found to delete " . sizeof($aUnavailableDateRecords);
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;
+					} else {
+						$deleteCount = 0;
+						$failedCount = 0;
+						foreach ($aUnavailableDateRecords as $oUnavailableDateRecord) {
+							if (!empty($oUnavailableDateRecord->id) && $unavailableDateRepo->delete((int) $oUnavailableDateRecord->id)) {
+								$deleteCount++;
+							} else {
+								$failedCount++;
 							}
-							$form->sMessage = "Deleted {$deleteCount} records.  {$failedCount} Failed.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_NEW;
 						}
-					}
-					else {
-						//Attempt to get records failed
-						$form->sMessage = $thisUnavailableDate->sErrorMessage;
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->sMessage = "Deleted {$deleteCount} records.  {$failedCount} Failed.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_NEW;
 					}
 					clearFormFields($form);
@@ -212,20 +192,16 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// **************			
 				else if (isset($_POST["btnDelete"])) {
 
-					//Load DB record
 					buildUnavailableDateObject($thisUnavailableDate);
 
-					//Delete record
-					if ($thisUnavailableDate->deleteUnavailableDate()) {
-						//Clear the form fields
+					if (!empty($thisUnavailableDate->id) && $unavailableDateRepo->delete((int) $thisUnavailableDate->id)) {
 						clearFormFields($form);
 
-						//Success
 						$form->sMessage = "Unavailable Date Deleted";
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_NEW;
 					} else {
-						$form->sMessage = "DELETE FAILED: {$thisUnavailableDate->sErrorMessage}";
+						$form->sMessage = "DELETE FAILED";
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
@@ -235,39 +211,36 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// **************
 				else if (isset($_POST["btnSearch"])) {
 
-					//Load Array of Search Values
-					buildUnavailableDateObject($thisUnavailableDate);
+					$searchBookedDate = null;
+					buildUnavailableDateObject($thisUnavailableDate, $searchBookedDate);
 
-					//Search the Database for records matching the search criteria			
-					if ($thisUnavailableDate->getUnavailableDate()) {
-						//No records found
-						if (sizeof($thisUnavailableDate->aUnavailableDateRecords) < 1) {
-							$form->sMessage = "No Unavailable Date records found matching search criteria";
-							$form->nMessageType = MESSAGE_TYPE_WARNING;
-							$form->nFormMode = FORM_MODE_NEW;
-						} else if (sizeof($thisUnavailableDate->aUnavailableDateRecords) == 1) {
-							//Only One Record returned.  Add this to the form field array
-							//so that it displays in the form fields
-							loadUnavailableDate($thisUnavailableDate->aUnavailableDateRecords[0], $form);
-							//Store the ID of the performance
-							$nThisUnavailableDateID = $thisUnavailableDate->aUnavailableDateRecords[0]->nUnavailableID;
+					$criteria = [
+						'id' => $thisUnavailableDate->id,
+						'reason' => $thisUnavailableDate->reason,
+						'fuzzyReason' => true,
+						'unavailableDate' => $thisUnavailableDate->unavailableDate,
+					];
+					if ($searchBookedDate !== null) {
+						$criteria['bookedDate'] = $searchBookedDate;
+					}
 
-							$form->sMessage = "One Unavailable Date record found.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_EDIT;
-						}
-						//If Multiple records found, the array of search reults will be populated
-						else {
-							//Multiiple records returned
-							$form->sMessage = "Select Unavailable Date record to edit from results list below.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_SELECT;
-						}
-					} else {
-						//Attempt to get records failed
-						$form->sMessage = $thisUnavailableDate->sErrorMessage;
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$aUnavailableDateRecords = $unavailableDateRepo->find($criteria);
+
+					if (sizeof($aUnavailableDateRecords) < 1) {
+						$form->sMessage = "No Unavailable Date records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
 						$form->nFormMode = FORM_MODE_NEW;
+					} else if (sizeof($aUnavailableDateRecords) == 1) {
+						$thisUnavailableDate = $aUnavailableDateRecords[0];
+						loadUnavailableDate($thisUnavailableDate, $form);
+
+						$form->sMessage = "One Unavailable Date record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;
+					} else {
+						$form->sMessage = "Select Unavailable Date record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;
 					}
 				}
 				// *************
@@ -310,10 +283,15 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 			}
+			} catch (\Throwable $e) {
+				$form->sMessage = $e->getMessage();
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;
+			}
 
 			?>
 			<!-- Hidden Fields -->
-			<input type="hidden" name="hdnUnavailableID" value="<?php echo $_POST['hdnUnavailableID'] ?>" />
+			<input type="hidden" name="hdnUnavailableID" value="<?php echo $_POST['hdnUnavailableID'] ?? '' ?>" />
 			<div class="row">
 				<?php
 				include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
@@ -359,7 +337,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						echo "</div>";
 
 
-						foreach ($thisUnavailableDate->aUnavailableDateRecords as $oUnavailableDateRecord) {
+						foreach ($aUnavailableDateRecords as $oUnavailableDateRecord) {
 
 							//Alternate the result style
 							if ($sResultStyleClass == RESULT_STYLE_CLASS) {
@@ -369,14 +347,14 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							}
 							echo "<div class='row {$sResultStyleClass}'>";
 
-							echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./UnavailableDatesMaintenance.php?ID={$oUnavailableDateRecord->nUnavailableID}'>{$oUnavailableDateRecord->dtUnavailableDate}</a></div>";
-							echo "	<div class='col-xs-12 col-sm-10 {$sResultStyleClass}'><A HREF='./UnavailableDatesMaintenance.php?ID={$oUnavailableDateRecord->nUnavailableID}'>{$oUnavailableDateRecord->sReason}</a></div>";
+							echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./UnavailableDatesMaintenance.php?ID={$oUnavailableDateRecord->id}'>" . htmlentities($oUnavailableDateRecord->unavailableDate ?? '', ENT_QUOTES) . "</a></div>";
+							echo "	<div class='col-xs-12 col-sm-10 {$sResultStyleClass}'><A HREF='./UnavailableDatesMaintenance.php?ID={$oUnavailableDateRecord->id}'>" . htmlentities($oUnavailableDateRecord->reason ?? '', ENT_QUOTES) . "</a></div>";
 							echo "</div>";
 						}
 						?>
 						<div class="row" style="height: 20px;"></div>
 						<?php
-						if ($_POST['chkBooked']) {
+						if (!empty($_POST['chkBooked'])) {
 							echo "<div class=\"row\">";
 							echo "<div class=\"col-xs-12\">";
 							echo "<input type=\"submit\" name=\"btnDeleteAll\" class=\"formButton\" value=\"DeleteAll\">";
@@ -399,21 +377,21 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							<div class="col-xs-12">
 								START DATE:<BR />
 								<?php
-								renderDatePicker("UnavailableStartDate", $thisUnavailableDate->aUnavailableDateRecords[0]->dtUnavailableDate);
+								renderDatePicker("UnavailableStartDate", $_POST['UnavailableStartDate'] ?? ($thisUnavailableDate->unavailableDate ?? ''));
 								?>
 							</div>
 							<div class="col-xs-12">
 
 								END DATE:<BR />
 								<?php
-								renderDatePicker("UnavailableEndDate", $thisUnavailableDate->dtUnavailableEndDate);
+								renderDatePicker("UnavailableEndDate", $_POST['UnavailableEndDate'] ?? '');
 								?>
 							</div>
 							<div class="col-xs-12">
-								REASON: <input type="text" name="txtReason" value="<?php echo $_POST['txtReason']; ?>" size="60" />&nbsp;&nbsp;
+								REASON: <input type="text" name="txtReason" value="<?php echo $_POST['txtReason'] ?? ''; ?>" size="60" />&nbsp;&nbsp;
 							</div>
 							<div class="col-xs-1">
-								<input type="checkbox" name="chkBooked" value="booked" <?php if ($_POST['chkBooked']) {
+								<input type="checkbox" name="chkBooked" value="booked" <?php if (!empty($_POST['chkBooked'])) {
 																							echo " checked ";
 																						} ?> />
 							</div>
@@ -425,10 +403,10 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 					<div class="col-xs-12">
 						<div class="row">
 							<div class=" col-xs-3 FormFieldNoEdit">
-								ID: <?php echo $_POST['hdnUnavailableID']; ?>
+								ID: <?php echo $_POST['hdnUnavailableID'] ?? ''; ?>
 							</div>
 							<div class="col-xs-12 FormFieldNoEdit">
-								LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+								LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 							</div>
 						</div>
 					</div>
@@ -458,49 +436,84 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 /*
  ********************************************************************************
+ * getUnavailableDateFromRequest
+ *
+ * Reads a date field from the request using legacy datepicker behavior.
+ ********************************************************************************
+*/
+function getUnavailableDateFromRequest(string $fieldName): ?string
+{
+	$dateValue = $_REQUEST[$fieldName] ?? '';
+	if ($dateValue > '0000-00-00') {
+		$dateValue = $_POST[$fieldName] ?? '';
+	}
+	if ($dateValue > '0000-00-00') {
+		return $dateValue;
+	}
+	return null;
+}
+
+
+/*
+ ********************************************************************************
+ * getUnavailableDateRange
+ *
+ * Determines all dates between a start and end date inclusively.
+ ********************************************************************************
+*/
+function getUnavailableDateRange(?string $startDate, ?string $endDate): array
+{
+	if (empty($startDate)) {
+		return [];
+	}
+
+	if (empty($endDate) || $endDate <= '0000-00-00') {
+		return [$startDate];
+	}
+
+	$dates = [];
+	$current = strtotime($startDate);
+	$end = strtotime($endDate);
+
+	if ($current === false || $end === false || $current > $end) {
+		return [$startDate];
+	}
+
+	while ($current <= $end) {
+		$dates[] = date('Y-m-d', $current);
+		$current += 86400;
+	}
+
+	return $dates;
+}
+
+
+/*
+ ********************************************************************************
  * buildUnavailableDateObject
  * 
  * This function loads builds a flag object from the data typed into the 
  * form fields.
  ********************************************************************************
 */
-function buildUnavailableDateObject($oUnavailableDate)
+function buildUnavailableDateObject(\Datalayer\UnavailableDate $UnavailableDate, ?bool &$searchBookedDate = null)
 {
+	$id = $_POST['hdnUnavailableID'] ?? null;
+	$UnavailableDate->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$oUnavailableDate->nUnavailableID = $_POST['hdnUnavailableID'];
+	$UnavailableDate->reason = html_entity_decode($_POST['txtReason'] ?? '', ENT_QUOTES);
 
-	$oUnavailableDate->sReason = html_entity_decode($_POST['txtReason'], ENT_QUOTES);
-	$oUnavailableDate->bFuzzyReasonSearch = TRUE;
-
-	//UnavailableDate Start Date	
-	$dtUnavailableStartDate = isset($_REQUEST["UnavailableStartDate"]) ? $_REQUEST["UnavailableStartDate"] : "";
-	if ($dtUnavailableStartDate > "0000-00-00") {
-		//If no datepicker is displayed, use the hidden field
-		$dtUnavailableStartDate = isset($_POST["UnavailableStartDate"]) ? $_POST["UnavailableStartDate"] : "";
-	}
-	if ($dtUnavailableStartDate > "0000-00-00") {
-		$oUnavailableDate->dtUnavailableStartDate  	= $dtUnavailableStartDate;
-		$oUnavailableDate->dtUnavailableDate  		= $dtUnavailableStartDate;
+	$startDate = getUnavailableDateFromRequest('UnavailableStartDate');
+	if ($startDate !== null) {
+		$UnavailableDate->unavailableDate = $startDate;
 	}
 
-	//UnavailableDate End Date	
-	$dtUnavailableEndDate = isset($_REQUEST["UnavailableEndDate"]) ? $_REQUEST["UnavailableEndDate"] : "";
-	if ($dtUnavailableEndDate > "0000-00-00") {
-		//If no datepicker is displayed, use the hidden field
-		$dtUnavailableEndDate = isset($_POST["UnavailableEndDate"]) ? $_POST["UnavailableEndDate"] : "";
-	}
-	if ($dtUnavailableEndDate > "0000-00-00") {
-		$oUnavailableDate->dtUnavailableEndDate  = $dtUnavailableEndDate;
-	}
-
-	//Load Booked Date Boolean only if checked (don't search for this field if not checked)
 	if (isset($_POST['chkBooked']) && $_POST['chkBooked'] == 'booked') {
-		$oUnavailableDate->bBookedDate = TRUE;
-	}
-	//If we are searching and the Booked Date checkbox isn't checked, don't use it in the search
-	else if (!isset($_POST["btnSearch"])) {
-		$oUnavailableDate->bBookedDate = FALSE;
+		$searchBookedDate = true;
+	} else if (!isset($_POST["btnSearch"])) {
+		$searchBookedDate = null;
+	} else {
+		$searchBookedDate = null;
 	}
 }
 
@@ -513,30 +526,18 @@ function buildUnavailableDateObject($oUnavailableDate)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadUnavailableDate(&$oUnavailableDate, $form)
+function loadUnavailableDate(\Datalayer\UnavailableDate $UnavailableDate, $form)
 {
 
-	if (!is_null($oUnavailableDate->nUnavailableID)) {
-		//Load Hidden Fields
-		$_POST['hdnUnavailableID'] = $oUnavailableDate->nUnavailableID;
+	if (!is_null($UnavailableDate->id)) {
+		$_POST['hdnUnavailableID'] = $UnavailableDate->id;
 
-
-		$_POST['txtReason'] = htmlentities($oUnavailableDate->sReason, ENT_QUOTES);
-
-		$_POST['UnavailableStartDate'] = htmlentities($oUnavailableDate->dtUnavailableDate, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($oUnavailableDate->dtLastUpdate, ENT_QUOTES);
-
-		if ($oUnavailableDate->bBookedDate) {
-			$_POST['chkBooked'] = TRUE;
-		} else {
-			$_POST['chkBooked'] = FALSE;
-		}
+		$_POST['txtReason'] = htmlentities($UnavailableDate->reason ?? '', ENT_QUOTES);
+		$_POST['UnavailableStartDate'] = htmlentities($UnavailableDate->unavailableDate ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($UnavailableDate->lastUpdate ?? '', ENT_QUOTES);
 	} else {
-		//Load Form field values into array 
 		foreach ($_POST as $fieldName => $fieldValue) {
-
-			//$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-			$_POST[$fieldName] = $fieldValue;
+			$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 		}
 	}
 }
@@ -563,8 +564,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach ($_POST as $fieldName => $fieldValue) {
 		$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 	}

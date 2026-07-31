@@ -14,6 +14,7 @@ Date        Change
 2020-02-01  Added Notes
 2022-03-15	Added Task Button and Tasks
 2022-07-04	Added strikeout for complete tasks
+2026-07-30	Migrated Tour to new Datalayer repository; tasks and performances via repositories
 *******************************************************************
 */	
 
@@ -33,18 +34,26 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 	  
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
-	
-//include Tour Class		
-include_once (CLASS_DIR . "/class_Tour.php");
 
-//include Performance Task Class		
-include_once(CLASS_DIR . "/class_PerformanceTask.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Tour.php");
+include_once(DATALAYER_DIR . "/TourRepository.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+include_once(DATALAYER_DIR . "/PerformanceTask.php");
+include_once(DATALAYER_DIR . "/PerformanceTaskRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
 
 //include Form Class		
 include (CLASS_DIR . "/class_Form.php");
 
 //Array of Tour records from the DB
-global $aTourRecords;
+$aTourRecords = [];
+$aTourPerformances = [];
+$aPotentialPerformances = [];
+$aPerformanceTasks = [];
 	 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName = "Tour Maintenance";
@@ -65,51 +74,34 @@ $sPageName = "Tour Maintenance";
 	<?php
 
 		//Instantiate needed objects
-		$thisTour = new Tour();
-		$thisPerformanceTasks = new PerformanceTask();
+		$tourRepo = new \Datalayer\TourRepository();
+		$performanceRepo = new \Datalayer\PerformanceRepository();
+		$performanceTaskRepo = new \Datalayer\PerformanceTaskRepository();
+		$expenseRepo = new \Datalayer\ExpenseRepository();
+		$thisTour = new \Datalayer\Tour();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisTourID = $_REQUEST['ID'];
-		
+		$nThisTourID = $_REQUEST['ID'] ?? null;
+
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisTourID))
+		if (!is_null($nThisTourID) && $nThisTourID !== '')
 		{
-						
-			$thisTour->nTourID = $nThisTourID;
+			$entity = $tourRepo->findById((int) $nThisTourID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisTour->getTour())
-			{
-			
-				//Records found
-				if (sizeof($thisTour->aTourRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadTour($thisTour->aTourRecords[0], $form);
+			if ($entity) {
+				$thisTour = $entity;
+				$aTourRecords = [$entity];
+				loadTour($thisTour, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Tour record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisTour->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Tour record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -121,47 +113,24 @@ $sPageName = "Tour Maintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildTourObject($thisTour);
 				
-				//Insert record
-				if ($thisTour->insertTour())			
+				if ($tourRepo->insert($thisTour))			
 				{
+					$thisTour = $tourRepo->findById((int) $thisTour->id) ?? $thisTour;
+					$aTourRecords = [$thisTour];
+					loadTour($thisTour, $form);
+					$nThisTourID = $thisTour->id;
 
-					//reload Tour
-					$nNewTourID = $thisTour->nTourID;
-					$thisTour = new Tour();
-					$thisTour->nTourID = $nNewTourID;
-
-					if ($thisTour->getTour())
-					{	
-						//Load the form fields with the newly populated object
-						loadTour($thisTour->aTourRecords[0], $form);
-						//Store the ID of the performance
-						$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
-						
-						//Success
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->sMessage = "Tour Added";
-						$form->nFormMode = FORM_MODE_EDIT;			
-					}
-					else
-					{
-						//Problem reloading screen
-						clearFormFields($form);
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "Tour Added, but error occured while reloading the data";
-						$form->nFormMode = FORM_MODE_NEW;			
-					}
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->sMessage = "Tour Added";
+					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisTour->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -170,66 +139,49 @@ $sPageName = "Tour Maintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildTourObject($thisTour);
 				
-				//Update record
-				if ($thisTour->updateTour())			
+				if ($tourRepo->update($thisTour))			
 				{
-				
-					//Update tour performances
-					if($thisTour->getTourPerformances())
-					{
-						foreach($thisTour->oTourPerformances->aPerformanceRecords as $oTourPerformance)
-						{
-							$sCheckboxName = "chkPerformance{$oTourPerformance->nPerformanceID}";
-							if(!isset($_POST[$sCheckboxName]) || $_POST[$sCheckboxName] != 'PerformanceAssociated')
-							{
-								$oTourPerformance->nTourID = NULL;
-								if(!$oTourPerformance->updatePerformance())
-								{
-									//ERROR NEEDED
+					if (!empty($thisTour->id)) {
+						$tourPerformances = $performanceRepo->find(['tourId' => (int) $thisTour->id]);
+						foreach ($tourPerformances as $oTourPerformance) {
+							$sCheckboxName = "chkPerformance{$oTourPerformance->id}";
+							if (!isset($_POST[$sCheckboxName]) || $_POST[$sCheckboxName] != 'PerformanceAssociated') {
+								$oTourPerformance->tourId = null;
+								$performanceRepo->update($oTourPerformance);
+							}
+						}
+
+						if (!empty($thisTour->startDate) && !empty($thisTour->endDate)) {
+							$potentialPerformances = $performanceRepo->find([
+								'startDate' => $thisTour->startDate,
+								'endDate' => $thisTour->endDate,
+								'excludeTourId' => (int) $thisTour->id,
+							]);
+							foreach ($potentialPerformances as $oPotentialPerformance) {
+								$sCheckboxName = "chkPerformance{$oPotentialPerformance->id}";
+								if (isset($_POST[$sCheckboxName]) && $_POST[$sCheckboxName] == 'PerformanceAssociated') {
+									$oPotentialPerformance->tourId = (int) $thisTour->id;
+									$performanceRepo->update($oPotentialPerformance);
 								}
-							}  
+							}
 						}
 					}
 
-					//Update potential performances
-					if($thisTour->getPotentialPerformances())
-					{
-						foreach($thisTour->oPotentialPerformances->aPerformanceRecords as $oPotentialPerformance)
-						{
-							$sCheckboxName = "chkPerformance{$oPotentialPerformance->nPerformanceID}";
-							if(isset($_POST[$sCheckboxName]) && $_POST[$sCheckboxName] == 'PerformanceAssociated')
-							{
-								$oPotentialPerformance->nTourID = $thisTour->nTourID;
-								if(!$oPotentialPerformance->updatePerformance())
-								{
-									//ERROR NEEDED
-								}
-							}  
-						}
-					}
-				
-					//reload Tour
-					$thisTour->getTour();
-				
-					//Load the form fields with the newly populated DB object						
-					loadTour($thisTour->aTourRecords[0], $form);
-					//Store the ID of the tour
-					$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
-				
-					//Success
+					$thisTour = $tourRepo->findById((int) $thisTour->id) ?? $thisTour;
+					$aTourRecords = [$thisTour];
+					loadTour($thisTour, $form);
+					$nThisTourID = $thisTour->id;
+
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Tour Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisTour->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -238,24 +190,37 @@ $sPageName = "Tour Maintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildTourObject($thisTour);				
+				buildTourObject($thisTour);
 
-				//Delete record
-				if ($thisTour->deleteTour())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisTour->id)) {
+					$relatedExpenses = $expenseRepo->find(['tourId' => (int) $thisTour->id]);
+					if (sizeof($relatedExpenses) > 0) {
+						$deleteError = "TOUR013 - Can not delete Tour because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->id}'>";
+						$deleteError .= sizeof($relatedExpenses) . " expenses.</A>";
+					} else {
+						$relatedPerformances = $performanceRepo->find(['tourId' => (int) $thisTour->id]);
+						if (sizeof($relatedPerformances) > 0) {
+							$deleteError = "TOUR018 - Can not delete Tour because it has " . sizeof($relatedPerformances) . " performances.";
+						}
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisTour->id) && $tourRepo->delete((int) $thisTour->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Tour Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisTour->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -266,48 +231,43 @@ $sPageName = "Tour Maintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildTourObject($thisTour);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisTour->getTour())
-				{
-					//No records found
-					if(sizeof($thisTour->aTourRecords) < 1)
-					{
-						$form->sMessage = "No Tour records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisTour->aTourRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadTour($thisTour->aTourRecords[0], $form);
-						//Store the ID of the performance
-						$nThisTourID = $thisTour->aTourRecords[0]->nTourID;			
+				$criteria = [
+					'id' => $thisTour->id,
+					'name' => $thisTour->name,
+					'fuzzyName' => true,
+					'notes' => $thisTour->notes,
+				];
 
-						$form->sMessage = "One Tour record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Tour record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+				$includeDate = getTourDateFromRequest('TourIncludeDate');
+				if (!empty($includeDate)) {
+					$criteria['includeDate'] = $includeDate;
 				}
-				else
+
+				$aTourRecords = $tourRepo->find($criteria);
+
+				if (sizeof($aTourRecords) < 1)
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisTour->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "No Tour records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aTourRecords) == 1)
+				{
+					$thisTour = $aTourRecords[0];
+					loadTour($thisTour, $form);
+					$nThisTourID = $thisTour->id;
+
+					$form->sMessage = "One Tour record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else 
+				{
+					$form->sMessage = "Select Tour record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -315,7 +275,6 @@ $sPageName = "Tour Maintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -343,11 +302,29 @@ $sPageName = "Tour Maintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+
+		if (!empty($thisTour->id)) {
+			$aTourPerformances = $performanceRepo->find(['tourId' => (int) $thisTour->id]);
+			if (!empty($thisTour->startDate) && !empty($thisTour->endDate)) {
+				$aPotentialPerformances = $performanceRepo->find([
+					'startDate' => $thisTour->startDate,
+					'endDate' => $thisTour->endDate,
+					'excludeTourId' => (int) $thisTour->id,
+				]);
+			}
+			$aPerformanceTasks = $performanceTaskRepo->find(['tourId' => (int) $thisTour->id]);
+		}
+
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnTourID" value="<?php echo $_POST['hdnTourID']?>" />	
+	<input type="hidden" name="hdnTourID" value="<?php echo $_POST['hdnTourID'] ?? ''?>" />	
 
 	<div class="row">
 <?php
@@ -398,10 +375,8 @@ $sPageName = "Tour Maintenance";
 			echo "</div>";
 	
 					
-			foreach($thisTour->aTourRecords as $oTourRecord)
+			foreach($aTourRecords as $oTourRecord)
 			{
-				
-				//Alternate the result style
 				if ($sResultStyleClass == RESULT_STYLE_CLASS)
 				{
 					$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
@@ -411,12 +386,9 @@ $sPageName = "Tour Maintenance";
 					$sResultStyleClass = RESULT_STYLE_CLASS;
 				}
 				echo "<div class=\"row {$sResultStyleClass}\">";
-				
-				$i = 1;
-			
-				echo "	<div class='col-xs-12 col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->nTourID}'>{$oTourRecord->sTourName}</a></div>";
-				echo "	<div class='hidden-xs col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->nTourID}'>{$oTourRecord->dtTourStartDate}</a></div>";
-				echo "	<div class='hidden-xs col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->nTourID}'>{$oTourRecord->dtTourEndDate}</a></div>";
+				echo "	<div class='col-xs-12 col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->id}'>{$oTourRecord->name}</a></div>";
+				echo "	<div class='hidden-xs col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->id}'>{$oTourRecord->startDate}</a></div>";
+				echo "	<div class='hidden-xs col-sm-4 {$sResultStyleClass}'><A HREF='./TourMaintenance.php?ID={$oTourRecord->id}'>{$oTourRecord->endDate}</a></div>";
 				echo "</div>";
 			}
 			?>
@@ -431,25 +403,25 @@ $sPageName = "Tour Maintenance";
 		<div class="row"> 
 			<div class="col-xs-12">
 				<?php
-				if ($_POST['hdnTourID'] > 0)
+				if (($_POST['hdnTourID'] ?? 0) > 0)
 				{
-					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}";
+					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->id}";
 					echo "' class='secondaryLinkButton'>Edit Expenses</a>";
 					echo "<span class='hidden-xs'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";	
 					echo "<br class='visible-xs'>";
-					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}";
+					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?TOUR_ID={$thisTour->id}";
 					echo "&ACTION=ADD_EXPENSE' class='secondaryLinkButton'>Enter Expense</a>";
 					echo "<span class='hidden-xs'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";	
 					echo "<br class='visible-xs'>";
-					echo "<a href='". ADMIN_DIR . "/TourEmails.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}' target='_blank' class='secondaryLinkButton'>";
+					echo "<a href='". ADMIN_DIR . "/TourEmails.php?TOUR_ID={$thisTour->id}' target='_blank' class='secondaryLinkButton'>";
 					echo "Tour Emails</a>";
 					echo "<span class='hidden-xs'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";	
 					echo "<br class='visible-xs'>";
-					echo "<a href='". ADMIN_DIR . "/TourReport.php?ID={$thisTour->aTourRecords[0]->nTourID}";
+					echo "<a href='". ADMIN_DIR . "/TourReport.php?ID={$thisTour->id}";
 					echo "' class='secondaryLinkButton'>Tour Report</a>";
 					echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";
 					echo "<br class='visible-xs'>";
-					echo "<a href='" . ADMIN_DIR . "/PerformanceTaskMaintenance.php?TOUR_ID={$thisTour->aTourRecords[0]->nTourID}&TOUR_NAME={$thisTour->aTourRecords[0]->sTourName}' class='secondaryLinkButton'>Add Task</a>";
+					echo "<a href='" . ADMIN_DIR . "/PerformanceTaskMaintenance.php?TOUR_ID={$thisTour->id}&TOUR_NAME={$thisTour->name}' class='secondaryLinkButton'>Add Task</a>";
 
 				}
 				?>
@@ -458,29 +430,19 @@ $sPageName = "Tour Maintenance";
 					DETAILS
 				</div>
 				<?php
-					// The tour object will have info if a search returned one record.  It will have the record in its array
-					// if a Tour ID was passed in the query string
-					if(empty($thisTour->nTourID)) {
-						$thisTour->nTourID = $thisTour->aTourRecords[0]->nTourID;
-					}
-					if(!empty($thisTour->nTourID)){
-						$thisPerformanceTasks->nTourID = $thisTour->nTourID;
-						if ($thisPerformanceTasks->getPerformanceTask()) {
-							if(sizeof($thisPerformanceTasks->aPerformanceTaskRecords) > 0){
-								echo "<div class=\"col-xs-12 FieldGroup\">";
-								echo "TASKS:";
-								foreach ($thisPerformanceTasks->aPerformanceTaskRecords as $oPerformanceTaskRecord) {
-									if($oPerformanceTaskRecord->bComplete){
-										echo "<del> ";
-									}
-									echo "<div><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->sDescription}</A></div>";
-									if($oPerformanceTaskRecord->bComplete){
-										echo "</del> ";
-									}
-								}
-								echo "</div>";
+					if (!empty($thisTour->id) && sizeof($aPerformanceTasks) > 0) {
+						echo "<div class=\"col-xs-12 FieldGroup\">";
+						echo "TASKS:";
+						foreach ($aPerformanceTasks as $oPerformanceTaskRecord) {
+							if ($oPerformanceTaskRecord->complete) {
+								echo "<del> ";
+							}
+							echo "<div><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$oPerformanceTaskRecord->description}</A></div>";
+							if ($oPerformanceTaskRecord->complete) {
+								echo "</del> ";
 							}
 						}
+						echo "</div>";
 					}
 					?>
 				<div class="col-xs-12 FieldGroup">
@@ -488,30 +450,30 @@ $sPageName = "Tour Maintenance";
 						<div class="col-xs-12 col-sm-4">
 							START DATE:<BR /> 
 							<?php	  
-							renderDatePicker("TourStartDate", $thisTour->aTourRecords[0]->dtTourStartDate);
+							renderDatePicker("TourStartDate", $_POST['TourStartDate'] ?? ($thisTour->startDate ?? ''));
 							?>	
 							<br><br>							    
 						</div>								
 						<div class="col-xs-12 col-sm-4">
 							END DATE:<BR /> 
 							<?php	  
-							renderDatePicker("TourEndDate", $thisTour->aTourRecords[0]->dtTourEndDate);
+							renderDatePicker("TourEndDate", $_POST['TourEndDate'] ?? ($thisTour->endDate ?? ''));
 							?>		
 							<br><br>						  
 						</div>								
 						<div class="col-xs-12 col-sm-4">
 							INCLUDE DATE:<BR /> 
 							<?php	  
-							renderDatePicker("TourIncludeDate", $thisTour->aTourRecords[0]->dtTourIncludeDate);
+							renderDatePicker("TourIncludeDate", $_POST['TourIncludeDate'] ?? '');
 							?>	
 							<br><br>							    
 						</div>								
 						<div class="col-xs-12">
-							TOUR NAME: <input type="text" name="txtTourName" value="<?php echo $_POST['txtTourName']; ?>" size="60" />&nbsp;&nbsp;								
+							TOUR NAME: <input type="text" name="txtTourName" value="<?php echo $_POST['txtTourName'] ?? ''; ?>" size="60" />&nbsp;&nbsp;								
 						</div>	
 						<div class="col-xs-12">
 							TOUR NOTES
-							<textarea name="txtNotes" cols=60 rows=5 ><?php echo $_POST['txtNotes']; ?></textarea>
+							<textarea name="txtNotes" cols=60 rows=5 ><?php echo $_POST['txtNotes'] ?? ''; ?></textarea>
 						</div>							
 					</div>
 				</div>	
@@ -522,7 +484,7 @@ $sPageName = "Tour Maintenance";
 					<div class="row">
 						<div class="col-xs-12">
 							<?php
-							if($thisTour->aTourRecords[0]->nTourID > 0)
+							if (!empty($thisTour->id))
 							{
 								echo "<div class='row result-header'>";
 								echo "<div class='hidden-xs hidden-sm col-md-1 result-header'></div>";
@@ -533,70 +495,57 @@ $sPageName = "Tour Maintenance";
 								echo "<div class='hidden-xs hidden-sm col-md-3 result-header'></div>";
 								echo "</div>";
 
-								if($thisTour->aTourRecords[0]->getTourPerformances())
+								foreach ($aTourPerformances as $oPerformance)
 								{
-									foreach($thisTour->aTourRecords[0]->oTourPerformances->aPerformanceRecords as $oPerformance)
-									{
-										$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
+									$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
 
-										echo "<div class=\"row {$sResultStyleClass}\">";
-										echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>";
-										echo "<input type='checkbox' name='chkPerformance{$oPerformance->nPerformanceID}'";
-										echo " value='PerformanceAssociated' checked >";
-										echo "</div>";
-										echo "<div class='col-xs-4 col-md-2  {$sResultStyleClass}'>";
-										echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->nPerformanceID}'>";
-										echo "{$oPerformance->sPerformanceName}</a></div>";
-										echo "<div class='col-xs-2 col-md-2 {$sResultStyleClass}'>{$oPerformance->dtPerformanceDate}</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>{$oPerformance->sPerformanceTime}</div>";
-										echo "<div class='col-xs-6 col-md-3 {$sResultStyleClass}'>{$oPerformance->sLocation}, ";
-										echo "{$oPerformance->sLocationCity}, {$oPerformance->sLocationState }</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>";
-										if($oPerformance->dtPerformanceDate > $thisTour->aTourRecords[0]->dtTourEndDate || $oPerformance->dtPerformanceDate < $thisTour->aTourRecords[0]->dtTourStartDate)
-										{
-											echo "<font color='red'>Performance date outside of tour dates</font>";
-										}
-										echo "</div>";
-										echo "</div>";
-										
-									}
-								}
-								else
-								{
-									echo "ERROR RETRIEIVING PERORMANCES";
-								}
-								
-								if($thisTour->aTourRecords[0]->getPotentialPerformances())
-								{
-									foreach($thisTour->aTourRecords[0]->oPotentialPerformances->aPerformanceRecords as $oPerformance)
+									echo "<div class=\"row {$sResultStyleClass}\">";
+									echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>";
+									echo "<input type='checkbox' name='chkPerformance{$oPerformance->id}'";
+									echo " value='PerformanceAssociated' checked >";
+									echo "</div>";
+									echo "<div class='col-xs-4 col-md-2  {$sResultStyleClass}'>";
+									echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->id}'>";
+									echo "{$oPerformance->name}</a></div>";
+									echo "<div class='col-xs-2 col-md-2 {$sResultStyleClass}'>{$oPerformance->performanceDate}</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>{$oPerformance->performanceTime}</div>";
+									echo "<div class='col-xs-6 col-md-3 {$sResultStyleClass}'>{$oPerformance->location}, ";
+									echo "{$oPerformance->locationCity}, {$oPerformance->locationState }</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>";
+									if ($oPerformance->performanceDate > $thisTour->endDate || $oPerformance->performanceDate < $thisTour->startDate)
 									{
-										$sResultStyleClass = RESULT_STYLE_CLASS;
-
-										echo "<div class=\"row {$sResultStyleClass}\">";
-										echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>";
-										echo "<input type='checkbox' name='chkPerformance{$oPerformance->nPerformanceID}'";
-										echo " value='PerformanceAssociated' >";
-										echo "</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-2  {$sResultStyleClass}'>";
-										echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->nPerformanceID}'>";
-										echo "{$oPerformance->sPerformanceName}</a></div>";
-										echo "<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'>{$oPerformance->dtPerformanceDate}</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>{$oPerformance->sPerformanceTime}</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>{$oPerformance->sLocation}, ";
-										echo "{$oPerformance->sLocationCity}, {$oPerformance->sLocationState}</div>";
-										echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>";
-										if($oPerformance->nTourID > 0)
-										{
-											echo "<a href='" . ADMIN_DIR . "/TourMaintenance.php?ID={$oPerformance->nTourID}'>";
-											echo "<font color='red'>Performance already associated with tour ";
-											echo "{$oPerformance->nTourID}</font></a>";
-										}
-										echo "</div>";
-										echo "</div>";
-										
+										echo "<font color='red'>Performance date outside of tour dates</font>";
 									}
+									echo "</div>";
+									echo "</div>";
 								}
-								
+
+								foreach ($aPotentialPerformances as $oPerformance)
+								{
+									$sResultStyleClass = RESULT_STYLE_CLASS;
+
+									echo "<div class=\"row {$sResultStyleClass}\">";
+									echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>";
+									echo "<input type='checkbox' name='chkPerformance{$oPerformance->id}'";
+									echo " value='PerformanceAssociated' >";
+									echo "</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-2  {$sResultStyleClass}'>";
+									echo "<a href='" . ADMIN_DIR . "/PerformanceMaintenance.php?ID={$oPerformance->id}'>";
+									echo "{$oPerformance->name}</a></div>";
+									echo "<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'>{$oPerformance->performanceDate}</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-1 {$sResultStyleClass}'>{$oPerformance->performanceTime}</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>{$oPerformance->location}, ";
+									echo "{$oPerformance->locationCity}, {$oPerformance->locationState}</div>";
+									echo "<div class='hidden-xs hidden-sm col-md-3 {$sResultStyleClass}'>";
+									if (!empty($oPerformance->tourId))
+									{
+										echo "<a href='" . ADMIN_DIR . "/TourMaintenance.php?ID={$oPerformance->tourId}'>";
+										echo "<font color='red'>Performance already associated with tour ";
+										echo "{$oPerformance->tourId}</font></a>";
+									}
+									echo "</div>";
+									echo "</div>";
+								}
 							}
 						?>
 						</div>
@@ -605,10 +554,10 @@ $sPageName = "Tour Maintenance";
 				<div class="col-xs-12">
 					<div class="row">
 						<div class=" col-xs-3 FormFieldNoEdit">
-							ID: <?php echo $_POST['hdnTourID']; ?>						
+							ID: <?php echo $_POST['hdnTourID'] ?? ''; ?>						
 						</div>
 						<div class=" col-xs-9 FormFieldNoEdit">
-							LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+							LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 			</div>
@@ -641,57 +590,45 @@ $sPageName = "Tour Maintenance";
  ********************************************************************************
  * buildTourObject
  * 
- * This function loads builds a flag object from the data typed into the 
+ * This function loads builds a Tour object from the data typed into the 
  * form fields.
  ********************************************************************************
 */
-function buildTourObject($oTour)
+function buildTourObject(\Datalayer\Tour $Tour)
 {
+	$id = $_POST['hdnTourID'] ?? null;
+	$Tour->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$oTour->nTourID = $_POST['hdnTourID'];
+	$Tour->name = html_entity_decode($_POST['txtTourName'] ?? '', ENT_QUOTES);
+	$Tour->notes = html_entity_decode($_POST['txtNotes'] ?? '', ENT_QUOTES);
 
-	$oTour->sTourName = html_entity_decode($_POST['txtTourName'], ENT_QUOTES);
-	$oTour->bFuzzyNameSearch = TRUE;
-
-	//Tour Inlcude Date	
-	$dtTourIncludeDate = isset($_REQUEST["TourIncludeDate"]) ? $_REQUEST["TourIncludeDate"] : "";
-	if($dtTourIncludeDate > "0000-00-00")
-	{
-		//If no datepicker is displayed, use the hidden field
-		$dtTourIncludeDate = isset($_POST["TourIncludeDate"]) ? $_POST["TourIncludeDate"] : "";
-	}
-	if($dtTourIncludeDate > "0000-00-00")
-	{
-		$oTour->dtTourIncludeDate  	= $dtTourIncludeDate;
+	$startDate = getTourDateFromRequest('TourStartDate');
+	if (!empty($startDate)) {
+		$Tour->startDate = $startDate;
 	}
 
-	//Tour Start Date	
-	$dtTourStartDate = isset($_REQUEST["TourStartDate"]) ? $_REQUEST["TourStartDate"] : "";
-	if($dtTourStartDate > "0000-00-00")
-	{
-		//If no datepicker is displayed, use the hidden field
-		$dtTourStartDate = isset($_POST["TourStartDate"]) ? $_POST["TourStartDate"] : "";
+	$endDate = getTourDateFromRequest('TourEndDate');
+	if (!empty($endDate)) {
+		$Tour->endDate = $endDate;
 	}
-	if($dtTourStartDate > "0000-00-00")
-	{
-		$oTour->dtTourStartDate  	= $dtTourStartDate;
-	}
+}
 
-	//Tour End Date	
-	$dtTourEndDate = isset($_REQUEST["TourEndDate"]) ? $_REQUEST["TourEndDate"] : "";
-	if($dtTourEndDate > "0000-00-00")
-	{
-		//If no datepicker is displayed, use the hidden field
-		$dtTourEndDate = isset($_POST["TourEndDate"]) ? $_POST["TourEndDate"] : "";
-	}
-	if($dtTourEndDate > "0000-00-00")
-	{
-		$oTour->dtTourEndDate  = $dtTourEndDate;
-	}
 
-	$oTour->sNotes = html_entity_decode($_POST['txtNotes'], ENT_QUOTES);
-
+/*
+ ********************************************************************************
+ * getTourDateFromRequest
+ ********************************************************************************
+*/
+function getTourDateFromRequest(string $fieldName): ?string
+{
+	$dtValue = $_REQUEST[$fieldName] ?? "";
+	if ($dtValue > "0000-00-00") {
+		$dtValue = $_POST[$fieldName] ?? "";
+	}
+	if ($dtValue > "0000-00-00") {
+		return $dtValue;
+	}
+	return null;
 }
 
 
@@ -703,24 +640,17 @@ function buildTourObject($oTour)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadTour(&$oTour, $form)
+function loadTour(\Datalayer\Tour $Tour, $form)
 {
-
-	if (!is_null($oTour->nTourID))
+	if (!is_null($Tour->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnTourID'] = $oTour->nTourID;
-		
-
-		$_POST['txtTourName'] = htmlentities($oTour->sTourName, ENT_QUOTES);
-		
-		$_POST['TourStartDate'] = htmlentities($oTour->dtTourStartDate, ENT_QUOTES);
-		$_POST['TourEndDate'] = htmlentities($oTour->dtTourEndDate, ENT_QUOTES);
-		$_POST['txtNotes'] = htmlentities($oTour->sNotes, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($oTour->dtLastUpdate, ENT_QUOTES);
-		
+		$_POST['hdnTourID'] = $Tour->id;
+		$_POST['txtTourName'] = htmlentities($Tour->name ?? '', ENT_QUOTES);
+		$_POST['TourStartDate'] = htmlentities($Tour->startDate ?? '', ENT_QUOTES);
+		$_POST['TourEndDate'] = htmlentities($Tour->endDate ?? '', ENT_QUOTES);
+		$_POST['txtNotes'] = htmlentities($Tour->notes ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($Tour->lastUpdate ?? '', ENT_QUOTES);
 	}
-
 }
 
 
@@ -785,4 +715,3 @@ function validate_form ( )
 //-->
 </script>
 </html>
-

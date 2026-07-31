@@ -18,6 +18,8 @@ Date        Change
 2022-03-15	Added Tasks Button and Tasks
 2022-07-04	Added strikeout for complete tasks
 2024-05-09	Added Colorado Sessions Flag
+2026-07-30	Migrated Performance data access to new Datalayer repository
+2026-07-30	Migrated PerformanceTask list to Datalayer; removed legacy Tour/Artist includes
 *******************************************************************
 */
 
@@ -41,22 +43,18 @@ include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <?php
 
-//include Performance Class		
-include_once(CLASS_DIR . "/class_Performance.php");
-//include Performance Task Class		
-include_once(CLASS_DIR . "/class_PerformanceTask.php");
-
-//include Tour Class		
-include_once(CLASS_DIR . "/class_Tour.php");
-
-//Include Artist Class 
-include_once (CLASS_DIR . "/class_Artist.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+include_once(DATALAYER_DIR . "/PerformanceTask.php");
+include_once(DATALAYER_DIR . "/PerformanceTaskRepository.php");
 
 //include Form Class		
 include(CLASS_DIR . "/class_Form.php");
 
 //Array of Performance records from the DB
-global $aPerformanceRecords;
+$aPerformanceRecords = [];
 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName = "Performance Maintenance";	
@@ -81,223 +79,194 @@ $sPageName = "Performance Maintenance";
 			<?php
 
 			//Instantiate needed objects
-			$thisPerformance = new Performance();
-			$thisPerformanceTasks = new PerformanceTask();
+			$performanceRepo = new \Datalayer\PerformanceRepository();
+			$performanceTaskRepo = new \Datalayer\PerformanceTaskRepository();
+			$thisPerformance = new \Datalayer\Performance();
+			$aPerformanceTaskRecords = [];
 			$form = new Form();
 
 			//Get the ID query string parameter
-			$nThisPerformanceID = $_REQUEST['ID'];
+			$nThisPerformanceID = $_REQUEST['ID'] ?? null;
 
-			//Get Artists for drop-down list
-			$oArtists = new Artist();
-			if (!$oArtists->getArtist())
-			{
-				//ERROR
-			}
-
-			//If an Artist ID is passed, go ahead and search products for that artist
+			//If an Artist ID is passed, go ahead and search performances for that artist
 			if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "")
 			{
 				$_POST['selArtist'] = $_REQUEST['ARTIST_ID'];
 				$_POST['btnSearch'] = "Search";
 			}
 
-			//If an ID was passed to the page, retrieve that record for update		
-			if (!is_null($nThisPerformanceID)) {
+			try {
+				//If an ID was passed to the page, retrieve that record for update		
+				if (!is_null($nThisPerformanceID) && $nThisPerformanceID !== '') {
 
-				$thisPerformance->nPerformanceID = $nThisPerformanceID;
+					$entity = $performanceRepo->findById((int) $nThisPerformanceID);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisPerformance->getPerformance()) {
-
-					//Records found
-					if (sizeof($thisPerformance->aPerformanceRecords) > 0) {
-
-						//Only One Record should be returned.  Add this to the form field array
-						//so that it displays in the form fields and to the values in the
-						//current Object.
-						loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
+					if ($entity) {
+						$thisPerformance = $entity;
+						$aPerformanceRecords = [$entity];
+						loadPerformance($thisPerformance, $form);
 
 						$form->sMessage = "Update record.";
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-						//The record was not found
 						$form->sMessage = "Performance record not found.";
 						$form->nMessageType = MESSAGE_TYPE_WARNING;
 						$form->nFormMode = FORM_MODE_NEW;
 					}
 				} else {
-					//Error
-					$form->sMessage = $thisPerformance->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
-				}
-			} else {
-				//Based on which button was selected, perform processing necessary 
-				//before the page is rendered
-				// **************
-				// *   ADD      *
-				// **************
-				if (isset($_POST["btnAdd"])) {
-					//Load values into DB array
-					buildPerformanceObject($thisPerformance);
+					//Based on which button was selected, perform processing necessary 
+					//before the page is rendered
+					// **************
+					// *   ADD      *
+					// **************
+					if (isset($_POST["btnAdd"])) {
+						buildPerformanceObject($thisPerformance);
 
-					//Insert record
-					if ($thisPerformance->insertPerformance()) {
+						if ($performanceRepo->insert($thisPerformance)) {
+							$thisPerformance = $performanceRepo->findById((int) $thisPerformance->id) ?? $thisPerformance;
+							$aPerformanceRecords = [$thisPerformance];
+							loadPerformance($thisPerformance, $form);
+							$nThisPerformanceID = $thisPerformance->id;
 
-						//reload Performance
-						$nNewPerformanceID = $thisPerformance->nPerformanceID;
-						$thisPerformance = new Performance();
-						$thisPerformance->nPerformanceID = $nNewPerformanceID;
-
-						if ($thisPerformance->getPerformance()) {
-							//Load the form fields with the newly populated object
-							loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
-							//Store the ID of the performance
-							$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;
-
-							//Success
 							$form->nMessageType = MESSAGE_TYPE_INFO;
 							$form->sMessage = "Performance Added";
 							$form->nFormMode = FORM_MODE_EDIT;
 						} else {
-							//Problem reloading screen
-							clearFormFields($form);
 							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "Performance Added, but error occured while reloading the performance data";
-							$form->nFormMode = FORM_MODE_NEW;
+							$form->sMessage = "ADD RECORD FAILED";
+							$form->nFormMode = FORM_MODE_EDIT;
 						}
-					} else {
-
-						//Failure
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ADD RECORD FAILED: {$thisPerformance->sErrorMessage}";
-						$form->nFormMode = FORM_MODE_EDIT;
 					}
-				}
-				// **************
-				// *   UPDATE   *
-				// **************
-				else if (isset($_POST["btnUpdate"])) {
+					// **************
+					// *   UPDATE   *
+					// **************
+					else if (isset($_POST["btnUpdate"])) {
 
-					//Load values from form field array into DB object
-					buildPerformanceObject($thisPerformance);
+						buildPerformanceObject($thisPerformance);
 
-					//Update record
-					if ($thisPerformance->updatePerformance()) {
+						if ($performanceRepo->update($thisPerformance)) {
+							$thisPerformance = $performanceRepo->findById((int) $thisPerformance->id) ?? $thisPerformance;
+							$aPerformanceRecords = [$thisPerformance];
+							loadPerformance($thisPerformance, $form);
+							$nThisPerformanceID = $thisPerformance->id;
 
-						//reload Performance
-						$thisPerformance->getPerformance();
-
-						//Load the form fields with the newly populated DB object						
-						loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
-						//Store the ID of the performance
-						$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;
-
-						//Success
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->sMessage = "Performance Updated";
-						$form->nFormMode = FORM_MODE_EDIT;
-					} else {
-						//Failure
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ERROR: Update Failed - {$thisPerformance->sErrorMessage}";
-						$form->nFormMode = FORM_MODE_EDIT;
+							$form->nMessageType = MESSAGE_TYPE_INFO;
+							$form->sMessage = "Performance Updated";
+							$form->nFormMode = FORM_MODE_EDIT;
+						} else {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "ERROR: Update Failed";
+							$form->nFormMode = FORM_MODE_EDIT;
+						}
 					}
-				}
-				// **************
-				// *   DELETE   *
-				// **************
-				else if (isset($_POST["btnDelete"])) {
+					// **************
+					// *   DELETE   *
+					// **************
+					else if (isset($_POST["btnDelete"])) {
 
-					//Load DB record
-					buildPerformanceObject($thisPerformance);
+						buildPerformanceObject($thisPerformance);
 
-					//Delete record
-					if ($thisPerformance->deletePerformance()) {
-						//Clear the form fields
-						clearFormFields($form);
+						if (!empty($thisPerformance->id) && $performanceRepo->delete((int) $thisPerformance->id)) {
+							clearFormFields($form);
 
-						//Success
-						$form->sMessage = "Performance Deleted";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_NEW;
-					} else {
-						$form->sMessage = "DELETE FAILED: {$thisPerformance->sErrorMessage}";
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->nFormMode = FORM_MODE_EDIT;
+							$form->sMessage = "Performance Deleted";
+							$form->nMessageType = MESSAGE_TYPE_INFO;
+							$form->nFormMode = FORM_MODE_NEW;
+						} else {
+							$form->sMessage = "DELETE FAILED";
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->nFormMode = FORM_MODE_EDIT;
+						}
 					}
-				}
-				// **************
-				// *   SEARCH   *
-				// **************
-				else if (isset($_POST["btnSearch"])) {
-					//Load Array of Search Values
-					buildPerformanceObject($thisPerformance);
+					// **************
+					// *   SEARCH   *
+					// **************
+					else if (isset($_POST["btnSearch"])) {
+						buildPerformanceObject($thisPerformance);
 
-					//Search the Database for records matching the search criteria			
-					if ($thisPerformance->getPerformance()) {
-						//No records found
-						if (sizeof($thisPerformance->aPerformanceRecords) < 1) {
+						$criteria = [
+							'id' => $thisPerformance->id,
+							'name' => $thisPerformance->name,
+							'fuzzyName' => true,
+							'location' => $thisPerformance->location,
+							'fuzzyLocation' => true,
+							'locationCity' => $thisPerformance->locationCity,
+							'locationState' => $thisPerformance->locationState,
+							'locationZip' => $thisPerformance->locationZip,
+							'artistId' => $thisPerformance->artistId,
+							'tourId' => $thisPerformance->tourId,
+							'performanceDate' => $thisPerformance->performanceDate,
+							'performanceTime' => $thisPerformance->performanceTime,
+							'notes' => $thisPerformance->notes,
+						];
+
+						if ($thisPerformance->preRecorded !== null) {
+							$criteria['preRecorded'] = $thisPerformance->preRecorded;
+						}
+						if ($thisPerformance->adultShow !== null) {
+							$criteria['adultShow'] = $thisPerformance->adultShow;
+						}
+						if ($thisPerformance->coloradoSessions !== null) {
+							$criteria['coloradoSessions'] = $thisPerformance->coloradoSessions;
+						}
+
+						$aPerformanceRecords = $performanceRepo->find($criteria);
+
+						if (sizeof($aPerformanceRecords) < 1) {
 							$form->sMessage = "No Performance records found matching search criteria";
 							$form->nMessageType = MESSAGE_TYPE_WARNING;
 							$form->nFormMode = FORM_MODE_NEW;
-						} else if (sizeof($thisPerformance->aPerformanceRecords) == 1) {
-							//Only One Record returned.  Add this to the form field array
-							//so that it displays in the form fields
-							loadPerformance($thisPerformance->aPerformanceRecords[0], $form);
-							//Store the ID of the performance
-							$nThisPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;
+						} else if (sizeof($aPerformanceRecords) == 1) {
+							$thisPerformance = $aPerformanceRecords[0];
+							loadPerformance($thisPerformance, $form);
+							$nThisPerformanceID = $thisPerformance->id;
 
 							$form->sMessage = "One Performance record found.";
 							$form->nMessageType = MESSAGE_TYPE_INFO;
 							$form->nFormMode = FORM_MODE_EDIT;
-						}
-						//If Multiple records found, the array of search reults will be populated
-						else {
-							//Multiiple records returned
+						} else {
 							$form->sMessage = "Select Performance record to edit from results list below.";
 							$form->nMessageType = MESSAGE_TYPE_INFO;
 							$form->nFormMode = FORM_MODE_SELECT;
 						}
-					} else {
-						//Attempt to get records failed
-						$form->sMessage = $thisPerformance->sErrorMessage;
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
+					}
+					// *************
+					// *   CLEAR   *
+					// *************
+					else if (isset($_POST["btnClear"])) {
+
+						clearFormFields($form);
+
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+					// *************
+					// *   COPY  *
+					// *************
+					else if (isset($_POST["btnCopy"])) {
+						$_POST['hdnPerformanceID'] = NULL;
+						$_POST['BookedDate'] = "0000-00-00";
+
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_NEW;
+					}
+					// ***************
+					// *  1st TIME   *
+					// ***************
+					else {
+						$form->sMessage = "Search for records or Add new record";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_NEW;
 					}
 				}
-				// *************
-				// *   CLEAR   *
-				// *************
-				else if (isset($_POST["btnClear"])) {
-
-					clearFormFields($form);
-
-					$form->sMessage = "Search for records or Add new record";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_NEW;
-				}
-				// *************
-				// *   COPY  *
-				// *************
-				else if (isset($_POST["btnCopy"])) {
-					$_POST['hdnPerformanceID'] = NULL;
-					$_POST['BookedDate'] = "0000-00-00";
-
-					$form->sMessage = "Search for records or Add new record";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_NEW;
-				}
-				// ***************
-				// *  1st TIME   *
-				// ***************
-				else {
-					$form->sMessage = "Search for records or Add new record";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_NEW;
-				}
+			} catch (Exception $e) {
+				error_log('PerformanceMaintenance error: ' . $e->getMessage());
+				$form->sMessage = "ERROR: " . $e->getMessage();
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 
 			?>
@@ -361,7 +330,7 @@ $sPageName = "Performance Maintenance";
 						echo "</div>";
 
 
-						foreach ($thisPerformance->aPerformanceRecords as $oPerformanceRecord) {
+						foreach ($aPerformanceRecords as $oPerformanceRecord) {
 
 							//Alternate the result style
 							if ($sResultStyleClass == RESULT_STYLE_CLASS) {
@@ -374,12 +343,12 @@ $sPageName = "Performance Maintenance";
 							//The first column is the ID and is used to build a link
 							$i = 1;
 
-							echo "	<div class='col-xs-12 col-sm-2 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->sPerformanceName}</A></div>";
-							echo "	<div class='col-xs-12 col-sm-3 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->dtPerformanceDate}</A></div>";
-							echo "	<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->sPerformanceTime}</A></div>";
-							echo "	<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->sLocation}</A></div>";
-							echo "	<div class='col-xs-12 col-sm-5 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->sLocationCity}</A></div>";
-							echo "	<div class='col-xs-12 col-sm-2 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->nPerformanceID}'>{$oPerformanceRecord->sLocationState}</A></div>";
+							echo "	<div class='col-xs-12 col-sm-2 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->name}</A></div>";
+							echo "	<div class='col-xs-12 col-sm-3 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->performanceDate}</A></div>";
+							echo "	<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->performanceTime}</A></div>";
+							echo "	<div class='hidden-xs hidden-sm col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->location}</A></div>";
+							echo "	<div class='col-xs-12 col-sm-5 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->locationCity}</A></div>";
+							echo "	<div class='col-xs-12 col-sm-2 col-md-2 {$sResultStyleClass}'><A HREF='./PerformanceMaintenance.php?ID={$oPerformanceRecord->id}'>{$oPerformanceRecord->locationState}</A></div>";
 							echo "</div>";
 						}
 						?>
@@ -408,7 +377,7 @@ $sPageName = "Performance Maintenance";
 							echo "<a href='" . ADMIN_DIR . "/PerformanceEmails.php?ID={$nThisPerformanceID}' class='secondaryLinkButton' target='_blank'>Emails</a>";
 							echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";
 							echo "<br class='visible-xs'>";
-							echo "<a href='" . ADMIN_DIR . "/PerformanceTaskMaintenance.php?PERFORMANCE_ID={$nThisPerformanceID}&PERFORMANCE_NAME={$thisPerformance->aPerformanceRecords[0]->sPerformanceName}' class='secondaryLinkButton'>Add Task</a>";
+							echo "<a href='" . ADMIN_DIR . "/PerformanceTaskMaintenance.php?PERFORMANCE_ID={$nThisPerformanceID}&PERFORMANCE_NAME=" . urlencode($thisPerformance->name ?? '') . "' class='secondaryLinkButton'>Add Task</a>";
 						}
 						?>
 
@@ -417,29 +386,26 @@ $sPageName = "Performance Maintenance";
 					<?php
 					// The performance object will have info if a search returned one record.  It will have the record in its array
 					// if a performance ID was passed in the query string
-					if(empty($thisPerformance->nPerformanceID)) {
-						$thisPerformance->nPerformanceID = $thisPerformance->aPerformanceRecords[0]->nPerformanceID;
+					if(empty($thisPerformance->id) && sizeof($aPerformanceRecords) > 0) {
+						$thisPerformance->id = $aPerformanceRecords[0]->id;
 					}
-					if(!empty($thisPerformance->nPerformanceID)){
-						$thisPerformanceTasks->nPerformanceID = $thisPerformance->nPerformanceID;
-						if ($thisPerformanceTasks->getPerformanceTask()) {
-							if(sizeof($thisPerformanceTasks->aPerformanceTaskRecords) > 0){
-								if($oPerformanceTask->bComplete){
+					if(!empty($thisPerformance->id)){
+						$aPerformanceTaskRecords = $performanceTaskRepo->find([
+							'performanceId' => (int) $thisPerformance->id,
+						]);
+						if (sizeof($aPerformanceTaskRecords) > 0) {
+							echo "<div class=\"col-xs-12 FieldGroup\">";
+							echo "TASKS:";
+							foreach ($aPerformanceTaskRecords as $oPerformanceTaskRecord) {
+								if (!empty($oPerformanceTaskRecord->complete)) {
 									echo "<del> ";
 								}
-								echo "<div class=\"col-xs-12 FieldGroup\">";
-								echo "TASKS:";
-								foreach ($thisPerformanceTasks->aPerformanceTaskRecords as $oPerformanceTaskRecord) {
-									if($oPerformanceTaskRecord->bComplete){
-										echo "<del> ";
-									}
-									echo "<div><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->sDescription}</A></div>";
-									if($oPerformanceTaskRecord->bComplete){
-										echo "</del> ";
-									}
+								echo "<div><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$oPerformanceTaskRecord->description}</A></div>";
+								if (!empty($oPerformanceTaskRecord->complete)) {
+									echo "</del> ";
 								}
-								echo "</div>";
 							}
+							echo "</div>";
 						}
 					}
 					?>
@@ -451,7 +417,7 @@ $sPageName = "Performance Maintenance";
 							<div class="col-xs-12 col-md-4">
 								PERFORMANCE DATE:<BR />
 								<?php
-								renderDatePicker("PerformanceDate", $thisPerformance->aPerformanceRecords[0]->dtPerformanceDate);
+								renderDatePicker("PerformanceDate", $thisPerformance->performanceDate ?? $_POST['PerformanceDate'] ?? '');
 								?>
 							</div>
 
@@ -554,7 +520,7 @@ $sPageName = "Performance Maintenance";
 							<div class="col-xs-12 col-md-2">
 								BOOKED DATE:<br />
 								<?php
-								renderDatePicker("BookedDate", $thisPerformance->aPerformanceRecords[0]->dtBookedDate);
+								renderDatePicker("BookedDate", $thisPerformance->bookedDate ?? $_POST['BookedDate'] ?? '');
 
 								?>
 							</div>
@@ -665,74 +631,72 @@ $sPageName = "Performance Maintenance";
  * form fields.
  ********************************************************************************
 */
-	function buildPerformanceObject($oPerformance)
+	function buildPerformanceObject(\Datalayer\Performance $oPerformance)
 	{
+		$id = $_POST['hdnPerformanceID'] ?? null;
+		$oPerformance->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-		//Load the Array used to populate the form fields based on the newly loaded object
-		$oPerformance->nPerformanceID = $_POST['hdnPerformanceID'];
-		$oPerformance->nTourID = $_POST['hdnTourID'];
-		$oPerformance->nArtistID = $_POST['selArtist'];
+		$tourId = $_POST['hdnTourID'] ?? null;
+		$oPerformance->tourId = (!empty($tourId) && is_numeric($tourId)) ? (int) $tourId : null;
+		$oPerformance->artistId = (int) ($_POST['selArtist'] ?? 0);
 
-		$oPerformance->sPerformanceName = html_entity_decode($_POST['txtPerformanceName'], ENT_QUOTES);
-		$oPerformance->bFuzzyNameSearch = TRUE;
-		$oPerformance->sPerformanceWebsite = html_entity_decode($_POST['txtPerformanceWebsite'], ENT_QUOTES);
-		$oPerformance->sPerformanceTime = html_entity_decode($_POST['txtPerformanceTime'], ENT_QUOTES);
-		$oPerformance->sLocation = html_entity_decode($_POST['txtLocation'], ENT_QUOTES);
-		$oPerformance->bFuzzyLocationSearch = TRUE;
-		$oPerformance->sLocationWebsite = html_entity_decode($_POST['txtLocationWebsite'], ENT_QUOTES);
-		$oPerformance->sLocationAddr1 = html_entity_decode($_POST['txtLocationAddr1'], ENT_QUOTES);
-		$oPerformance->sLocationAddr2 = html_entity_decode($_POST['txtLocationAddr2'], ENT_QUOTES);
-		$oPerformance->sLocationCity = html_entity_decode($_POST['txtLocationCity'], ENT_QUOTES);
-		$oPerformance->sLocationState = html_entity_decode($_POST['txtLocationState'], ENT_QUOTES);
-		$oPerformance->sLocationZip = html_entity_decode($_POST['txtLocationZip'], ENT_QUOTES);
-		$oPerformance->sDescription = html_entity_decode($_POST['txtDescription'], ENT_QUOTES);
-		$oPerformance->sAdmission = html_entity_decode($_POST['txtAdmission'], ENT_QUOTES);
-		$oPerformance->sContactName = html_entity_decode($_POST['txtContactName'], ENT_QUOTES);
-		$oPerformance->sContactEmail = html_entity_decode($_POST['txtContactEmail'], ENT_QUOTES);
-		$oPerformance->sContactPhone = html_entity_decode($_POST['txtContactPhone'], ENT_QUOTES);
-		$oPerformance->sNotes = html_entity_decode($_POST['txtNotes'], ENT_QUOTES);
-		$oPerformance->sContract = $_POST['selContract'];
-		$oPerformance->sAirfare = $_POST['selAirfare'];
-		$oPerformance->sHotel = $_POST['selHotel'];
-		$oPerformance->sRentalCar = $_POST['selRentalCar'];
+		$oPerformance->name = html_entity_decode($_POST['txtPerformanceName'] ?? '', ENT_QUOTES);
+		$oPerformance->website = html_entity_decode($_POST['txtPerformanceWebsite'] ?? '', ENT_QUOTES);
+		$oPerformance->performanceTime = html_entity_decode($_POST['txtPerformanceTime'] ?? '', ENT_QUOTES);
+		$oPerformance->location = html_entity_decode($_POST['txtLocation'] ?? '', ENT_QUOTES);
+		$oPerformance->locationWebsite = html_entity_decode($_POST['txtLocationWebsite'] ?? '', ENT_QUOTES);
+		$oPerformance->locationAddr1 = html_entity_decode($_POST['txtLocationAddr1'] ?? '', ENT_QUOTES);
+		$oPerformance->locationAddr2 = html_entity_decode($_POST['txtLocationAddr2'] ?? '', ENT_QUOTES);
+		$oPerformance->locationCity = html_entity_decode($_POST['txtLocationCity'] ?? '', ENT_QUOTES);
+		$oPerformance->locationState = html_entity_decode($_POST['txtLocationState'] ?? '', ENT_QUOTES);
+		$oPerformance->locationZip = html_entity_decode($_POST['txtLocationZip'] ?? '', ENT_QUOTES);
+		$oPerformance->description = html_entity_decode($_POST['txtDescription'] ?? '', ENT_QUOTES);
+		$oPerformance->admission = html_entity_decode($_POST['txtAdmission'] ?? '', ENT_QUOTES);
+		$oPerformance->contactName = html_entity_decode($_POST['txtContactName'] ?? '', ENT_QUOTES);
+		$oPerformance->contactEmail = html_entity_decode($_POST['txtContactEmail'] ?? '', ENT_QUOTES);
+		$oPerformance->contactPhone = html_entity_decode($_POST['txtContactPhone'] ?? '', ENT_QUOTES);
+		$oPerformance->notes = html_entity_decode($_POST['txtNotes'] ?? '', ENT_QUOTES);
+		$oPerformance->contract = $_POST['selContract'] ?? null;
+		$oPerformance->airfare = $_POST['selAirfare'] ?? null;
+		$oPerformance->hotel = $_POST['selHotel'] ?? null;
+		$oPerformance->rentalCar = $_POST['selRentalCar'] ?? null;
 
-		$oPerformance->nBookedAmount = html_entity_decode($_POST['txtBookedAmount'], ENT_QUOTES);
+		$bookedAmount = html_entity_decode($_POST['txtBookedAmount'] ?? '', ENT_QUOTES);
+		$oPerformance->bookedAmount = is_numeric($bookedAmount) ? (float) $bookedAmount : null;
 
 		//Pre-Recorded Flag
-		if ($_POST['chkPreRecorded'] == "PreRecorded") {
-			$oPerformance->bPreRecorded = TRUE;
+		if (($_POST['chkPreRecorded'] ?? '') == "PreRecorded") {
+			$oPerformance->preRecorded = TRUE;
 		}
 
 		//Adult Show Flag
-		if ($_POST['chkAdultShow'] == "AdultShow") {
-			$oPerformance->bAdultShow = TRUE;
+		if (($_POST['chkAdultShow'] ?? '') == "AdultShow") {
+			$oPerformance->adultShow = TRUE;
 		}
 
 		// Colorado Sessions Flag
-		if ($_POST['chkColoradoSessions'] == "ColoradoSessions") {
-			$oPerformance->bColoradoSessions = TRUE;
+		if (($_POST['chkColoradoSessions'] ?? '') == "ColoradoSessions") {
+			$oPerformance->coloradoSessions = TRUE;
 		}
 
 		//Performance Date	
 		$dtPerformanceDate = isset($_REQUEST["PerformanceDate"]) ? $_REQUEST["PerformanceDate"] : "";
 		if ($dtPerformanceDate > "0000-00-00") {
-			//If no datepicker is displayed, use the hidden field
 			$dtPerformanceDate = isset($_POST["PerformanceDate"]) ? $_POST["PerformanceDate"] : "";
 		}
 
 		if ($dtPerformanceDate > "0000-00-00") {
-			$oPerformance->dtPerformanceDate  = $dtPerformanceDate;
+			$oPerformance->performanceDate = $dtPerformanceDate;
 		}
 
 		//Booked Date	
 		$dtBookedDate = isset($_REQUEST["BookedDate"]) ? $_REQUEST["BookedDate"] : "";
 		if ($dtBookedDate > "0000-00-00") {
-			//If no datepicker is displayed, use the hidden field
 			$dtBookedDate = isset($_POST["BookedDate"]) ? $_POST["BookedDate"] : "";
 		}
 
 		if ($dtBookedDate > "0000-00-00") {
-			$oPerformance->dtBookedDate  = $dtBookedDate;
+			$oPerformance->bookedDate = $dtBookedDate;
 		}
 	}
 
@@ -745,48 +709,45 @@ $sPageName = "Performance Maintenance";
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-	function loadPerformance(&$oPerformance, $form)
+	function loadPerformance(\Datalayer\Performance $oPerformance, $form)
 	{
 
-		if (!is_null($oPerformance->nPerformanceID)) {
+		if (!is_null($oPerformance->id)) {
 			//Load Hidden Fields
-			$_POST['hdnPerformanceID'] = $oPerformance->nPerformanceID;
-			$_POST['hdnTourID'] = $oPerformance->nTourID;
-			$_POST['selArtist'] = $oPerformance->nArtistID;
+			$_POST['hdnPerformanceID'] = $oPerformance->id;
+			$_POST['hdnTourID'] = $oPerformance->tourId;
+			$_POST['selArtist'] = $oPerformance->artistId;
 
-			$_POST['txtPerformanceName'] = htmlentities($oPerformance->sPerformanceName, ENT_QUOTES);
-			$_POST['txtPerformanceWebsite'] = htmlentities($oPerformance->sPerformanceWebsite ?? "", ENT_QUOTES);
-			$_POST['PerformanceDate'] = htmlentities($oPerformance->dtPerformanceDate, ENT_QUOTES);
-			$_POST['txtPerformanceTime'] = htmlentities($oPerformance->sPerformanceTime, ENT_QUOTES);
-			$_POST['txtLocation'] = htmlentities($oPerformance->sLocation, ENT_QUOTES);
-			$_POST['txtLocationWebsite'] = htmlentities($oPerformance->sLocationWebsite ?? "", ENT_QUOTES);
-			$_POST['txtLocationAddr1'] = htmlentities($oPerformance->sLocationAddr1, ENT_QUOTES);
-			$_POST['txtLocationAddr2'] = htmlentities($oPerformance->sLocationAddr2, ENT_QUOTES);
-			$_POST['txtLocationCity'] = htmlentities($oPerformance->sLocationCity, ENT_QUOTES);
-			$_POST['txtLocationState'] = htmlentities($oPerformance->sLocationState, ENT_QUOTES);
-			$_POST['txtLocationZip'] = htmlentities($oPerformance->sLocationZip, ENT_QUOTES);
-			$_POST['txtDescription'] = htmlentities($oPerformance->sDescription, ENT_QUOTES);
-			$_POST['txtAdmission'] = htmlentities($oPerformance->sAdmission, ENT_QUOTES);
-			$_POST['txtContactName'] = htmlentities($oPerformance->sContactName, ENT_QUOTES);
-			$_POST['txtContactEmail'] = htmlentities($oPerformance->sContactEmail, ENT_QUOTES);
-			$_POST['txtContactPhone'] = htmlentities($oPerformance->sContactPhone, ENT_QUOTES);
-			$_POST['txtBookedAmount'] = htmlentities($oPerformance->nBookedAmount ?? '0', ENT_QUOTES);
-			$_POST['BookedDate'] = htmlentities($oPerformance->dtBookedDate ?? '0000-00-00', ENT_QUOTES);
-			$_POST['txtNotes'] = htmlentities($oPerformance->sNotes ?? "", ENT_QUOTES);
-			$_POST['selContract'] = htmlentities($oPerformance->sContract ?? "", ENT_QUOTES);
-			$_POST['selAirfare'] = htmlentities($oPerformance->sAirfare ?? "", ENT_QUOTES);
-			$_POST['selHotel'] = htmlentities($oPerformance->sHotel ?? "", ENT_QUOTES);
-			$_POST['selRentalCar'] = htmlentities($oPerformance->sRentalCar ?? "", ENT_QUOTES);
-			$_POST['txtLastUpdate'] = htmlentities($oPerformance->dtLastUpdate, ENT_QUOTES);
+			$_POST['txtPerformanceName'] = htmlentities($oPerformance->name ?? '', ENT_QUOTES);
+			$_POST['txtPerformanceWebsite'] = htmlentities($oPerformance->website ?? "", ENT_QUOTES);
+			$_POST['PerformanceDate'] = htmlentities($oPerformance->performanceDate ?? '', ENT_QUOTES);
+			$_POST['txtPerformanceTime'] = htmlentities($oPerformance->performanceTime ?? '', ENT_QUOTES);
+			$_POST['txtLocation'] = htmlentities($oPerformance->location ?? '', ENT_QUOTES);
+			$_POST['txtLocationWebsite'] = htmlentities($oPerformance->locationWebsite ?? "", ENT_QUOTES);
+			$_POST['txtLocationAddr1'] = htmlentities($oPerformance->locationAddr1 ?? '', ENT_QUOTES);
+			$_POST['txtLocationAddr2'] = htmlentities($oPerformance->locationAddr2 ?? '', ENT_QUOTES);
+			$_POST['txtLocationCity'] = htmlentities($oPerformance->locationCity ?? '', ENT_QUOTES);
+			$_POST['txtLocationState'] = htmlentities($oPerformance->locationState ?? '', ENT_QUOTES);
+			$_POST['txtLocationZip'] = htmlentities($oPerformance->locationZip ?? '', ENT_QUOTES);
+			$_POST['txtDescription'] = htmlentities($oPerformance->description ?? '', ENT_QUOTES);
+			$_POST['txtAdmission'] = htmlentities($oPerformance->admission ?? '', ENT_QUOTES);
+			$_POST['txtContactName'] = htmlentities($oPerformance->contactName ?? '', ENT_QUOTES);
+			$_POST['txtContactEmail'] = htmlentities($oPerformance->contactEmail ?? '', ENT_QUOTES);
+			$_POST['txtContactPhone'] = htmlentities($oPerformance->contactPhone ?? '', ENT_QUOTES);
+			$_POST['txtBookedAmount'] = htmlentities((string) ($oPerformance->bookedAmount ?? '0'), ENT_QUOTES);
+			$_POST['BookedDate'] = htmlentities($oPerformance->bookedDate ?? '0000-00-00', ENT_QUOTES);
+			$_POST['txtNotes'] = htmlentities($oPerformance->notes ?? "", ENT_QUOTES);
+			$_POST['selContract'] = htmlentities($oPerformance->contract ?? "", ENT_QUOTES);
+			$_POST['selAirfare'] = htmlentities($oPerformance->airfare ?? "", ENT_QUOTES);
+			$_POST['selHotel'] = htmlentities($oPerformance->hotel ?? "", ENT_QUOTES);
+			$_POST['selRentalCar'] = htmlentities($oPerformance->rentalCar ?? "", ENT_QUOTES);
+			$_POST['txtLastUpdate'] = htmlentities($oPerformance->lastUpdate ?? '', ENT_QUOTES);
 
-			$_POST['chkPreRecorded'] = $oPerformance->bPreRecorded;
-			$_POST['chkAdultShow'] = $oPerformance->bAdultShow;
-			$_POST['chkColoradoSessions'] = $oPerformance->bColoradoSessions;
+			$_POST['chkPreRecorded'] = $oPerformance->preRecorded;
+			$_POST['chkAdultShow'] = $oPerformance->adultShow;
+			$_POST['chkColoradoSessions'] = $oPerformance->coloradoSessions;
 		} else {
-			//Load Form field values into array 
 			foreach ($_POST as $fieldName => $fieldValue) {
-
-				//$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
 				$_POST[$fieldName] = $fieldValue;
 			}
 		}

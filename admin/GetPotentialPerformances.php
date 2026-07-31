@@ -7,7 +7,6 @@
 	//This include defines the relative path to the root directory from this sub-directory
  	include_once ("root.inc.php");
 
-	
 	//inlcude web site settings
 	include_once ($ROOT . "/includes/websiteSettings.php");
 
@@ -16,36 +15,28 @@
 
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	
-	//include Performance Class		
- 	include_once (CLASS_DIR . "/class_Performance.php");
-	
-	$dtIncludeDate = $_GET['date'];
 
-	$oPotentialPerformances = new Performance();
-	
-	$oPotentialPerformances->dtPerformanceDate = $dtIncludeDate;
-	
-	if($oPotentialPerformances->getPerformance())
-	{
-		if(sizeof($oPotentialPerformances->aPerformanceRecords) > 0) 
-		{
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Performance.php");
+	include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+
+	$dtIncludeDate = $_GET['date'] ?? '';
+
+	try {
+		$performanceRepo = new \Datalayer\PerformanceRepository();
+		$aPerformanceRecords = $performanceRepo->find(['performanceDate' => $dtIncludeDate]);
+
+		if (sizeof($aPerformanceRecords) > 0) {
 			echo "<OPTION VALUE='0'>NONE</OPTION>";
-			foreach($oPotentialPerformances->aPerformanceRecords as $oPotentialPerformance)
-			{
-				echo "<OPTION VALUE=". $oPotentialPerformance->nPerformanceID . ">" . $oPotentialPerformance->sPerformanceName;
-				echo " - "  . $oPotentialPerformance->sLocation ."</OPTION>"; 
+			foreach ($aPerformanceRecords as $oPotentialPerformance) {
+				echo "<OPTION VALUE=" . $oPotentialPerformance->id . ">" . $oPotentialPerformance->name;
+				echo " - " . $oPotentialPerformance->location . "</OPTION>";
 			}
-		}
-		else
-		{
+		} else {
 			echo "<OPTION VALUE='0' SELECTED>NONE</OPTION>";
 		}
-	
-	}
-	else
-	{
-		echo "<OPTION>ERROR RETRIEVING PERFORMANCES" . $oPotentialPerformances->sErrorMessage . "</OPTION>";
+	} catch (\Throwable $e) {
+		echo "<OPTION>ERROR RETRIEVING PERFORMANCES" . $e->getMessage() . "</OPTION>";
 	}
 
 ?>

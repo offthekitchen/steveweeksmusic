@@ -9,6 +9,7 @@ Date        Change
 2019-08-14  Created
 2021-08-30	Updated for PHP 8
 2024-04-12	Added Expense and Profit
+2026-07-30	Migrated to new Datalayer Artist/Product/Revenue/Expense repositories
 *******************************************************************
 */	
 
@@ -28,6 +29,24 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
  include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
  include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Artist.php");
+include_once(DATALAYER_DIR . "/ArtistRepository.php");
+include_once(DATALAYER_DIR . "/Product.php");
+include_once(DATALAYER_DIR . "/ProductRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+
+//include Form Class		
+include (CLASS_DIR . "/class_Form.php");
+
+//Require the Class for the calendar picker
+require_once (CLASS_DIR . "/tc_calendar.php");
+
  $sActiveMenuItem = REPORTS_ACTIVE;	
  $sPageName = "Artist Report";
 ?>
@@ -43,24 +62,6 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 <!-- <script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script> -->
 
 <body>
-	<?php
-	
-	//include Artist Class		
- 	include_once (CLASS_DIR . "/class_Artist.php");
-
-	//include Product Class		
- 	include_once (CLASS_DIR . "/class_Product.php");
-
-	//include Revenue Class		
- 	include_once (CLASS_DIR . "/class_Revenue.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
-
-	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
-
-	?>
 <div class="container-fluid">
 <form name="ArtistReport" action="ArtistReport.php" method="post">
 <?php
@@ -79,14 +80,15 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 	//Instantiate needed objects
 	$form = new Form();
-	$aArtistData = array();
-	$oThisArtists = new Artist();
+	$artistRepo = new \Datalayer\ArtistRepository();
+	$productRepo = new \Datalayer\ProductRepository();
+	$revenueRepo = new \Datalayer\RevenueRepository();
+	$expenseRepo = new \Datalayer\ExpenseRepository();
 	$sBaseQueryString="";
 
 	//Set the Year range based on year selection 
 	if ($_POST['selYear'] > 0)
 	{
-		$oThisArtists->nPaidYear = $_POST['selYear'];		
 		$nStartYear = $_POST['selYear'];
 		$nEndYear = $_POST['selYear'];
 	}
@@ -96,16 +98,18 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 		$nEndYear = date('Y');
 	}
 		
-	//If a Artist is selected, retrieve that product's information
+	$artistCriteria = [];
 	if ($_POST['selArtist'] > 0)
 	{
-		$oThisArtists->nArtistID = $_POST['selArtist'];		
+		$artistCriteria['id'] = (int) $_POST['selArtist'];
 	}
 
-	if(!$oThisArtists->getArtist())
-	{
+	try {
+		$aArtistRecords = $artistRepo->find($artistCriteria);
+	} catch (\Throwable $e) {
+		$aArtistRecords = [];
 		$form->nMessageType = MESSAGE_TYPE_ERROR;
-		$form->sMessage = "FAILED TO GET ARTISTS: {$oThisArtist->sErrorMessage}";
+		$form->sMessage = "FAILED TO GET ARTISTS: " . $e->getMessage();
 	}
 	
 ?>	
@@ -120,9 +124,9 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 				<div class="col-xs-12 Title">
 				ARTIST REPORT:  
 				<?php
-				if($_POST['selArtist'] > 0)
+				if($_POST['selArtist'] > 0 && !empty($aArtistRecords))
 				{
-					echo " {$oThisArtists->aArtistRecords[0]->sArtistName}";
+					echo " {$aArtistRecords[0]->name}";
 				}
 				if($_POST['selYear'] > 0)
 				{
@@ -158,9 +162,6 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 <?php
 if (isset($_POST["btnGenerate"])) 
 {
-	//Only display this section if reporting on all revenue types 
-	// if($_POST['selArtist'] == 0)
-	// {
 ?>
 	<div class="row"> 		
 		<div class="col-xs-12 FieldGroup"> 
@@ -184,61 +185,55 @@ if (isset($_POST["btnGenerate"]))
 				<?php
 					$nTotalRevenueAmount = 0;
 					$nTotalExpenseAmount = 0;
-					$nTotalProfitAmount = 0;
 
-					foreach($oThisArtists->aArtistRecords as $oArtist)
+					foreach($aArtistRecords as $artist)
 					{
-						$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$oArtist->nArtistID}"; 
+						$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$artist->id}"; 
 						
-						$oExpense = new Expense();
-						$oExpense->nArtistID = $oArtist->nArtistID;
-						$oExpense->nExpenseYear = $_POST['selYear'];
-						$nTotalArtistExpenseAmount = $oExpense->getExpenseAmountTotal();
-
-						$oRevenue = new Revenue();
-						$oRevenue->nArtistID = $oArtist->nArtistID;
-						$oRevenue->nPaidYear = $_POST['selYear'];
-						$nTotalArtistRevenueAmount = $oRevenue->getRevenueAmountTotal();
-
-						if($nTotalArtistRevenueAmount == -1 || $nTotalArtistExpenseAmount == -1)
-						{
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "FAILED TO GET DATA: {$oRevenue->sErrorMessage} {$oExpense->sErrorMessage}";
+						$expenseCriteria = [];
+						if ($_POST['selYear'] > 0) {
+							$expenseCriteria['expenseYear'] = (int) $_POST['selYear'];
 						}
-						else
-						{
-							//Display a report row if any revenues were found matching criteria
-							if(!empty($nTotalArtistRevenueAmount) && $nTotalArtistRevenueAmount > 0)
-							{	
-								$nTotalRevenueAmount += $nTotalArtistRevenueAmount;
-							}
-							//Display a report row if any revenues were found matching criteria
-							if(!empty($nTotalArtistExpenseAmount) && $nTotalArtistExpenseAmount > 0)
-							{	
-								$nTotalExpenseAmount += $nTotalArtistExpenseAmount;
-							}
+						$nTotalArtistExpenseAmount = sumExpenseAmountByArtist(
+							$expenseRepo,
+							$productRepo,
+							$artist->id,
+							$expenseCriteria
+						);
 
-							$nTotalArtistProfit = $nTotalArtistRevenueAmount - $nTotalArtistExpenseAmount;
-
-							echo "<tr>";
-							echo "<td>{$oArtist->sArtistName}</td>";
-							echo "<td>$";
-							echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";  
-							echo number_format((float)$nTotalArtistRevenueAmount, 2, '.', ',');
-							echo "</a>";
-							echo"</td>";
-							echo "<td>$";
-							echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sQueryString}'>";  
-							echo number_format((float)$nTotalArtistExpenseAmount, 2, '.', ',');
-							echo "</a>";
-							echo"</td>";
-							echo "<td>$";
-							echo number_format((float)$nTotalArtistProfit, 2, '.', ',');
-							echo"</td>";
-							echo "</tr>";
-
+						$revenueCriteria = ['artistId' => $artist->id];
+						if ($_POST['selYear'] > 0) {
+							$revenueCriteria['paidYear'] = (int) $_POST['selYear'];
 						}
-						
+						$nTotalArtistRevenueAmount = sumRevenueAmount($revenueRepo, $revenueCriteria);
+
+						if(!empty($nTotalArtistRevenueAmount) && $nTotalArtistRevenueAmount > 0)
+						{	
+							$nTotalRevenueAmount += $nTotalArtistRevenueAmount;
+						}
+						if(!empty($nTotalArtistExpenseAmount) && $nTotalArtistExpenseAmount > 0)
+						{	
+							$nTotalExpenseAmount += $nTotalArtistExpenseAmount;
+						}
+
+						$nTotalArtistProfit = $nTotalArtistRevenueAmount - $nTotalArtistExpenseAmount;
+
+						echo "<tr>";
+						echo "<td>{$artist->name}</td>";
+						echo "<td>$";
+						echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";  
+						echo number_format((float)$nTotalArtistRevenueAmount, 2, '.', ',');
+						echo "</a>";
+						echo"</td>";
+						echo "<td>$";
+						echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sQueryString}'>";  
+						echo number_format((float)$nTotalArtistExpenseAmount, 2, '.', ',');
+						echo "</a>";
+						echo"</td>";
+						echo "<td>$";
+						echo number_format((float)$nTotalArtistProfit, 2, '.', ',');
+						echo"</td>";
+						echo "</tr>";
 					}			
 
 					echo "<tr>";
@@ -275,9 +270,6 @@ if (isset($_POST["btnGenerate"]))
 				</table>			
 			</div>
 		</div>
-<?php
-	//}
-?>		
 		<div class="col-xs-12 FieldGroup">
 			<div class="FieldGroupTitle"> 
 				REVENUES BY PRODUCT
@@ -287,9 +279,9 @@ if (isset($_POST["btnGenerate"]))
 					echo " FOR {$_POST['selYear']}";
 				}
 	
-				if($_POST['selArtist'] > 0)
+				if($_POST['selArtist'] > 0 && !empty($aArtistRecords))
 				{
-					echo " {$oThisArtists->aArtistRecords[0]->sArtistName}";
+					echo " {$aArtistRecords[0]->name}";
 				}
 				?>
 			</div>
@@ -298,35 +290,40 @@ if (isset($_POST["btnGenerate"]))
 					<tr>								
 						<th></th>
 						<?php
-						 foreach($oThisArtists->aArtistRecords as $oArtist)
+						 foreach($aArtistRecords as $artist)
 						 {
-							echo "<th>{$oArtist->sArtistName}</th>";
+							echo "<th>{$artist->name}</th>";
 						 }
 						?>
 					</tr>
 				<?php
 				$aArtistTotals = array();
 				
-				$oProducts = new Product;
-				
-				$oProducts->nArtistID = $oThisArtists->nArtistID;
+				$productCriteria = [];
+				if ($_POST['selArtist'] > 0) {
+					$productCriteria['artistId'] = (int) $_POST['selArtist'];
+				}
+				$aProductRecords = $productRepo->find($productCriteria);
 
-				if ($oProducts->getProduct())
+				if (!empty($aProductRecords))
 				{
 				
-					foreach ($oProducts->aProductRecords as $oProduct)
+					foreach ($aProductRecords as $product)
 					{
 						echo "<tr>";
-						echo "<td>{$oProduct->sProductName}</td>";
-						foreach($oThisArtists->aArtistRecords as $oArtist)
+						echo "<td>{$product->name}</td>";
+						foreach($aArtistRecords as $artist)
 						{
 	
-							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$oProduct->nProductID}&ARTIST_ID={$oArtist->nArtistID}";
-							$oProductRevenues = new Revenue();
-							$oProductRevenues->nProductID = $oProduct->nProductID;
-							$oProductRevenues->nArtistID = $oArtist->nArtistID;
-							$oProductRevenues->nPaidYear = $_POST['selYear'];
-							$nProductRevenueTotal = $oProductRevenues->getRevenueAmountTotal();
+							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$product->id}&ARTIST_ID={$artist->id}";
+							$revenueCriteria = [
+								'productId' => $product->id,
+								'artistId' => $artist->id,
+							];
+							if ($_POST['selYear'] > 0) {
+								$revenueCriteria['paidYear'] = (int) $_POST['selYear'];
+							}
+							$nProductRevenueTotal = sumRevenueAmount($revenueRepo, $revenueCriteria);
 	
 							echo "<td>";
 							if($nProductRevenueTotal > 0)
@@ -334,7 +331,7 @@ if (isset($_POST["btnGenerate"]))
 								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
 								echo "$" . number_format((float)$nProductRevenueTotal, 2, '.', ',');
 								echo "</a>";	
-								$aArtistTotals[$oProductRevenues->nArtistID] += $nProductRevenueTotal;
+								$aArtistTotals[$artist->id] = ($aArtistTotals[$artist->id] ?? 0) + $nProductRevenueTotal;
 							}
 							else
 							{
@@ -349,12 +346,12 @@ if (isset($_POST["btnGenerate"]))
 				echo "<tr>";
 				echo "<th>Total</th>";
 				
-				foreach($oThisArtists->aArtistRecords as $oArtist)
+				foreach($aArtistRecords as $artist)
 				{
-					$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$oArtist->nArtistID}";
+					$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$artist->id}";
 					echo "<td>";
 					echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
-					echo "$" . number_format((float)$aArtistTotals[$oArtist->nArtistID], 2, '.', ',');	
+					echo "$" . number_format((float)($aArtistTotals[$artist->id] ?? 0), 2, '.', ',');	
 					echo "</a>";
 					echo "</td>";
 				}
@@ -376,9 +373,9 @@ if (isset($_POST["btnGenerate"]))
 			<div class="FieldGroupTitle">
 				REVENUES BY YEAR
 				<?php
-				if ($_POST['selArtist'] > 0)
+				if ($_POST['selArtist'] > 0 && !empty($aArtistRecords))
 				{
-					echo " FOR {$oThisArtists->aArtistRecords[0]->sArtistName}";
+					echo " FOR {$aArtistRecords[0]->name}";
 				}
 				?>						
 			</div>
@@ -387,9 +384,9 @@ if (isset($_POST["btnGenerate"]))
 					<tr>								
 						<th></th>
 						<?php
-						 foreach($oThisArtists->aArtistRecords as $oArtist)
+						 foreach($aArtistRecords as $artist)
 						 {
-							echo "<th>{$oArtist->sArtistName}</th>";
+							echo "<th>{$artist->name}</th>";
 						 }
 						?>
 					</tr>
@@ -405,14 +402,14 @@ if (isset($_POST["btnGenerate"]))
 						echo "<tr>";
 						echo "<th>{$nYear}</th>";
 	
-						foreach($oThisArtists->aArtistRecords as $oArtist)
+						foreach($aArtistRecords as $artist)
 						{
 	
-							$sQueryString = "{$sBaseQueryString}&YEAR={$nYear}&ARTIST_ID={$oArtist->nArtistID}";
-							$oYearRevenues = new Revenue();
-							$oYearRevenues->nArtistID = $oArtist->nArtistID;
-							$oYearRevenues->nPaidYear = $nYear;
-							$nYearRevenuesTotal = $oYearRevenues->getRevenueAmountTotal();
+							$sQueryString = "{$sBaseQueryString}&YEAR={$nYear}&ARTIST_ID={$artist->id}";
+							$nYearRevenuesTotal = sumRevenueAmount($revenueRepo, [
+								'artistId' => $artist->id,
+								'paidYear' => $nYear,
+							]);
 	
 							echo "<td>";
 							if($nYearRevenuesTotal > 0)
@@ -420,7 +417,7 @@ if (isset($_POST["btnGenerate"]))
 								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
 								echo "$" . number_format((float)$nYearRevenuesTotal, 2, '.', ',');
 								echo "</a>";	
-								$aArtistTotals[$oYearRevenues->nArtistID] += $nYearRevenuesTotal;
+								$aArtistTotals[$artist->id] = ($aArtistTotals[$artist->id] ?? 0) + $nYearRevenuesTotal;
 							}
 							else
 							{
@@ -435,12 +432,12 @@ if (isset($_POST["btnGenerate"]))
 					echo "<tr>";
 					echo "<th>Total</th>";
 					
-					foreach($oThisArtists->aArtistRecords as $oArtist)
+					foreach($aArtistRecords as $artist)
 					{
-						$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$oArtist->nArtistID}";
+						$sQueryString = "{$sBaseQueryString}&ARTIST_ID={$artist->id}";
 						echo "<td>";
 						echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
-						echo "$" . number_format((float)$aArtistTotals[$oArtist->nArtistID], 2, '.', ',');	
+						echo "$" . number_format((float)($aArtistTotals[$artist->id] ?? 0), 2, '.', ',');	
 						echo "</a>";
 						echo "</td>";
 					}
@@ -485,3 +482,35 @@ function validate_form ( )
 //-->
 </script>
 </html>
+
+<?php
+function sumRevenueAmount(\Datalayer\RevenueRepository $revenueRepo, array $criteria): float
+{
+	$total = 0.0;
+	foreach ($revenueRepo->find($criteria) as $revenue) {
+		$total += (float) ($revenue->amount ?? 0);
+	}
+	return $total;
+}
+
+/**
+ * Sum expenses for products belonging to an artist (legacy Expense.nArtistID join).
+ * TODO: ExpenseRepository has no artistId key; composed via Product lookup.
+ */
+function sumExpenseAmountByArtist(
+	\Datalayer\ExpenseRepository $expenseRepo,
+	\Datalayer\ProductRepository $productRepo,
+	int $artistId,
+	array $expenseCriteria = []
+): float {
+	$total = 0.0;
+	$aProducts = $productRepo->find(['artistId' => $artistId]);
+	foreach ($aProducts as $product) {
+		$criteria = array_merge($expenseCriteria, ['productId' => $product->id]);
+		foreach ($expenseRepo->find($criteria) as $expense) {
+			$total += (float) ($expense->expenseAmount ?? 0);
+		}
+	}
+	return $total;
+}
+?>

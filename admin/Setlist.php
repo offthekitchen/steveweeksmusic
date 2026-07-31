@@ -8,6 +8,7 @@ Date        Change
 -------------------------------------------------------------
 2020-04-28	Created
 2020-11-07	Added Popular Flag
+2026-07-30	Migrated to new Datalayer PerformanceSongs repository
 *******************************************************************
 */
 
@@ -28,8 +29,10 @@ include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
-//include PerformanceSongs Class		
-include_once(CLASS_DIR . "/class_PerformanceSongs.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/PerformanceSongs.php");
+include_once(DATALAYER_DIR . "/PerformanceSongsRepository.php");
 
 //Require the Class for the calendar picker
 require_once(CLASS_DIR . "/tc_calendar.php");
@@ -38,7 +41,7 @@ require_once(CLASS_DIR . "/tc_calendar.php");
 include(CLASS_DIR . "/class_Form.php");
 
 //Array of PerformanceSongs records from the DB
-global $aPerformanceSongsRecords;
+$aPerformanceSongsRecords = [];
 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName= "Setlist";
@@ -61,41 +64,56 @@ $sPageName= "Setlist";
             <?php
 
             //Instantiate needed objects
-            $thisPerformanceSongs = new PerformanceSongs();
-            $totalEstimatedTimeFormatted = '00:00:00';
+            $performanceSongsRepo = new \Datalayer\PerformanceSongsRepository();
+            $thisPerformanceSongs = new \Datalayer\PerformanceSongs();
+            $totalEstimatedTimeFormated = '00:00:00';
             $form = new Form();
 
+            try {
 
             // ************************
             // *   Generate Setlist   *
             // ************************
             if (isset($_POST["btnSetlist"])) {
-                //Load Array of Search Values
                 buildPerformanceSongsObject($thisPerformanceSongs);
 
-                //Search the Database for records matching the search criteria			
-                if ($thisPerformanceSongs->getPerformanceSongs()) {
-                    //No records found
-                    if (sizeof($thisPerformanceSongs->aPerformanceSongsRecords) < 1) {
-                        $form->sMessage = "No PerformanceSongs records found matching search criteria";
-                        $form->nMessageType = MESSAGE_TYPE_WARNING;
-                        $form->nFormMode = FORM_MODE_NEW;
-                    }
-                    //If Multiple records found, the array of search reults will be populated
-                    else {
-                        //Multiiple records returned
-                        $form->sMessage = "See Setlist below";
-                        $form->nMessageType = MESSAGE_TYPE_INFO;
-                        $form->nFormMode = FORM_MODE_SELECT;
+                $criteria = [
+                    'learned' => true,
+                ];
 
-                        $totalEstimatedTimeFormated = calculateSongTimeTotal($thisPerformanceSongs->aPerformanceSongsRecords);
-                        
-                    }
-                } else {
-                    //Attempt to get records failed
-                    $form->sMessage = $thisPerformanceSongs->sErrorMessage;
-                    $form->nMessageType = MESSAGE_TYPE_ERROR;
+                if ($thisPerformanceSongs->clean) {
+                    $criteria['clean'] = true;
+                }
+                if ($thisPerformanceSongs->popular) {
+                    $criteria['popular'] = true;
+                }
+                if ($thisPerformanceSongs->original) {
+                    $criteria['original'] = true;
+                }
+                if (($_POST['chkUke'] ?? '') !== 'UKE') {
+                    $criteria['excludeUke'] = true;
+                }
+                if (($_POST['chkPiano'] ?? '') !== 'PIANO') {
+                    $criteria['excludePiano'] = true;
+                }
+
+                $rating = $_POST['selRating'] ?? '';
+                if ($rating !== '' && is_numeric($rating)) {
+                    $criteria['lowestRating'] = (int) $rating;
+                }
+
+                $aPerformanceSongsRecords = $performanceSongsRepo->find($criteria);
+
+                if (sizeof($aPerformanceSongsRecords) < 1) {
+                    $form->sMessage = "No PerformanceSongs records found matching search criteria";
+                    $form->nMessageType = MESSAGE_TYPE_WARNING;
                     $form->nFormMode = FORM_MODE_NEW;
+                } else {
+                    $form->sMessage = "See Setlist below";
+                    $form->nMessageType = MESSAGE_TYPE_INFO;
+                    $form->nFormMode = FORM_MODE_SELECT;
+
+                    $totalEstimatedTimeFormated = calculateSongTimeTotal($aPerformanceSongsRecords);
                 }
             }
             // *************
@@ -128,7 +146,11 @@ $sPageName= "Setlist";
                 $form->nFormMode = FORM_MODE_NEW;
             }
 
-
+            } catch (\Throwable $e) {
+                $form->sMessage = $e->getMessage();
+                $form->nMessageType = MESSAGE_TYPE_ERROR;
+                $form->nFormMode = FORM_MODE_NEW;
+            }
 
             ?>
 
@@ -147,7 +169,7 @@ $sPageName= "Setlist";
                             <input type="submit" name="btnSetlist" class="formButton" value="Setlist">
                             <input type="submit" name="btnClear" class="formButton" value="Clear">
                             <?php
-                            if (sizeof($thisPerformanceSongs->aPerformanceSongsRecords) > 0) {
+                            if (sizeof($aPerformanceSongsRecords) > 0) {
                                 echo "<button onclick=\"printSetlist()\">Print</button>";
                                 echo "<button onclick=\"exportCSV()\">Export to CSV</button>";
                             }
@@ -189,10 +211,10 @@ $sPageName= "Setlist";
                         echo "</div>";
 
 
-                        foreach ($thisPerformanceSongs->aPerformanceSongsRecords as $oPerformanceSongsRecord) {
+                        foreach ($aPerformanceSongsRecords as $oPerformanceSongsRecord) {
 
                             $sTimeClass='';
-                            if($oPerformanceSongsRecord->tEstimatedTime == '00:00:00'){
+                            if(($oPerformanceSongsRecord->estimatedTime ?? '') == '00:00:00'){
                                 $sTimeClass = 'missing-time';
                             }
 
@@ -203,13 +225,13 @@ $sPageName= "Setlist";
                                 $sResultStyleClass = RESULT_STYLE_CLASS;
                             }
                             echo "<div class='row {$sResultStyleClass}'>";
-                            echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTitle}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sArtist}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTuning}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sCapo}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->nRating}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sEffect}</A></div>";
-                            echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass} {$sTimeClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->tEstimatedTime}</A></div>";
+                            echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->title}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->artist}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->tuning}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->capo}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->rating}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-1 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->effect}</A></div>";
+                            echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass} {$sTimeClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->estimatedTime}</A></div>";
                             echo "</div>";
                         }
                         echo "<div class='hidden-xs row'>";
@@ -248,7 +270,7 @@ $sPageName= "Setlist";
                             echo "</tr>";
 
 
-                            foreach ($thisPerformanceSongs->aPerformanceSongsRecords as $oPerformanceSongsRecord) {
+                            foreach ($aPerformanceSongsRecords as $oPerformanceSongsRecord) {
 
                                 //Alternate the result style
                                 if ($sResultStyleClass == RESULT_STYLE_CLASS) {
@@ -257,11 +279,11 @@ $sPageName= "Setlist";
                                     $sResultStyleClass = RESULT_STYLE_CLASS;
                                 }
                                 echo "<tr class='{$sResultStyleClass}'>";
-                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTitle}</A></td>";
-                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sArtist}</A></td>";
-                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTuning}</A></td>";
-                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sCapo}</A></td>";
-                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sEffect}</A></td>";
+                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->title}</A></td>";
+                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->artist}</A></td>";
+                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->tuning}</A></td>";
+                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->capo}</A></td>";
+                                echo "	<td class='{$sResultStyleClass}><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->effect}</A></td>";
                                 echo "</tr>";
                             }
 
@@ -278,11 +300,11 @@ $sPageName= "Setlist";
                     </div>
                     <div id="setlist-csv">
                         <?php
-                        $LastRow = sizeof($thisPerformanceSongs->aPerformanceSongsRecords) + 1;
+                        $LastRow = sizeof($aPerformanceSongsRecords) + 1;
                         echo "Song,Artist,Tuning,Capo,Effect\n";
 
-                        foreach ($thisPerformanceSongs->aPerformanceSongsRecords as $oPerformanceSongsRecord) {
-                            echo "{$oPerformanceSongsRecord->sTitle},{$oPerformanceSongsRecord->sArtist},{$oPerformanceSongsRecord->sTuning},{$oPerformanceSongsRecord->sCapo},{$oPerformanceSongsRecord->sEffect}\n";
+                        foreach ($aPerformanceSongsRecords as $oPerformanceSongsRecord) {
+                            echo "{$oPerformanceSongsRecord->title},{$oPerformanceSongsRecord->artist},{$oPerformanceSongsRecord->tuning},{$oPerformanceSongsRecord->capo},{$oPerformanceSongsRecord->effect}\n";
                         }
 
                         ?>
@@ -299,22 +321,22 @@ $sPageName= "Setlist";
                                 <div class="col-xs-12 col-md-3">
                                     LOWEST RATING:
                                     <SELECT ID="selRating" NAME="selRating">
-                                        <OPTION <?php if (is_null($_POST['selRating'])) {
+                                        <OPTION <?php if (is_null($_POST['selRating'] ?? null)) {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="">All</OPTION>
-                                        <OPTION <?php if ($_POST['selRating'] == "1") {
+                                        <OPTION <?php if (($_POST['selRating'] ?? '') == "1") {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="1">1</OPTION>
-                                        <OPTION <?php if ($_POST['selRating'] == "2") {
+                                        <OPTION <?php if (($_POST['selRating'] ?? '') == "2") {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="2">2</OPTION>
-                                        <OPTION <?php if ($_POST['selRating'] == "3") {
+                                        <OPTION <?php if (($_POST['selRating'] ?? '') == "3") {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="3">3</OPTION>
-                                        <OPTION <?php if ($_POST['selRating'] == "4") {
+                                        <OPTION <?php if (($_POST['selRating'] ?? '') == "4") {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="4">4</OPTION>
-                                        <OPTION <?php if ($_POST['selRating'] == "5") {
+                                        <OPTION <?php if (($_POST['selRating'] ?? '') == "5") {
                                                     echo " SELECTED='SELECTED' ";
                                                 } ?> VALUE="5">5</OPTION>
                                     </SELECT>
@@ -324,7 +346,7 @@ $sPageName= "Setlist";
                                         <div class="col-xs-12 col-sm-6 col-md-3">
                                             <div class="row">
                                                 <div class="col-xs-3 col-sm-2">
-                                                    <input type="checkbox" name="chkClean" class="result-checkbox" value="CLEAN" <?php if ($_POST['chkClean']) {
+                                                    <input type="checkbox" name="chkClean" class="result-checkbox" value="CLEAN" <?php if (!empty($_POST['chkClean'])) {
                                                                                                                                         echo " checked ";
                                                                                                                                     }; ?> />
                                                 </div>
@@ -340,7 +362,7 @@ $sPageName= "Setlist";
                                         <div class="col-xs-12 col-sm-6 col-md-3">
                                             <div class="row">
                                                 <div class="col-xs-3 col-sm-2">
-                                                    <input type="checkbox" name="chkUke" class="result-checkbox" value="UKE" <?php if ($_POST['chkUke']) {
+                                                    <input type="checkbox" name="chkUke" class="result-checkbox" value="UKE" <?php if (!empty($_POST['chkUke'])) {
                                                                                                                                     echo " checked ";
                                                                                                                                 }; ?> />
                                                 </div>
@@ -356,7 +378,7 @@ $sPageName= "Setlist";
                                         <div class="col-xs-12 col-sm-6 col-md-3">
                                             <div class="row">
                                                 <div class="col-xs-3 col-sm-2">
-                                                    <input type="checkbox" name="chkPiano" class="result-checkbox" value="PIANO" <?php if ($_POST['chkPiano']) {
+                                                    <input type="checkbox" name="chkPiano" class="result-checkbox" value="PIANO" <?php if (!empty($_POST['chkPiano'])) {
                                                                                                                                         echo " checked ";
                                                                                                                                     }; ?> />
                                                 </div>
@@ -372,7 +394,7 @@ $sPageName= "Setlist";
                                         <div class="col-xs-12 col-sm-6 col-md-3">
                                             <div class="row">
                                                 <div class="col-xs-3 col-sm-2">
-                                                    <input type="checkbox" name="chkPopular" class="result-checkbox" value="POPULAR" <?php if ($_POST['chkPopular']) {
+                                                    <input type="checkbox" name="chkPopular" class="result-checkbox" value="POPULAR" <?php if (!empty($_POST['chkPopular'])) {
                                                                                                                                         echo " checked ";
                                                                                                                                     }; ?> />
                                                 </div>
@@ -388,7 +410,7 @@ $sPageName= "Setlist";
                                         <div class="col-xs-12 col-sm-6 col-md-3">
                                             <div class="row">
                                                 <div class="col-xs-3 col-sm-2">
-                                                    <input type="checkbox" name="chkOriginal" class="result-checkbox" value="ORIGINAL" <?php if ($_POST['chkOriginal']) {
+                                                    <input type="checkbox" name="chkOriginal" class="result-checkbox" value="ORIGINAL" <?php if (!empty($_POST['chkOriginal'])) {
                                                                                                                                         echo " checked ";
                                                                                                                                     }; ?> />
                                                 </div>
@@ -430,33 +452,12 @@ $sPageName= "Setlist";
  * form fields.
  ********************************************************************************
 */
-function buildPerformanceSongsObject($PerformanceSongs)
+function buildPerformanceSongsObject(\Datalayer\PerformanceSongs $PerformanceSongs)
 {
-    //Load the Array used to populate the form fields based on the newly loaded object
-    $PerformanceSongs->bLearned = true;
-    if ($_POST['chkClean'] == "CLEAN") {
-        $PerformanceSongs->bClean = TRUE;
-    }
-    if ($_POST['chkUke'] == "UKE") {
-        $PerformanceSongs->bExcludeUke = FALSE;
-    }
-    else {
-        $PerformanceSongs->bExcludeUke = TRUE;
-    }
-    if ($_POST['chkPiano'] == "PIANO") {
-        $PerformanceSongs->bExcludePiano = FALSE;
-    }
-    else{
-        $PerformanceSongs->bExcludePiano = TRUE;
-    }
-    if ($_POST['chkPopular'] == "POPULAR") {
-        $PerformanceSongs->bPopular = TRUE;
-    }
-    if ($_POST['chkOriginal'] == "ORIGINAL") {
-        $PerformanceSongs->bOriginal = TRUE;
-    }
-
-    $PerformanceSongs->nLowestRating = $_POST['selRating'];
+    $PerformanceSongs->learned = true;
+    $PerformanceSongs->clean = (($_POST['chkClean'] ?? '') == "CLEAN");
+    $PerformanceSongs->popular = (($_POST['chkPopular'] ?? '') == "POPULAR");
+    $PerformanceSongs->original = (($_POST['chkOriginal'] ?? '') == "ORIGINAL");
 }
 
 /*

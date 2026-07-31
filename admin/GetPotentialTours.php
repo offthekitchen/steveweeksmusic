@@ -15,35 +15,27 @@
 
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	
-	//include Tour Class		
- 	include_once (CLASS_DIR . "/class_Tour.php");
-	
-	$dtIncludeDate = $_GET['date'];
 
-	$oPotentialTours = new Tour();
-	
-	$oPotentialTours->dtTourIncludeDate = $dtIncludeDate;
-	
-	if($oPotentialTours->getTour())
-	{
-		if(sizeof($oPotentialTours->aTourRecords) > 0) 
-		{
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Tour.php");
+	include_once(DATALAYER_DIR . "/TourRepository.php");
+
+	$dtIncludeDate = $_GET['date'] ?? '';
+
+	try {
+		$tourRepo = new \Datalayer\TourRepository();
+		$aTourRecords = $tourRepo->find(['includeDate' => $dtIncludeDate]);
+
+		if (sizeof($aTourRecords) > 0) {
 			echo "<OPTION VALUE='0'>NONE</OPTION>";
-			foreach($oPotentialTours->aTourRecords as $oPotentialTour)
-			{
-				echo "<OPTION VALUE=". $oPotentialTour->nTourID . ">" . $oPotentialTour->sTourName . "</OPTION>"; 
+			foreach ($aTourRecords as $oPotentialTour) {
+				echo "<OPTION VALUE=" . $oPotentialTour->id . ">" . $oPotentialTour->name . "</OPTION>";
 			}
-		}
-		else
-		{
+		} else {
 			echo "<OPTION VALUE='0' SELECTED>NONE</OPTION>";
 		}
-	
-	}
-	else
-	{
-		echo "<OPTION>ERROR RETRIEVING TOURS" . $oPotentialTours->sErrorMessage . "</OPTION>";
+	} catch (\Throwable $e) {
+		echo "<OPTION>ERROR RETRIEVING TOURS" . $e->getMessage() . "</OPTION>";
 	}
 
 ?>

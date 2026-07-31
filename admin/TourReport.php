@@ -8,6 +8,7 @@ Date        Change
 -------------------------------------------------------------
 2015-04-29	Corrected days calculation
 2017-06-09	Made Responsive
+2026-07-30	Migrated to new Datalayer repositories
 *******************************************************************
 */	
 error_reporting(E_ALL ^ E_NOTICE);
@@ -24,29 +25,35 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //inlcude admin settings
  include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 
-//include Tour Class		
- include_once (CLASS_DIR . "/class_Tour.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Tour.php");
+include_once(DATALAYER_DIR . "/TourRepository.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
+include_once(DATALAYER_DIR . "/RevenueType.php");
+include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
+include_once(DATALAYER_DIR . "/TaxCategory.php");
+include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
 
-//include Expense Class		
- include_once (CLASS_DIR . "/class_Expense.php");
-
-//include Revenue Class		
- include_once (CLASS_DIR . "/class_Revenue.php");
-
-//include Revenue Type Class		
- include_once (CLASS_DIR . "/class_RevenueType.php");
-
-//include Tax Category Class		
- include_once (CLASS_DIR . "/class_TaxCategory.php");
-
- $sActiveMenuItem = PERFORMANCES_ACTIVE;	
+$sActiveMenuItem = PERFORMANCES_ACTIVE;
 $sPageName = "Tour Report";
 
 //Instantiate needed objects
-$oTour = new Tour();
+$tourRepo = new \Datalayer\TourRepository();
+$performanceRepo = new \Datalayer\PerformanceRepository();
+$expenseRepo = new \Datalayer\ExpenseRepository();
+$revenueRepo = new \Datalayer\RevenueRepository();
+$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
+$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
 
 $aTourRevenues = array();
 $aTourExpenses = array();
+$thisTour = null;
 	
 //Get the ID query string parameter
 if (isset($_REQUEST['ID']) && $_REQUEST['ID'] != "")
@@ -57,38 +64,23 @@ if (isset($_REQUEST['ID']) && $_REQUEST['ID'] != "")
 //If an ID was passed to the page, retrieve that record for update		
 if (!is_null($nThisTourID))
 {
-				
-	$oTour->nTourID = $nThisTourID;
-
-	//Search the Database for records matching the search criteria			
-	if (!$oTour->getTour())
+	$thisTour = $tourRepo->findById((int) $nThisTourID);
+	if (!$thisTour)
 	{
-		$sErrorMessage = "ERROR RETRIEVING DATA FOR TOUR ID " . $oTour->nTourID . ": " . $oTour->sErrorMessage;
+		$sErrorMessage = "NO DATA FOUND FOR TOUR ID " . $nThisTourID;
 	}
-	elseif (sizeof($oTour->aTourRecords) == 0)
-	{
-		$sErrorMessage = "NO DATA FOUND FOR TOUR ID " . $oTour->nTourID;
-	}
-	else
-	{
-		//Tour data successfully retrieved
-		$thisTour =  $oTour->aTourRecords[0];
-	}
-	
 }
 else
 {
 	//If no Tour ID was passed, get the last tour as a default
-	$oLastTour = new Tour();
-	if ($oLastTour->getLastTour())
+	$thisTour = $tourRepo->findLastCompleted();
+	if ($thisTour)
 	{
-		//Tour data successfully retrieved
-		$thisTour =  $oLastTour->aTourRecords[0];
-		$nThisTourID = $oLastTour->aTourRecords[0]->nTourID;
+		$nThisTourID = $thisTour->id;
 	}
 	else
 	{
-		$sErrorMessage =  "ERROR RERIEVING LAST TOUR: " . $oLastTour->sErrorMessage;
+		$sErrorMessage =  "ERROR RERIEVING LAST TOUR";
 	}
 }	
 
@@ -97,65 +89,36 @@ if (!empty($thisTour))
 {				
 	$nTotalExpenseAmount = 0.00;
 	$nTotalRevenueAmount = 0.00;
-	$dtDifference = strtotime($thisTour->dtTourEndDate) - strtotime($thisTour->dtTourStartDate);
+	$dtDifference = strtotime($thisTour->endDate) - strtotime($thisTour->startDate);
 	$nDays = floor($dtDifference/(60*60*24)) + 1;
 		
-	$oTourPerformances = new Performance();
-	$oTourPerformances->nTourID = $nThisTourID;
-	if($oTourPerformances->getPerformance())
+	$aTourPerformances = $performanceRepo->find(['tourId' => (int) $nThisTourID]);
+	$nPerformances = count($aTourPerformances);
+	$nTotalCDSales = 0;
+	foreach($aTourPerformances as $oTourPerformance)
 	{
-		//Store the number of performances
-		$nPerformances = sizeof($oTourPerformances->aPerformanceRecords);
-		$nTotalCDSales = 0;
-		foreach($oTourPerformances->aPerformanceRecords as $oTourPerformance)
+		$aPerformanceRevenues = $revenueRepo->find(['performanceId' => $oTourPerformance->id]);
+		foreach ($aPerformanceRevenues as $oRevenueRecord)
 		{
-			//Get Revenues for this Performance
-			$oTourRevenues = new Revenue();
-			$oTourRevenues->nPerformanceID = $oTourPerformance->nPerformanceID;
-			//Get all the revenues for this performance
-			if($oTourRevenues->getRevenue())
+			//If the revenue is a CD sale add the quantity to the CD sale total
+			if($oRevenueRecord->revenueTypeId == REVENUE_TYPE_CD_SALE)
 			{
-				foreach($oTourRevenues->aRevenueRecords as $oRevenueRecord)
-				{
-					//If the revenue is a CD sale add the quantity to the CD sale total
-					if($oRevenueRecord->nRevenueTypeID == REVENUE_TYPE_CD_SALE)
-					{
-						$nTotalCDSales += $oRevenueRecord->nProductQty;
-					}
-					
-					//Add the Revenue Record to the end of the appropriate array for revenue type
-					$aTourRevenues[$oRevenueRecord->nRevenueTypeID][] = $oRevenueRecord;
-
-					$nTotalRevenueAmount += $oRevenueRecord->nRevenueAmount;						
-				}
+				$nTotalCDSales += $oRevenueRecord->productQty ?? 0;
 			}
-			else
-			{
-				$sErrorMessage =  "ERROR RETRIEVING REVENUE INFORMATION: " . $oTourRevenues->sErrorMessage;
-			}
+			
+			//Add the Revenue Record to the end of the appropriate array for revenue type
+			$aTourRevenues[$oRevenueRecord->revenueTypeId][] = $oRevenueRecord;
 
+			$nTotalRevenueAmount += $oRevenueRecord->amount ?? 0;
 		}
 	}
-	else
-	{
-		$sErrorMessage =  "ERROR RETRIEVING PERFORMANCE DATA FOR TOUR ID " . $thisTour->nTourID . ": " . $oTourPerformances->sErrorMessage;
-	}
 
-	$oTourExpenses = new Expense();
-	$oTourExpenses->nTourID = $nThisTourID;
-	//Get all the Expense for this tour
-	if($oTourExpenses->getExpense())
+	$aTourExpenseRecords = $expenseRepo->find(['tourId' => (int) $nThisTourID]);
+	foreach($aTourExpenseRecords as $oExpenseRecord)
 	{
-		foreach($oTourExpenses->aExpenseRecords as $oExpenseRecord)
-		{
-			//Add the Expense Record to the end of the appropriate array for the tax category
-			$aTourExpenses[$oExpenseRecord->nTaxCategoryID][] = $oExpenseRecord;
-			$nTotalExpenseAmount += $oExpenseRecord->nExpenseAmount;				
-		}
-	}
-	else
-	{
-		$sErrorMessage =  "ERROR RETRIEVING EXPENSE INFORMATION: " . $oTourExpenses->sErrorMessage;
+		//Add the Expense Record to the end of the appropriate array for the tax category
+		$aTourExpenses[$oExpenseRecord->taxCategoryId][] = $oExpenseRecord;
+		$nTotalExpenseAmount += $oExpenseRecord->expenseAmount ?? 0;
 	}
 }
 
@@ -180,11 +143,11 @@ if (!empty($thisTour))
 		<div class="col-xs-12"> 
 			<div class="row">
 				<div class="col-xs-12 Title">
-			Tour Report - <?php echo $thisTour->sTourName;?>
+			Tour Report - <?php echo $thisTour->name;?>
 				</div>
 			</div>
 			<div class="col-xs-12">
-				<A HREF='<?php echo ADMIN_DIR . "/TourMaintenance.php?ID=" . $thisTour->nTourID; ?>' class="secondaryLinkButton">Edit Tour</A>
+				<A HREF='<?php echo ADMIN_DIR . "/TourMaintenance.php?ID=" . $thisTour->id; ?>' class="secondaryLinkButton">Edit Tour</A>
 			</div>
 		</div>
 	</div>
@@ -290,51 +253,40 @@ if (!empty($thisTour))
 								<div class="table-responsive">
 									<table class="table table-striped"> 					
 									<?php
-										//Get all Revenue Types
-										$oRevenueTypes = new RevenueType();
-										if ($oRevenueTypes->getRevenueType())
+										foreach ($revenueTypeRepo->find() as $oRevenueType)
 										{
-											foreach($oRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+											$nRevenueTypeTotal = 0;
+											//If an array of revenue objects was built for the revenue type display all revenues
+											if(isset($aTourRevenues[$oRevenueType->id]))
 											{
-												$nRevenueTypeTotal = 0;
-												//If an array of revenue objects was built for the revenue type display all revenues
-												if(isset($aTourRevenues[$oRevenueType->nRevenueTypeID]))
+												echo "<tr>";
+												echo "<th colspan=3 align=left>" . $oRevenueType->name . "</th>";
+												echo "</tr>";
+												echo "<tr>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Date</th>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Description</th>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Amount</th>";
+												echo "</tr>";
+												
+												foreach($aTourRevenues[$oRevenueType->id] as $oTourRevenue)
 												{
 													echo "<tr>";
-													echo "<th colspan=3 align=left>" . $oRevenueType->sRevenueTypeName . "</th>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "'>" . $oTourRevenue->paidDate . "</td>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "'>";
+													echo "<A HREF='" . ADMIN_DIR . "/RevenueMaintenance.php?ID=" . $oTourRevenue->id;
+													echo "'>" . $oTourRevenue->description . "</A></td>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "' align=right>$" . $oTourRevenue->amount . "</td>";
 													echo "</tr>";
-													echo "<tr>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Date</th>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Description</th>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Amount</th>";
-													echo "</tr>";
-													
-													foreach($aTourRevenues[$oRevenueType->nRevenueTypeID] as $oTourRevenue)
-													{
-														echo "<tr>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "'>" . $oTourRevenue->dtPaidDate . "</td>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "'>";
-														echo "<A HREF='" . ADMIN_DIR . "/RevenueMaintenance.php?ID=" . $oTourRevenue->nRevenueID;
-														echo "'>" . $oTourRevenue->sRevenueDescription . "</A></td>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "' align=right>$" . $oTourRevenue->nRevenueAmount . "</td>";
-														echo "</tr>";
-														//$nTotalRevenueAmount += $oTourRevenue->nRevenueAmount;
-														$nRevenueTypeTotal += $oTourRevenue->nRevenueAmount;
-					
-													}
-													echo "<tr>";
-													echo "<td></td>";
-													echo "<td class='" . RESULT_STYLE_CLASS . "'> " . $oRevenueType->sRevenueTypeName . " Subotal </td>";
-													echo "<td class='" . RESULT_STYLE_CLASS . "' align=right> $" . number_format((float)$nRevenueTypeTotal, 2, '.', '') . "</td>";
-													echo "</tr>";
-												}		
-												
-											}
-					
-										}
-										else
-										{
-											//ERRROR
+													$nRevenueTypeTotal += $oTourRevenue->amount ?? 0;
+				
+												}
+												echo "<tr>";
+												echo "<td></td>";
+												echo "<td class='" . RESULT_STYLE_CLASS . "'> " . $oRevenueType->name . " Subotal </td>";
+												echo "<td class='" . RESULT_STYLE_CLASS . "' align=right> $" . number_format((float)$nRevenueTypeTotal, 2, '.', '') . "</td>";
+												echo "</tr>";
+											}		
+											
 										}
 									?>
 										<tr>
@@ -363,51 +315,40 @@ if (!empty($thisTour))
 								<div class="table-responsive">
 									<table class="table table-striped"> 						
 									<?php
-										//Get all Tax Categories
-										$TaxCategories = new TaxCategory();
-										if ($TaxCategories->getTaxCategory())
+										foreach ($taxCategoryRepo->find() as $oTaxCategory)
 										{
-											foreach($TaxCategories->aTaxCategoryRecords as $oTaxCategory)
+											$nTaxCategoryTotal = 0;
+											//If an array of expense objects was built for the Tax Category display all expenses
+											if(isset($aTourExpenses[$oTaxCategory->id]))
 											{
-												$nTaxCategoryTotal = 0;
-												//If an array of expense objects was built for the Tax Category display all expenses
-												if(isset($aTourExpenses[$oTaxCategory->nTaxCategoryID]))
+												echo "<tr>";
+												echo "<th colspan=3 align=left>" . $oTaxCategory->name . "</th>";
+												echo "</tr>";
+												echo "<tr>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Date</th>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Description</th>";
+												echo "<th class='" . RESULT_STYLE_CLASS . "'>Amount</th>";
+												echo "</tr>";
+												
+												foreach($aTourExpenses[$oTaxCategory->id] as $oTourExpense)
 												{
 													echo "<tr>";
-													echo "<th colspan=3 align=left>" . $oTaxCategory->sTaxCategoryName . "</th>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "'>" . $oTourExpense->expenseDate . "</td>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "'>";
+													echo "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?ID=" . $oTourExpense->id;
+													echo "'>" . $oTourExpense->description . "</A></td>";
+													echo "<td class='" . RESULT_STYLE_CLASS . "' align=right>$" . $oTourExpense->expenseAmount . "</td>";
 													echo "</tr>";
-													echo "<tr>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Date</th>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Description</th>";
-													echo "<th class='" . RESULT_STYLE_CLASS . "'>Amount</th>";
-													echo "</tr>";
-													
-													foreach($aTourExpenses[$oTaxCategory->nTaxCategoryID] as $oTourExpense)
-													{
-														echo "<tr>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "'>" . $oTourExpense->dtExpenseDate . "</td>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "'>";
-														echo "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?ID=" . $oTourExpense->nExpenseID;
-														echo "'>" . $oTourExpense->sExpenseDescription . "</A></td>";
-														echo "<td class='" . RESULT_STYLE_CLASS . "' align=right>$" . $oTourExpense->nExpenseAmount . "</td>";
-														echo "</tr>";
-														//$nTotalExpenseAmount += $oTourExpense->nExpenseAmount;
-														$nTaxCategoryTotal += $oTourExpense->nExpenseAmount;;
-					
-													}
-													echo "<tr>";
-													echo "<td></td>";
-													echo "<td class='" . RESULT_STYLE_CLASS . "'> " . $oTaxCategory->sTaxCategoryName . " Subotal </td>";
-													echo "<td class='" . RESULT_STYLE_CLASS . "' align=right> $" . number_format((float)$nTaxCategoryTotal, 2, '.', '') . "</td>";
-													echo "</tr>";
-												}		
-												
-											}
-					
-										}
-										else
-										{
-											//ERRROR
+													$nTaxCategoryTotal += $oTourExpense->expenseAmount ?? 0;
+				
+												}
+												echo "<tr>";
+												echo "<td></td>";
+												echo "<td class='" . RESULT_STYLE_CLASS . "'> " . $oTaxCategory->name . " Subotal </td>";
+												echo "<td class='" . RESULT_STYLE_CLASS . "' align=right> $" . number_format((float)$nTaxCategoryTotal, 2, '.', '') . "</td>";
+												echo "</tr>";
+											}		
+											
 										}
 									?>
 										<tr>

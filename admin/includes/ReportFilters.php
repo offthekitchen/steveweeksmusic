@@ -11,6 +11,7 @@ Date        Change
 2017-04-15	Made Responsive
 2024-04-12	Added Artist Dropdown
 2024-05-09	Added Colorado Sessions Filter
+2026-07-30	Migrated Category/RevenueType/Product/Song/CD filters to Datalayer
 **********************************************************************
 */
 
@@ -156,8 +157,9 @@ if($bArtistFilter == TRUE )
  //CATEGORY FILTER
 if($bCategoryFilter == TRUE)
 {
-	//include Catergory Class		
- 	include_once (CLASS_DIR . "/class_Category.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Category.php");
+	include_once(DATALAYER_DIR . "/CategoryRepository.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
@@ -167,19 +169,15 @@ if($bCategoryFilter == TRUE)
 	echo "<SELECT NAME=\"selCategory\" ID=\"selCategory\">";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
 
-	$oCategories = new Category();
-	if($oCategories->getCategory())
+	$categoryRepo = new \Datalayer\CategoryRepository();
+	foreach ($categoryRepo->find() as $oCategory)
 	{
-		foreach($oCategories->aCategoryRecords as $oCategory)
+		echo "<OPTION VALUE=\"{$oCategory->id}\" ";
+		if ($oCategory->id == ($_POST['selCategory'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oCategory->nCategoryID}\" ";
-			if ($oCategory->nCategoryID == $_POST['selCategory'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oCategory->sCategoryName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$oCategory->name}</OPTION>";
 	}
 
 	echo "</SELECT>";
@@ -190,8 +188,9 @@ if($bCategoryFilter == TRUE)
 //REVENUE TYPE FILTER
 if($bRevenueTypeFilter == TRUE)
 {
-	//include Revenue Type Class		
- 	include_once (CLASS_DIR . "/class_RevenueType.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/RevenueType.php");
+	include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
@@ -201,19 +200,15 @@ if($bRevenueTypeFilter == TRUE)
 	echo "<SELECT NAME=\"selRevenueType\" ID=\"selRevenueType\">";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
 
-	$oRevenueTypes = new RevenueType();
-	if($oRevenueTypes->getRevenueType())
+	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
+	foreach ($revenueTypeRepo->find() as $oRevenueType)
 	{
-		foreach($oRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+		echo "<OPTION VALUE=\"{$oRevenueType->id}\" ";
+		if ($oRevenueType->id == ($_POST['selRevenueType'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oRevenueType->nRevenueTypeID}\" ";
-			if ($oRevenueType->nRevenueTypeID == $_POST['selRevenueType'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oRevenueType->sRevenueTypeName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$oRevenueType->name}</OPTION>";
 	}
 
 	echo "</SELECT>";
@@ -224,8 +219,9 @@ if($bRevenueTypeFilter == TRUE)
  //PRODUCT FILTER
 if($bProductFilter == TRUE)
 {
-	//include Product Class		
- 	include_once (CLASS_DIR . "/class_Product.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Product.php");
+	include_once(DATALAYER_DIR . "/ProductRepository.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
@@ -235,19 +231,15 @@ if($bProductFilter == TRUE)
 	echo "<SELECT NAME=\"selProduct\" ID=\"selProduct\">";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
 
-	$oProducts = new Product();
-	if($oProducts->getProduct())
+	$productRepo = new \Datalayer\ProductRepository();
+	foreach ($productRepo->find() as $oProduct)
 	{
-		foreach($oProducts->aProductRecords as $oProduct)
+		echo "<OPTION VALUE=\"{$oProduct->id}\" ";
+		if ($oProduct->id == ($_POST['selProduct'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oProduct->nProductID}\" ";
-			if ($oProduct->nProductID == $_POST['selProduct'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oProduct->sProductName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$oProduct->name}</OPTION>";
 	}
 
 	echo "</SELECT>";
@@ -259,31 +251,27 @@ if($bProductFilter == TRUE)
 // SONG FILTER 
 if($bSongFilter == TRUE)
 {
-	//include Song Class		
- 	include_once (CLASS_DIR . "/class_Song.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Song.php");
+	include_once(DATALAYER_DIR . "/SongRepository.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
 	echo "SONG:";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selProduct\" ID=\"selProduct\">";
 	echo "<SELECT NAME=\"selSong\" ID=\"selSong\">";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
 
-	$oSongs = new Song();
-	if($oSongs->getSong())
+	$songRepo = new \Datalayer\SongRepository();
+	foreach ($songRepo->find(['orderBy' => 'name']) as $oSong)
 	{
-		foreach($oSongs->aSongRecords as $oSong)
+		echo "<OPTION VALUE=\"{$oSong->id}\" ";
+		if ($oSong->id == ($_POST['selSong'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oSong->nSongID}\" ";
-			if ($oSong->nSongID == $_POST['selSong'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oSong->sSongName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$oSong->name}</OPTION>";
 	}
 
 	echo "</SELECT>";
@@ -295,8 +283,9 @@ if($bSongFilter == TRUE)
 // CD FILTER 
 if($bCDFilter == TRUE)
 {
-	//include CD Class		
- 	include_once (CLASS_DIR . "/class_CD.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/CD.php");
+	include_once(DATALAYER_DIR . "/CDRepository.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
@@ -306,19 +295,15 @@ if($bCDFilter == TRUE)
 	echo "<SELECT NAME=\"selCD\" ID=\"selCD\">";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
 
-	$oCDs = new CD();
-	if($oCDs->getCD())
+	$cdRepo = new \Datalayer\CDRepository();
+	foreach ($cdRepo->find(['includeSingles' => true, 'orderBy' => 'name']) as $oCD)
 	{
-		foreach($oCDs->aCDRecords as $oCD)
+		echo "<OPTION VALUE=\"{$oCD->id}\" ";
+		if ($oCD->id == ($_POST['selCD'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oCD->nCDID}\" ";
-			if ($oCD->nCDID == $_POST['selCD'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oCD->sCDName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$oCD->name}</OPTION>";
 	}
 
 	echo "</SELECT>";

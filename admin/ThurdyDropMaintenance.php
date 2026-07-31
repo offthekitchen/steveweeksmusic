@@ -9,6 +9,7 @@ Date        Change
 -------------------------------------------------------------
 2015-05-21	Created.
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer ThurdyDrop repository
 *******************************************************************
 */	
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -28,16 +29,19 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
-//include Drop Class		
-include_once (CLASS_DIR . "/class_ThurdyDrop.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/ThurdyDrop.php");
+include_once(DATALAYER_DIR . "/ThurdyDropRepository.php");
 
 //include Form Class		
 include (CLASS_DIR . "/class_Form.php");
 
-//Array of Drop records from the DB
-global $aDropRecords;
+//Require the Class for the calendar picker
+require_once(CLASS_DIR . "/tc_calendar.php");
 
-global $nThisDropID;
+//Array of Drop records from the DB
+$aDropRecords = [];
 
 $sActiveMenuItem = MISC_ACTIVE;	
 $sPageName = "Thurdy Drop Maintenance";
@@ -59,52 +63,31 @@ $sPageName = "Thurdy Drop Maintenance";
 	<?php
 
 		//Instantiate needed objects
-		$thisDrop = new ThurdyDrop();
-		$thisDrop->sOrderBy = DATE_ORDER;
+		$dropRepo = new \Datalayer\ThurdyDropRepository();
+		$thisDrop = new \Datalayer\ThurdyDrop();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		if (isset($_REQUEST['DROP_ID']) && $_REQUEST['DROP_ID'] !="")
-		{
-			$nThisDropID = $_REQUEST['DROP_ID'];
-		}
+		$nThisDropID = $_REQUEST['DROP_ID'] ?? null;
 		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisDropID))
+		if (!is_null($nThisDropID) && $nThisDropID !== '')
 		{
-			$thisDrop->nDropID = $nThisDropID;
+			$entity = $dropRepo->findById((int) $nThisDropID);
 
-				//Search the Database for records matching the search criteria			
-			if ($thisDrop->getThurdyDrop())
-			{
-			
-				//Records found
-				if (sizeof($thisDrop->aDropRecords) > 0)
-				{
-					
-					//Only One Record should be returned.  Add this to the form field array						
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadDrop($thisDrop->aDropRecords[0], $form);			
+			if ($entity) {
+				$thisDrop = $entity;
+				$aDropRecords = [$entity];
+				loadDrop($thisDrop, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Drop record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisDrop->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Drop record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -116,28 +99,23 @@ $sPageName = "Thurdy Drop Maintenance";
 			// **************
 			if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildDropObject($thisDrop);
 				
-				//Insert record
-				if ($thisDrop->insertDrop())			
+				if ($dropRepo->insert($thisDrop))
 				{
-					//Load the form fields with the newly populated object
+					$thisDrop = $dropRepo->findById((int) $thisDrop->id) ?? $thisDrop;
+					$aDropRecords = [$thisDrop];
 					loadDrop($thisDrop, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Drop Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//The insert of the new expense failed
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisDrop->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -147,25 +125,22 @@ $sPageName = "Thurdy Drop Maintenance";
 			else if (isset($_POST["btnUpdate"])) 
 			{
 
-				//Load values from form field array into DB object
 				buildDropObject($thisDrop);
 
-				//Update record
-				if ($thisDrop->updateDrop())
+				if ($dropRepo->update($thisDrop))
 				{
-					//Load the form fields with the newly populated object
+					$thisDrop = $dropRepo->findById((int) $thisDrop->id) ?? $thisDrop;
+					$aDropRecords = [$thisDrop];
 					loadDrop($thisDrop, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Drop Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else			
 				{
-					//Failed to update expense record
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisDrop->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -174,24 +149,19 @@ $sPageName = "Thurdy Drop Maintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildDropObject($thisDrop);				
+				buildDropObject($thisDrop);
 
-				//Delete record
-				if ($thisDrop->deleteDrop())
+				if (!empty($thisDrop->id) && $dropRepo->delete((int) $thisDrop->id))
 				{
-					//Clear the form fields
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Drop Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisDrop->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -202,49 +172,38 @@ $sPageName = "Thurdy Drop Maintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildDropObject($thisDrop);
-				$thisDrop->sOrderByField = "DROP_ID";
 
-				//Search the Database for records matching the search criteria			
-				if ($thisDrop->getThurdyDrop())
+				$aDropRecords = $dropRepo->find([
+					'id' => $thisDrop->id,
+					'dropLocation' => $thisDrop->dropLocation,
+					'fuzzyName' => true,
+					'dropDesc' => $thisDrop->dropDesc,
+					'dropDate' => $thisDrop->dropDate,
+					'dropImage' => $thisDrop->dropImage,
+					'orderBy' => 'id',
+				]);
+
+				if (sizeof($aDropRecords) < 1)
 				{
-					//No records found
-					if(sizeof($thisDrop->aDropRecords) < 1)
-					{
-						$form->sMessage = "No Drop records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisDrop->aDropRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadDrop($thisDrop->aDropRecords[0], $form);
-						//Store the ID of the performance
-						$nThisDropID = $thisDrop->aDropRecords[0]->nDropID;			
+					$form->sMessage = "No Drop records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aDropRecords) == 1)
+				{
+					$thisDrop = $aDropRecords[0];
+					loadDrop($thisDrop, $form);
 
-						$form->sMessage = "One Drop record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Drop record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+					$form->sMessage = "One Drop record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
 				}
-				else
+				else 
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisDrop->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "Select Drop record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -252,7 +211,6 @@ $sPageName = "Thurdy Drop Maintenance";
 			// *************
 			else if (isset($_POST["btnClear"]) || isset($_POST["btnCancel"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -276,17 +234,21 @@ $sPageName = "Thurdy Drop Maintenance";
 			// ***************
 			else 
 			{
-				copyFormFields($form);
 				$form->sMessage = "Search for records or Add new record";
 				$form->nMessageType = MESSAGE_TYPE_INFO;
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnDropID" value="<?php echo $_POST['hdnDropID']?>" />	
+	<input type="hidden" name="hdnDropID" value="<?php echo $_POST['hdnDropID'] ?? '' ?>" />	
 
 	<div class="row">
 <?php
@@ -336,7 +298,7 @@ $sPageName = "Thurdy Drop Maintenance";
 		echo "<div class='visible-xs col-xs-12 result-header'>Drops</div>";		
 		echo "</div>";
 
-		foreach($thisDrop->aDropRecords as $oDropRecord)
+		foreach($aDropRecords as $oDropRecord)
 		{
 			
 			//Alternate the result style
@@ -351,10 +313,10 @@ $sPageName = "Thurdy Drop Maintenance";
 			echo "<div class='row {$sResultStyleClass}'>";
 
 			echo "<div class='col-xs-12 col-sm-3 {$sResultStyleClass}'>";
-			echo "<A HREF='./ThurdyDropMaintenance.php?DROP_ID={$oDropRecord->nDropID}'>{$oDropRecord->dtDropDate}</A></div>";
+			echo "<A HREF='./ThurdyDropMaintenance.php?DROP_ID={$oDropRecord->id}'>" . htmlentities($oDropRecord->dropDate ?? '', ENT_QUOTES) . "</A></div>";
 			
 			echo "<div class='col-xs-12 col-sm-6 {$sResultStyleClass}'>";
-			echo "<A HREF='./ThurdyDropMaintenance.php?DROP_ID={$oDropRecord->nDropID}'>{$oDropRecord->sDropLocation}</A></div>";
+			echo "<A HREF='./ThurdyDropMaintenance.php?DROP_ID={$oDropRecord->id}'>" . htmlentities($oDropRecord->dropLocation ?? '', ENT_QUOTES) . "</A></div>";
 			echo "</div>";
 			
 		}
@@ -376,16 +338,16 @@ $sPageName = "Thurdy Drop Maintenance";
 			<div class="row">
 				<div class="col-xs-12 col-md-5">
 					LOCATION: 
-					<input type="text" name="txtDropLocation" value="<?php echo $_POST['txtDropLocation']; ?>" size="60" />
+					<input type="text" name="txtDropLocation" value="<?php echo $_POST['txtDropLocation'] ?? ''; ?>" size="60" />
 				</div>
 				<div class="col-xs-12 col-md-5">
 					DESCRIPTION: 
-					<input type="text" name="txtDropDesc" value="<?php echo $_POST['txtDropDesc']; ?>" size="40" />
+					<input type="text" name="txtDropDesc" value="<?php echo $_POST['txtDropDesc'] ?? ''; ?>" size="40" />
 				</div>
 				<div class="col-xs-12 col-md-2">
 					DROP DATE:<BR /> 
 					<?php	  
-							renderDatePicker("DropDate", $_POST['DropDate']);
+							renderDatePicker("DropDate", $_POST['DropDate'] ?? ($thisDrop->dropDate ?? ''));
 					?>
 				</div>
 			</div>
@@ -411,17 +373,17 @@ $sPageName = "Thurdy Drop Maintenance";
 							?>												
 						</div>
 						<div class="col-xs-12">
-							<input type="text" name="txtDropImage" id="txtDropImage" value="<?php echo $_POST['txtDropImage']; ?>" size="30" /><BR />
+							<input type="text" name="txtDropImage" id="txtDropImage" value="<?php echo $_POST['txtDropImage'] ?? ''; ?>" size="30" /><BR />
 						</div>
 					</div>					
 				</div>
 				<div class="col-xs-12">
 					<div class="row">
 						<div class=" col-xs-3 FormFieldNoEdit">
-							ID: <?php echo $_POST['hdnPerformanceID']; ?>						
+							ID: <?php echo $_POST['hdnDropID'] ?? ''; ?>						
 						</div>
 						<div class=" col-xs-9 FormFieldNoEdit">
-							LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+							LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 						</div>
 					</div>
 				</div>
@@ -463,31 +425,25 @@ $sPageName = "Thurdy Drop Maintenance";
  * form fields.
  ********************************************************************************
 */
-function buildDropObject($oDrop)
+function buildDropObject(\Datalayer\ThurdyDrop $Drop)
 {
-	
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$oDrop->nDropID = $_POST['hdnDropID'];
-	$oDrop->sDropLocation = $_POST['txtDropLocation'];
-	$oDrop->sDropDesc = $_POST['txtDropDesc'];
-	$oDrop->sVideoLink = $_POST['txtVideoLink'];
-	$oDrop->sVideoSubmittedBy = $_POST['txtVideoSubmittedBy'];
-	$oDrop->sDropImage = $_POST['txtDropImage'];
+	$id = $_POST['hdnDropID'] ?? null;
+	$Drop->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	$oDrop->bFuzzyNameSearch = TRUE;
+	$Drop->dropLocation = html_entity_decode($_POST['txtDropLocation'] ?? '', ENT_QUOTES);
+	$Drop->dropDesc = html_entity_decode($_POST['txtDropDesc'] ?? '', ENT_QUOTES);
+	$Drop->dropImage = html_entity_decode($_POST['txtDropImage'] ?? '', ENT_QUOTES);
 
 	//Drop Date	
 	$dtDropDate = isset($_REQUEST["DropDate"]) ? $_REQUEST["DropDate"] : "";
 	if($dtDropDate > "0000-00-00")
 	{
-		//If no datepicker is displayed, use the hidden field
 		$dtDropDate = isset($_POST["DropDate"]) ? $_POST["DropDate"] : "";
 	}
 	if($dtDropDate > "0000-00-00")
 	{
-		$oDrop->dtDropDate  = $dtDropDate;
+		$Drop->dropDate = $dtDropDate;
 	}
-
 }
 
 
@@ -499,30 +455,23 @@ function buildDropObject($oDrop)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadDrop(&$oDrop, $form)
+function loadDrop(\Datalayer\ThurdyDrop $Drop, $form)
 {
-	if (!is_null($oDrop->nDropID))
+	if (!is_null($Drop->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnDropID'] = $oDrop->nDropID;
-		$_POST['txtDropLocation'] = htmlentities($oDrop->sDropLocation, ENT_QUOTES);
-		$_POST['txtDropDesc'] = htmlentities($oDrop->sDropDesc, ENT_QUOTES);
-		$_POST['DropDate'] = htmlentities($oDrop->dtDropDate, ENT_QUOTES);
-		$_POST['txtDropImage'] = htmlentities($oDrop->sDropImage, ENT_QUOTES);
+		$_POST['hdnDropID'] = $Drop->id;
+		$_POST['txtDropLocation'] = htmlentities($Drop->dropLocation ?? '', ENT_QUOTES);
+		$_POST['txtDropDesc'] = htmlentities($Drop->dropDesc ?? '', ENT_QUOTES);
+		$_POST['DropDate'] = htmlentities($Drop->dropDate ?? '', ENT_QUOTES);
+		$_POST['txtDropImage'] = htmlentities($Drop->dropImage ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($Drop->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
-	
-			//$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-			$_POST[$fieldName]= $fieldValue;
-	
+			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
 		}
-		
-
 	}
-
 }
 
 
@@ -535,7 +484,6 @@ function loadDrop(&$oDrop, $form)
 */
 function clearFormFields($form)
 {
-	//Hidden Fileds must be set to 0
 	$_POST = array();
 }
 
@@ -548,12 +496,10 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
 	}
-	
 }
 
 
