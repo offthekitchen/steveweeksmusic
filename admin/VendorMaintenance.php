@@ -10,31 +10,38 @@ Date        Change
 2016-12-14	Made Responsive
 2016-12-29	Improved Responsivity for phone
 2021-08-21 	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Vendor repository
 *******************************************************************
 */	
 
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 	
 //This include defines the relative path to the root directory from this sub-directory
-include_once ("root.inc.php");
+include_once("root.inc.php");
 
 //inlcude web site settings
-include_once ($ROOT . "/includes/websiteSettings.php");
+include_once($ROOT . "/includes/websiteSettings.php");
 
 //inlcude web site settings
-include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude admin settings
-include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 
-//include Vendor Class		
-include_once (CLASS_DIR . "/class_Vendor.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Vendor.php");
+include_once(DATALAYER_DIR . "/VendorRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+include_once(DATALAYER_DIR . "/Payment.php");
+include_once(DATALAYER_DIR . "/PaymentRepository.php");
 
 //include Form Class		
-include (CLASS_DIR . "/class_Form.php");
+include(CLASS_DIR . "/class_Form.php");
 
 //Array of Vendor records from the DB
-global $aVendorRecords;
+$aVendorRecords = [];
 
 $sActiveMenuItem = PRODUCTS_ACTIVE;	
 $sPageName = "Vendor Maintenance";
@@ -44,7 +51,7 @@ $sPageName = "Vendor Maintenance";
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 
 <body>
@@ -58,50 +65,33 @@ $sPageName = "Vendor Maintenance";
 	<?php
 
 		//Instantiate needed objects
-		$thisVendor = new Vendor();
+		$vendorRepo = new \Datalayer\VendorRepository();
+		$expenseRepo = new \Datalayer\ExpenseRepository();
+		$paymentRepo = new \Datalayer\PaymentRepository();
+		$thisVendor = new \Datalayer\Vendor();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisVendorID = isset($_REQUEST['ID']) ? $_REQUEST['ID'] : NULL;
+		$nThisVendorID = $_REQUEST['ID'] ?? null;
 		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisVendorID))
+		if (!is_null($nThisVendorID) && $nThisVendorID !== '')
 		{
-						
-			$thisVendor->nVendorID = $nThisVendorID;
+			$entity = $vendorRepo->findById((int) $nThisVendorID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisVendor->getVendor())
-			{
-			
-				//Records found
-				if (sizeof($thisVendor->aVendorRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadVendor($thisVendor->aVendorRecords[0], $form);
+			if ($entity) {
+				$thisVendor = $entity;
+				$aVendorRecords = [$entity];
+				loadVendor($thisVendor, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Vendor record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisVendor->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Vendor record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -113,28 +103,23 @@ $sPageName = "Vendor Maintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildVendorObject($thisVendor);
 				
-				//Insert record
-				if ($thisVendor->insertVendor())			
+				if ($vendorRepo->insert($thisVendor))
 				{
-					//Load the form fields with the newly populated object
+					$thisVendor = $vendorRepo->findById((int) $thisVendor->id) ?? $thisVendor;
+					$aVendorRecords = [$thisVendor];
 					loadVendor($thisVendor, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Vendor Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: " . $thisVendor->sErrorMessage;
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -143,30 +128,22 @@ $sPageName = "Vendor Maintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildVendorObject($thisVendor);
 				
-				//Update record
-				if ($thisVendor->updateVendor())			
+				if ($vendorRepo->update($thisVendor))
 				{
+					$thisVendor = $vendorRepo->findById((int) $thisVendor->id) ?? $thisVendor;
+					$aVendorRecords = [$thisVendor];
+					loadVendor($thisVendor, $form);
 				
-					//reload Vendor
-					$thisVendor->getVendor();
-				
-					//Load the form fields with the newly populated DB object						
-					loadVendor($thisVendor->aVendorRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Vendor Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - " . $thisVendor->sErrorMessage;
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -175,24 +152,38 @@ $sPageName = "Vendor Maintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildVendorObject($thisVendor);				
+				buildVendorObject($thisVendor);
 
-				//Delete record
-				if ($thisVendor->deleteVendor())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisVendor->id)) {
+					$relatedExpenses = $expenseRepo->find(['vendorId' => (int) $thisVendor->id]);
+					$relatedPayments = $paymentRepo->find(['vendorId' => (int) $thisVendor->id]);
+
+					if (sizeof($relatedExpenses) > 0) {
+						$deleteError = "VND012 - Can not delete Vendor because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?VENDOR_ID=" . $thisVendor->id;
+						$deleteError .= "'>" . sizeof($relatedExpenses) . " expenses.</A>";
+					} elseif (sizeof($relatedPayments) > 0) {
+						$deleteError = "VND014 - Can not delete Vendor because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/PaymentMaintenance.php?VENDOR_ID=" . $thisVendor->id;
+						$deleteError .= "'>" . sizeof($relatedPayments) . " revenues.</A>";
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisVendor->id) && $vendorRepo->delete((int) $thisVendor->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Vendor Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: " . $thisVendor->sErrorMessage;
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -203,46 +194,34 @@ $sPageName = "Vendor Maintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildVendorObject($thisVendor);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisVendor->getVendor())
+				$aVendorRecords = $vendorRepo->find([
+					'id' => $thisVendor->id,
+					'name' => $thisVendor->name,
+					'fuzzyName' => true,
+				]);
+
+				if (sizeof($aVendorRecords) < 1)
 				{
-					//No records found
-					if(sizeof($thisVendor->aVendorRecords) < 1)
-					{
-						$form->sMessage = "No Vendor records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisVendor->aVendorRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadVendor($thisVendor->aVendorRecords[0], $form);			
+					$form->sMessage = "No Vendor records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aVendorRecords) == 1)
+				{
+					$thisVendor = $aVendorRecords[0];
+					loadVendor($thisVendor, $form);			
 
-						$form->sMessage = "One Vendor record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Vendor record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+					$form->sMessage = "One Vendor record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
 				}
-				else
+				else 
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisVendor->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "Select Vendor record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -250,7 +229,6 @@ $sPageName = "Vendor Maintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -289,14 +267,19 @@ $sPageName = "Vendor Maintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnVendorID" value="<?php echo $_POST['hdnVendorID']?>" />	
+	<input type="hidden" name="hdnVendorID" value="<?php echo $_POST['hdnVendorID'] ?? '' ?>" />	
 	<div class="row">
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
+include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 ?>	
 	</div>
 	<div class="row">
@@ -339,7 +322,7 @@ $sPageName = "Vendor Maintenance";
 		echo "</div>";
 
 				
-		foreach($thisVendor->aVendorRecords as $oVendorRecord)
+		foreach($aVendorRecords as $oVendorRecord)
 		{
 			
 			//Alternate the result style
@@ -354,8 +337,7 @@ $sPageName = "Vendor Maintenance";
 			echo "<div class='row {$sResultStyleClass}'>";
 			
 			//The first column is the ID and is used to build a link
-			echo "	<div class='col-xs-12 result-selector {$sResultStyleClass}'><A HREF='./VendorMaintenance.php?ID={$oVendorRecord->nVendorID}'>{$oVendorRecord->sVendorName}</A></div>";			
-			$i = 1;
+			echo "	<div class='col-xs-12 result-selector {$sResultStyleClass}'><A HREF='./VendorMaintenance.php?ID={$oVendorRecord->id}'>{$oVendorRecord->name}</A></div>";			
 			echo "</div>";
 		}
 		?>
@@ -370,15 +352,15 @@ $sPageName = "Vendor Maintenance";
 	
 		<div class="row"> 
 			<div class="col-xs-12  FieldGroup">
-				NAME: <input type="text" name="txtVendorName" value="<?php echo $_POST['txtVendorName']; ?>" size="60" />
+				NAME: <input type="text" name="txtVendorName" value="<?php echo $_POST['txtVendorName'] ?? ''; ?>" size="60" />
 			</div>
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3 FormFieldNoEdit">
-						ID: <?php echo $_POST['hdnVendorID']; ?>						
+						ID: <?php echo $_POST['hdnVendorID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -415,15 +397,12 @@ $sPageName = "Vendor Maintenance";
  * form fields.
  ********************************************************************************
 */
-function buildVendorObject($vendor)
+function buildVendorObject(\Datalayer\Vendor $vendor)
 {
+	$id = $_POST['hdnVendorID'] ?? null;
+	$vendor->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$vendor->nVendorID = $_POST['hdnVendorID'];
-
-	$vendor->sVendorName = html_entity_decode($_POST['txtVendorName'], ENT_QUOTES);
-	$vendor->bFuzzyNameSearch = TRUE;
-
+	$vendor->name = html_entity_decode($_POST['txtVendorName'] ?? '', ENT_QUOTES);
 }
 
 
@@ -435,29 +414,21 @@ function buildVendorObject($vendor)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadVendor(&$vendor, $form)
+function loadVendor(\Datalayer\Vendor $vendor, $form)
 {
-
-	if (!is_null($vendor->nVendorID))
+	if (!is_null($vendor->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnVendorID'] = $vendor->nVendorID;
+		$_POST['hdnVendorID'] = $vendor->id;
 
-		$_POST['txtVendorName'] = htmlentities($vendor->sVendorName, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($vendor->dtLastUpdate, ENT_QUOTES);
-		
+		$_POST['txtVendorName'] = htmlentities($vendor->name ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($vendor->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
-	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-	
 		}
-
 	}
-
 }
 
 
@@ -482,8 +453,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

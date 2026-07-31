@@ -7,6 +7,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2024-05-09  Created
+2026-07-30	Migrated to new Datalayer repositories
 *******************************************************************
 */	
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -25,22 +26,16 @@ include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 	
-//include Performance Class		
-include_once (CLASS_DIR . "/class_Performance.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
-//include Expense Class		
-include_once (CLASS_DIR . "/class_Expense.php");
-
-//include Revenue Class		
-include_once (CLASS_DIR . "/class_Revenue.php");
-
-//include Revenue_Type Class		
-include_once (CLASS_DIR . "/class_RevenueType.php");
-
-//include TaxCategory Class		
-include_once (CLASS_DIR . "/class_TaxCategory.php");
-
-//include Form Class		
+//include Form Class
 include (CLASS_DIR . "/class_Form.php");
 
 //Require the Class for the calendar picker
@@ -93,6 +88,9 @@ $sPageName = "Performance Report"
 	$aPerformanceData = array();
 
 	//Instantiate needed objects
+	$performanceRepo = new \Datalayer\PerformanceRepository();
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	$revenueRepo = new \Datalayer\RevenueRepository();
 	$form = new Form();
 
 	for($nYear = $nStartYear; $nYear <= $nEndYear; $nYear++)
@@ -102,70 +100,55 @@ $sPageName = "Performance Report"
 		
 		//Initialize Array of Performance Data for Year
 		$aPerformanceData[$nYear]['YEAR'] = $nYear;
-		$aPerformanceData[$nYear]['TOTAL_REVENUE'] = 0.00;		
+		$aPerformanceData[$nYear]['TOTAL_REVENUE'] = 0.00;
 		$aPerformanceData[$nYear]['CD_QUANTITY'] = 0;
+		$aPerformanceData[$nYear]['CD_REVENUE'] = 0;
+		$aPerformanceData[$nYear]['PERFORMANCE_REVENUE'] = 0;
+		$aPerformanceData[$nYear]['OTHER_REVENUE'] = 0;
+		$aPerformanceData[$nYear]['TOTAL_EXPENSE'] = 0;
 
 		// Get Performances
-		$oPerformances = new Performance();
-		$oPerformances->dtStartDate = $dtStartDate;
-		$oPerformances->dtEndDate = $dtEndDate;
-		$oPerformances->bColoradoSessions = TRUE;
-	 	$aPerformanceData[$nYear]['PERFORMANCE_QUANTITY'] = $oPerformances->getNumberOfPerformances();
+		$aPerformances = $performanceRepo->find([
+			'startDate' => $dtStartDate,
+			'endDate' => $dtEndDate,
+			'coloradoSessions' => true,
+		]);
+		$aPerformanceData[$nYear]['PERFORMANCE_QUANTITY'] = count($aPerformances);
 		
 		// Get Revenues
-		$oPerformanceRevenues = new Revenue();
-		$oPerformanceRevenues->bPerformanceRelated = TRUE;
-		$oPerformanceRevenues->dtStartDate = $dtStartDate;
-		$oPerformanceRevenues->dtEndDate = $dtEndDate;
-		$oPerformanceRevenues->aRevenueCategoryIDs = $aCategoryIDs;
-		if ($oPerformanceRevenues->getRevenue())
+		$aPerformanceRevenues = $revenueRepo->find([
+			'performanceRelated' => true,
+			'startDate' => $dtStartDate,
+			'endDate' => $dtEndDate,
+			'categoryIds' => $aCategoryIDs,
+		]);
+		foreach ($aPerformanceRevenues as $oRevenue)
 		{
-			$aPerformanceData[$nYear]['YEAR'] = $nYear;
-
-			foreach($oPerformanceRevenues->aRevenueRecords as $oRevenue)
+			$aPerformanceData[$nYear]['TOTAL_REVENUE'] += $oRevenue->amount ?? 0;
+			if ($oRevenue->revenueTypeId == REVENUE_TYPE_CD_SALE)
 			{
-				$aPerformanceData[$nYear]['TOTAL_REVENUE'] += $oRevenue->nRevenueAmount;
-				if ($oRevenue->nRevenueTypeID == REVENUE_TYPE_CD_SALE)
-				{
-					$aPerformanceData[$nYear]['CD_QUANTITY'] += $oRevenue->nProductQty;
-					$aPerformanceData[$nYear]['CD_REVENUE'] += $oRevenue->nRevenueAmount;
-				}
-				elseif ($oRevenue->nRevenueTypeID == REVENUE_TYPE_PERFORMANCE_FEE)
-				{
-					$aPerformanceData[$nYear]['PERFORMANCE_REVENUE'] += $oRevenue->nRevenueAmount;
-				}
-				else {
-					$aPerformanceData[$nYear]['OTHER_REVENUE'] += $oRevenue->nRevenueAmount;
-				}
-				
+				$aPerformanceData[$nYear]['CD_QUANTITY'] += $oRevenue->productQty ?? 0;
+				$aPerformanceData[$nYear]['CD_REVENUE'] += $oRevenue->amount ?? 0;
+			}
+			elseif ($oRevenue->revenueTypeId == REVENUE_TYPE_PERFORMANCE_FEE)
+			{
+				$aPerformanceData[$nYear]['PERFORMANCE_REVENUE'] += $oRevenue->amount ?? 0;
+			}
+			else {
+				$aPerformanceData[$nYear]['OTHER_REVENUE'] += $oRevenue->amount ?? 0;
 			}
 		}
-		else
-		{
-			//ERROR RETRIEVING REVENUES
-			$form->nMessageType = MESSAGE_TYPE_ERROR;
-			$form->sMessage = "FAILED TO GET REVENUES: " . $oPerformanceRevenues->sErrorMessage;
-		}  
 
 		// Get Expenses
-		$oPerformanceExpenses = new Expense();
-		$oPerformanceExpenses->dtStartDate = $dtStartDate;
-		$oPerformanceExpenses->dtEndDate = $dtEndDate;
-		$oPerformanceExpenses->aExpenseCategoryIDs = $aCategoryIDs;
-		if ($oPerformanceExpenses->getExpense())
+		$aPerformanceExpenses = $expenseRepo->find([
+			'startDate' => $dtStartDate,
+			'endDate' => $dtEndDate,
+			'categoryIds' => $aCategoryIDs,
+		]);
+		foreach ($aPerformanceExpenses as $oExpense)
 		{
-			foreach($oPerformanceExpenses->aExpenseRecords as $oExpense)
-			{
-				$aPerformanceData[$nYear]['TOTAL_EXPENSE'] += $oExpense->nExpenseAmount;
-			}
+			$aPerformanceData[$nYear]['TOTAL_EXPENSE'] += $oExpense->expenseAmount ?? 0;
 		}
-		else
-		{
-			//ERROR RETRIEVING EXPENSES
-			$form->nMessageType = MESSAGE_TYPE_ERROR;
-			$form->sMessage = "FAILED TO GET EXPENSES: " . $oPerformanceExpenses->sErrorMessage;
-		}  
-		
 	}
 
 ?>	

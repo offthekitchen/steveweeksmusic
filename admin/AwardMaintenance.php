@@ -2,32 +2,48 @@
 /*
 *******************************************************************
 AwardMaintenance.php
-This PHP file defines the Maintenance page for managing Artists.
+This PHP file defines the Maintenance page for managing Awards.
 NOTES
 Date        Change
 -------------------------------------------------------------
 2017-03-20	Made responsive
 2017-09-02	Improved Responsivity
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Award repository
 *******************************************************************
 */
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
-	//This include defines the relative path to the root directory from this sub-directory
-	include_once("root.inc.php");
+//This include defines the relative path to the root directory from this sub-directory
+include_once("root.inc.php");
 
-	//inlcude web site settings
-	include_once($ROOT . "/includes/websiteSettings.php");
+//inlcude web site settings
+include_once($ROOT . "/includes/websiteSettings.php");
 
-	//inlcude web site settings
-	include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+//inlcude web site settings
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
-	//inlcude admin settings
-	include_once(ADMIN_DIR . "/includes/AdminSettings.php");
-	//inlcude Common Functions
-	include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
-	$sActiveMenuItem = DISCOGRAPHY_ACTIVE;
-	$sPageName = "Award Maintenance";	
+//inlcude admin settings
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
+//inlcude Common Functions
+include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Award.php");
+include_once(DATALAYER_DIR . "/AwardRepository.php");
+
+//Require the Class for the calendar picker
+require_once(CLASS_DIR . "/tc_calendar.php");
+
+//include Form Class		
+include(CLASS_DIR . "/class_Form.php");
+
+//Array of Award records from the DB
+$aAwardRecords = [];
+
+$sActiveMenuItem = DISCOGRAPHY_ACTIVE;
+$sPageName = "Award Maintenance";
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -35,7 +51,7 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 	<!-- Javascript required for Calendar picker -->
 	<script language="javascript" src="./javascript/calendar.js"></script>
@@ -53,7 +69,7 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 			}
 
 			//Artist is a required Field
-			if (document.SongMaint.selArtist.value == "0") {
+			if (document.AwardMaint.selArtist.value == "0") {
 				sErrorMessage += "Artist Required\n";
 				bValid = false;
 			}
@@ -76,31 +92,17 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 	<!-- DIV used for Image Preview Popup -->
 	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
 
-	<?php
-
-	//include Award Class		
-	include_once(CLASS_DIR . "/class_Award.php");
-
-	//Require the Class for the calendar picker
-	require_once(CLASS_DIR . "/tc_calendar.php");
-
-	//include Form Class		
-	include(CLASS_DIR . "/class_Form.php");
-
-	//Array of Award records from the DB
-	global $aAwardRecords;
-
-	?>
 	<div class="container-fluid">
 		<form name="AwardMaint" action="AwardMaintenance.php" method="post">
 
 			<?php
 			//Instantiate needed objects
-			$thisAward = new Award();
+			$awardRepo = new \Datalayer\AwardRepository();
+			$thisAward = new \Datalayer\Award();
 			$form = new Form();
 
 			//Get the ID query string parameter
-			$nThisAwardID = $_REQUEST['Award_ID'];
+			$nThisAwardID = $_REQUEST['Award_ID'] ?? null;
 
 			//If an artist ID is passed, go ahead and search Awards for that artist
 			if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "") {
@@ -108,35 +110,23 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 				$_POST['btnSearch'] = "Search";
 			}
 
+			try {
 			//If an ID was passed to the page, retrieve that record for update		
-			if (!is_null($nThisAwardID)) {
+			if (!is_null($nThisAwardID) && $nThisAwardID !== '') {
 
-				$thisAward->nAwardID = $nThisAwardID;
+				$entity = $awardRepo->findById((int) $nThisAwardID);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisAward->getAward()) {
+				if ($entity) {
+					$thisAward = $entity;
+					$aAwardRecords = [$entity];
+					loadAward($thisAward, $form);
 
-					//Records found
-					if (sizeof($thisAward->aAwardRecords) > 0) {
-
-						//Only One Record should be returned.  Add this to the form field array
-						//so that it displays in the form fields and to the values in the
-						//current Object.
-						loadAward($thisAward->aAwardRecords[0], $form);
-
-						$form->sMessage = "Update record.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;
-					} else {
-						//The record was not found
-						$form->sMessage = "Award record not found.";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;
-					}
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;
 				} else {
-					//Error
-					$form->sMessage = $thisAward->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "Award record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 			} else {
@@ -146,29 +136,19 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 				// *   ADD      *
 				// **************
 				if (isset($_POST["btnAdd"])) {
-					//Load values into DB array
 					buildAwardObject($thisAward);
 
-					//Insert record
-					if ($thisAward->insertAward()) {
-						//reload Review
-						$insertedAward = new Award();
-						$insertedAward->nAwardID = $thisAward->nAwardID;
-						$insertedAward->getAward();
-						$thisAward = $insertedAward->aAwardRecords[0];
-
-						//Load the form fields with the newly populated object
+					if ($awardRepo->insert($thisAward)) {
+						$thisAward = $awardRepo->findById((int) $thisAward->id) ?? $thisAward;
+						$aAwardRecords = [$thisAward];
 						loadAward($thisAward, $form);
 
-						//Success
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->sMessage = "Award Added";
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-
-						//Failure
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ADD RECORD FAILED: {$thisAward->sErrorMessage}";
+						$form->sMessage = "ADD RECORD FAILED";
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
 				}
@@ -177,26 +157,19 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 				// **************
 				else if (isset($_POST["btnUpdate"])) {
 
-					//Load values from form field array into DB object
 					buildAwardObject($thisAward);
 
-					//Update record
-					if ($thisAward->updateAward()) {
+					if ($awardRepo->update($thisAward)) {
+						$thisAward = $awardRepo->findById((int) $thisAward->id) ?? $thisAward;
+						$aAwardRecords = [$thisAward];
+						loadAward($thisAward, $form);
 
-						//reload Award
-						$thisAward->getAward();
-
-						//Load the form fields with the newly populated DB object						
-						loadAward($thisAward->aAwardRecords[0], $form);
-
-						//Success
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->sMessage = "Award Updated";
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-						//Failure
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ERROR: Update Failed - {$thisAward->sErrorMessage}";
+						$form->sMessage = "ERROR: Update Failed";
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
 				}
@@ -205,20 +178,16 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 				// **************
 				else if (isset($_POST["btnDelete"])) {
 
-					//Load DB record
 					buildAwardObject($thisAward);
 
-					//Delete record
-					if ($thisAward->deleteAward()) {
-						//Clear the form fields
+					if (!empty($thisAward->id) && $awardRepo->delete((int) $thisAward->id)) {
 						clearFormFields($form);
 
-						//Success
 						$form->sMessage = "Award Deleted";
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_NEW;
 					} else {
-						$form->sMessage = "DELETE FAILED: {$thisAward->sErrorMessage}";
+						$form->sMessage = "DELETE FAILED";
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
@@ -227,37 +196,48 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 				// *   SEARCH   *
 				// **************
 				else if (isset($_POST["btnSearch"])) {
-					//Load Array of Search Values
 					buildAwardObject($thisAward);
 
-					//Search the Database for records matching the search criteria			
-					if ($thisAward->getAward()) {
-						//No records found
-						if (sizeof($thisAward->aAwardRecords) < 1) {
-							$form->sMessage = "No Award records found matching search criteria";
-							$form->nMessageType = MESSAGE_TYPE_WARNING;
-							$form->nFormMode = FORM_MODE_NEW;
-						} else if (sizeof($thisAward->aAwardRecords) == 1) {
-							//Only One Record returned.  Add this to the form field array
-							//so that it displays in the form fields
-							loadAward($thisAward->aAwardRecords[0], $form);
+					$criteria = [
+						'id' => $thisAward->id,
+						'name' => $thisAward->name,
+						'fuzzyName' => true,
+						'description' => $thisAward->description,
+						'awardDate' => $thisAward->awardDate,
+						'url' => $thisAward->url,
+						'orderBy' => 'date',
+					];
 
-							$form->sMessage = "One Award record found.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_EDIT;
-						}
-						//If Multiple records found, the array of search reults will be populated
-						else {
-							//Multiiple records returned
-							$form->sMessage = "Select Award record to edit from results list below.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_SELECT;
-						}
-					} else {
-						//Attempt to get records failed
-						$form->sMessage = $thisAward->sErrorMessage;
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
+					if (!empty($thisAward->artistId)) {
+						$criteria['artistId'] = $thisAward->artistId;
+					}
+					if ($thisAward->cdId !== null && $thisAward->cdId !== '') {
+						$criteria['cdId'] = $thisAward->cdId;
+					}
+					if (!empty($thisAward->songId)) {
+						$criteria['songId'] = $thisAward->songId;
+					}
+					if (!empty($thisAward->performanceRelated)) {
+						$criteria['performanceRelated'] = true;
+					}
+
+					$aAwardRecords = $awardRepo->find($criteria);
+
+					if (sizeof($aAwardRecords) < 1) {
+						$form->sMessage = "No Award records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
 						$form->nFormMode = FORM_MODE_NEW;
+					} else if (sizeof($aAwardRecords) == 1) {
+						$thisAward = $aAwardRecords[0];
+						loadAward($thisAward, $form);
+
+						$form->sMessage = "One Award record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;
+					} else {
+						$form->sMessage = "Select Award record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;
 					}
 				}
 				// *************
@@ -300,10 +280,15 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 			}
+			} catch (\Throwable $e) {
+				$form->sMessage = $e->getMessage();
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;
+			}
 
 			?>
 			<!-- Hidden Fields -->
-			<input type="hidden" name="hdnAwardID" value="<?php echo $_POST['hdnAwardID'] ?>" />
+			<input type="hidden" name="hdnAwardID" value="<?php echo $_POST['hdnAwardID'] ?? '' ?>" />
 
 			<div class="row">
 				<?php
@@ -352,7 +337,7 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 						echo "</div>";
 
 
-						foreach ($thisAward->aAwardRecords as $oAwardRecord) {
+						foreach ($aAwardRecords as $oAwardRecord) {
 
 							//Alternate the result style
 							if ($sResultStyleClass == RESULT_STYLE_CLASS) {
@@ -361,8 +346,8 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 								$sResultStyleClass = RESULT_STYLE_CLASS;
 							}
 							echo "<div class='row {$sResultStyleClass}'>";
-							echo "	<div class='col-xs-12 col-sm-3 {$sResultStyleClass}'><A HREF='./AwardMaintenance.php?Award_ID={$oAwardRecord->nAwardID}'>{$oAwardRecord->dtAwardDate}</a></div>";
-							echo "	<div class='col-xs-12 col-sm-9 {$sResultStyleClass}'><A HREF='./AwardMaintenance.php?Award_ID={$oAwardRecord->nAwardID}'>{$oAwardRecord->sAwardName}</a></div>";
+							echo "	<div class='col-xs-12 col-sm-3 {$sResultStyleClass}'><A HREF='./AwardMaintenance.php?Award_ID={$oAwardRecord->id}'>{$oAwardRecord->awardDate}</a></div>";
+							echo "	<div class='col-xs-12 col-sm-9 {$sResultStyleClass}'><A HREF='./AwardMaintenance.php?Award_ID={$oAwardRecord->id}'>{$oAwardRecord->name}</a></div>";
 							echo "</div>";
 						}
 						?>
@@ -378,13 +363,13 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 						<div class="col-xs-12 col-md-6 FieldGroup">
 							<div class="row">
 								<div class="col-xs-12">
-									NAME: <input type="text" name="txtAwardName" value="<?php echo $_POST['txtAwardName']; ?>" size="40" />
+									NAME: <input type="text" name="txtAwardName" value="<?php echo $_POST['txtAwardName'] ?? ''; ?>" size="40" />
 								</div>
 								<div class="col-xs-12">
-									AWARD URL: <input type="text" name="txtAwardURL" value="<?php echo $_POST['txtAwardURL']; ?>" size="30" />
+									AWARD URL: <input type="text" name="txtAwardURL" value="<?php echo $_POST['txtAwardURL'] ?? ''; ?>" size="30" />
 								</div>
 								<div class="col-xs-2 category-selector">
-									<input type="checkbox" name="chkPerformanceRelated" class="result-checkbox" value="PerformanceRelated" <?php if ($_POST['chkPerformanceRelated']) {
+									<input type="checkbox" name="chkPerformanceRelated" class="result-checkbox" value="PerformanceRelated" <?php if (!empty($_POST['chkPerformanceRelated'])) {
 																																				echo " checked ";
 																																			}; ?> />
 								</div>
@@ -393,27 +378,27 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 								</div>
 								<div class="col-xs-12">
 									<?php
-									renderArtistDropDown($_POST['selArtist']);
+									renderArtistDropDown($_POST['selArtist'] ?? 0);
 									?>
 								</div>
 								<div class="col-xs-12">
 									<?php
-									renderCDDropDown($_POST['selCD']);
+									renderCDDropDown($_POST['selCD'] ?? '');
 									?>
 								</div>
 								<div class="col-xs-12">
 									<?php
-									renderSongDropDown($_POST['selSong']);
+									renderSongDropDown($_POST['selSong'] ?? '');
 									?>
 								</div>
 								<div class="col-xs-12">
 									AWARD DATE: <br>
 									<?php
-									renderDatePicker("AwardDate", $thisAward->aAwardRecords[0]->dtAwardDate);
+									renderDatePicker("AwardDate", $_POST['AwardDate'] ?? ($thisAward->awardDate ?? ''));
 									?>
 								</div>
 								<div class="col-xs-12">
-									DESCRIPTION: <textarea name="txtAwardDescription" rows="4" cols="50"><?php echo $_POST['txtAwardDescription']; ?></textarea>
+									DESCRIPTION: <textarea name="txtAwardDescription" rows="4" cols="50"><?php echo $_POST['txtAwardDescription'] ?? ''; ?></textarea>
 								</div>
 							</div>
 						</div>
@@ -430,7 +415,7 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 									$form->renderImagePreview($sFullImagePath, "");
 									?>
 									<br /><br />
-									<input type="text" name="txtAwardImage" id="txtAwardImage" value="<?php echo $_POST['txtAwardImage']; ?>" size="30" /><BR />
+									<input type="text" name="txtAwardImage" id="txtAwardImage" value="<?php echo $_POST['txtAwardImage'] ?? ''; ?>" size="30" /><BR />
 									<input type="button" name="btnPreviewImage" onclick="preview_image('txtAwardImage','<?php echo IMG_DIR ?>')" value="Preview" />
 								</div>
 							</div>
@@ -438,10 +423,10 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 						<div class="col-xs-12">
 							<div class="row FormFieldNoEdit">
 								<div class="col-xs-3">
-									ID: <?php echo $_POST['hdnAwardID']; ?>
+									ID: <?php echo $_POST['hdnAwardID'] ?? ''; ?>
 								</div>
 								<div class="col-xs-9 FormFieldNoEdit">
-									LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+									LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 								</div>
 							</div>
 							<div class="row">
@@ -480,36 +465,41 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
  * form fields.
  ********************************************************************************
 */
-	function buildAwardObject($Award)
+	function buildAwardObject(\Datalayer\Award $Award)
 	{
+		$id = $_POST['hdnAwardID'] ?? null;
+		$Award->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-		//Load the Array used to populate the form fields based on the newly loaded object
-		$Award->nAwardID = $_POST['hdnAwardID'];
+		$Award->name = html_entity_decode($_POST['txtAwardName'] ?? '', ENT_QUOTES);
+		$Award->description = html_entity_decode($_POST['txtAwardDescription'] ?? '', ENT_QUOTES);
+		$Award->image = html_entity_decode($_POST['txtAwardImage'] ?? '', ENT_QUOTES);
+		$Award->url = html_entity_decode($_POST['txtAwardURL'] ?? '', ENT_QUOTES);
+		$Award->artistId = (int) ($_POST['selArtist'] ?? 0);
 
-		//DEBUG
-		$Award->sAwardName = html_entity_decode($_POST['txtAwardName'], ENT_QUOTES);
-		$Award->sAwardDescription = html_entity_decode($_POST['txtAwardDescription'], ENT_QUOTES);
-		$Award->sAwardImage = html_entity_decode($_POST['txtAwardImage'], ENT_QUOTES);
-		$Award->sAwardURL = html_entity_decode($_POST['txtAwardURL'], ENT_QUOTES);
-		$Award->bFuzzyNameSearch = TRUE;
-		$Award->nArtistID = $_POST['selArtist'];
-		$Award->nCDID = $_POST['selCD'];
-		$Award->nSongID = $_POST['selSong'];
+		$cdId = $_POST['selCD'] ?? null;
+		if ($cdId === '' || $cdId === null) {
+			$Award->cdId = null;
+		} else {
+			$Award->cdId = (int) $cdId;
+		}
 
-		//Release Date	
+		$songId = $_POST['selSong'] ?? null;
+		if ($songId === '' || $songId === null) {
+			$Award->songId = null;
+		} else {
+			$Award->songId = (int) $songId;
+		}
+
+		//Award Date	
 		$dtAwardDate = isset($_REQUEST["AwardDate"]) ? $_REQUEST["AwardDate"] : "";
 		if ($dtAwardDate > "0000-00-00") {
-			//If no datepicker is displayed, use the hidden field
 			$dtAwardDate = isset($_POST["AwardDate"]) ? $_POST["AwardDate"] : "";
 		}
 		if ($dtAwardDate > "0000-00-00") {
-			$Award->dtAwardDate  	= $dtAwardDate;
+			$Award->awardDate = $dtAwardDate;
 		}
 
-		if ($_POST['chkPerformanceRelated'] == "PerformanceRelated") {
-			$Award->bPerformanceRelated = TRUE;
-		}
-
+		$Award->performanceRelated = (($_POST['chkPerformanceRelated'] ?? '') == "PerformanceRelated");
 	}
 
 
@@ -521,26 +511,23 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-	function loadAward(&$Award, $form)
+	function loadAward(\Datalayer\Award $Award, $form)
 	{
 
-		if (!is_null($Award->nAwardID)) {
-			//Load Hidden Fields
-			$_POST['hdnAwardID'] = $Award->nAwardID;
-			$_POST['txtAwardName'] = htmlentities($Award->sAwardName, ENT_QUOTES);
-			$_POST['txtAwardDescription'] = $Award->sAwardDescription;
-			$_POST['txtAwardImage'] = htmlentities($Award->sAwardImage, ENT_QUOTES);
-			$_POST['txtAwardURL'] = htmlentities($Award->sAwardURL, ENT_QUOTES);
-			$_POST['AwardDate'] = htmlentities($Award->dtAwardDate, ENT_QUOTES);
-			$_POST['selArtist'] = $Award->nArtistID;
-			$_POST['selCD'] = $Award->nCDID;
-			$_POST['selSong'] = $Award->nSongID;
-			$_POST['chkPerformanceRelated'] = $Award->bPerformanceRelated;
-			$_POST['txtLastUpdate'] = htmlentities($Award->dtLastUpdate, ENT_QUOTES);
+		if (!is_null($Award->id)) {
+			$_POST['hdnAwardID'] = $Award->id;
+			$_POST['txtAwardName'] = htmlentities($Award->name ?? '', ENT_QUOTES);
+			$_POST['txtAwardDescription'] = $Award->description;
+			$_POST['txtAwardImage'] = htmlentities($Award->image ?? '', ENT_QUOTES);
+			$_POST['txtAwardURL'] = htmlentities($Award->url ?? '', ENT_QUOTES);
+			$_POST['AwardDate'] = htmlentities($Award->awardDate ?? '', ENT_QUOTES);
+			$_POST['selArtist'] = $Award->artistId;
+			$_POST['selCD'] = $Award->cdId;
+			$_POST['selSong'] = $Award->songId;
+			$_POST['chkPerformanceRelated'] = $Award->performanceRelated;
+			$_POST['txtLastUpdate'] = htmlentities($Award->lastUpdate ?? '', ENT_QUOTES);
 		} else {
-			//Load Form field values into array 
 			foreach ($_POST as $fieldName => $fieldValue) {
-
 				$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 			}
 		}
@@ -550,8 +537,6 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 	/*
  ********************************************************************************
  * clearFormFields
- * 
- * This function clears the form fields
  ********************************************************************************
 */
 	function clearFormFields($form)
@@ -562,14 +547,10 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 	/*
  ********************************************************************************
  * copyFormFields
- * 
- * This function copies the data from the form back into the form field array
  ********************************************************************************
 */
 	function copyFormFields($form)
 	{
-
-		//Load Form field values into array 
 		foreach ($_POST as $fieldName => $fieldValue) {
 			$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 		}

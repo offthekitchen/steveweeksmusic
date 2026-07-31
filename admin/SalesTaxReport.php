@@ -9,6 +9,7 @@ Date        Change
 -------------------------------------------------------------
 2015-10-02  Changed report to use Report Filters include file
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Revenue repository
 *******************************************************************
 */	
 
@@ -26,13 +27,12 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //inlcude admin settings
  include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 
-//include Revenue Class		
-include_once (CLASS_DIR . "/class_Revenue.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
-//include Revenue_Type Class		
-include_once (CLASS_DIR . "/class_RevenueType.php");
-
-//include Form Class		
+//include Form Class
 include (CLASS_DIR . "/class_Form.php");
 
 //Require the Class for the calendar picker
@@ -119,57 +119,53 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 				$ReportsEndDay = "31";
 		}
 
-		$oRevenues = new Revenue();
-		$oRevenues->dtStartDate = "$sReportStartYear-$sReportStartMonth-$sReportStartDay";
-		$oRevenues->dtEndDate = "$sReportEndYear-$sReportEndMonth-$sReportEndDay";
+		$dtReportStartDate = "$sReportStartYear-$sReportStartMonth-$sReportStartDay";
+		$dtReportEndDate = "$sReportEndYear-$sReportEndMonth-$sReportEndDay";
 
-		if ($oRevenues->getRevenue())
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		$aRevenues = $revenueRepo->find([
+			'startDate' => $dtReportStartDate,
+			'endDate' => $dtReportEndDate,
+		]);
+
+		foreach ($aRevenues as $oRevenue)
 		{
-			foreach($oRevenues->aRevenueRecords as $oRevenue)
+			//Keep a running sum of performance fees
+			if($oRevenue->revenueTypeId == REVENUE_TYPE_PERFORMANCE_FEE)
 			{
-				//Keep a running sum of performance fees
-				if($oRevenue->nRevenueTypeID == REVENUE_TYPE_PERFORMANCE_FEE)
-				{
-					$nPerformanceFeesTotal += $oRevenue->nRevenueAmount;
-				}
-				elseif($oRevenue->nRevenueTypeID == REVENUE_TYPE_CD_SALE)
-				{
-					$nCDSalesRevenueTotal += $oRevenue->nRevenueAmount;
-					
-					//Revenues can only be Charitable or Resale and if neither they are eligible for tax
-					if($oRevenue->bCharitable)
-					{
-						$nCharitableSalesTotal += $oRevenue->nRevenueAmount;
-					}
-					elseif($oRevenue->bResale)
-					{
-						$nResaleTotal += $oRevenue->nRevenueAmount;
-					}
-					else
-					{
-						if($oRevenue->bColoradoRevenue)
-						{
-							$nColoradoRevenueTotal += $oRevenue->nRevenueAmount;
-						}
-						if($oRevenue->bElPasoRevenue)
-						{
-							$nElPasoRevenueTotal += $oRevenue->nRevenueAmount;
-						}
-					}
-				}
-				
+				$nPerformanceFeesTotal += $oRevenue->amount ?? 0;
 			}
-			
-			//Store some sums for convenient use later
-			$nDeductibleTotal = $nCharitableSalesTotal + $nPerformanceFeesTotal;
-			$nExemptTotal = $nDeductibleTotal + $nResaleTotal;
-			$nSalesRevenueTotal = $nCDSalesRevenueTotal + $nPerformanceFeesTotal;
+			elseif($oRevenue->revenueTypeId == REVENUE_TYPE_CD_SALE)
+			{
+				$nCDSalesRevenueTotal += $oRevenue->amount ?? 0;
+				
+				//Revenues can only be Charitable or Resale and if neither they are eligible for tax
+				if($oRevenue->charitable)
+				{
+					$nCharitableSalesTotal += $oRevenue->amount ?? 0;
+				}
+				elseif($oRevenue->resale)
+				{
+					$nResaleTotal += $oRevenue->amount ?? 0;
+				}
+				else
+				{
+					if($oRevenue->coloradoRevenue)
+					{
+						$nColoradoRevenueTotal += $oRevenue->amount ?? 0;
+					}
+					if($oRevenue->elPasoRevenue)
+					{
+						$nElPasoRevenueTotal += $oRevenue->amount ?? 0;
+					}
+				}
+			}
 		}
-		else
-		{
-			//Error getting revenue data
-			$form->sMessage = "Error retrieving Revenue Data: {$oRevenues->sErrorMessage}";
-		}
+		
+		//Store some sums for convenient use later
+		$nDeductibleTotal = $nCharitableSalesTotal + $nPerformanceFeesTotal;
+		$nExemptTotal = $nDeductibleTotal + $nResaleTotal;
+		$nSalesRevenueTotal = $nCDSalesRevenueTotal + $nPerformanceFeesTotal;
 									
 	}
 
@@ -195,9 +191,9 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 				<div class="col-xs-12 Title">
 					SALES TAX REPORT
 					<?php
-					if(isset($oRevenues->dtStartDate) && isset($oRevenues->dtEndDate))
+					if(isset($dtReportStartDate) && isset($dtReportEndDate))
 					{
-						echo " ({$oRevenues->dtStartDate} to {$oRevenues->dtEndDate})";
+						echo " ({$dtReportStartDate} to {$dtReportEndDate})";
 					}
 					?>
 				</div>

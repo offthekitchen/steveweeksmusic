@@ -7,6 +7,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2015-08-01	Created
+2026-07-30	Migrated to new Datalayer Performance repository
 *******************************************************************
 */	
 	error_reporting(E_ALL ^ E_NOTICE);
@@ -23,12 +24,14 @@ Date        Change
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 
+	//include new datalayer
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Performance.php");
+	include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+
 	 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 	$sPageName = "Artist Maintenance";
 ?>
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -40,16 +43,9 @@ Date        Change
 <body>
 	<?php
 	
-	//include Performance Class		
- 	include_once (CLASS_DIR . "/class_Performance.php");
-
-	//Array of Performance records from the DB
-	global $aPerformanceRecords;
+	$performanceRepo = new \Datalayer\PerformanceRepository();
 	
  	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
-
-		//Instantiate needed objects
-		$oUpcomingPerformances = new Performance();
 
 		//Set a date one month from now
 		
@@ -62,33 +58,26 @@ Date        Change
 		<?php
 		echo "ALL PERFORMANCES BETWEEN TODAY AND {$dtEndDate} <BR>";
 		
-		$oUpcomingPerformances->dtEndDate = $dtEndDate;
-		$oUpcomingPerformances->bFuturePerformances = TRUE;
+		$aUpcomingPerformances = $performanceRepo->find([
+			'future' => true,
+			'endDate' => $dtEndDate,
+		]);
 		
-		//Search the Database for records matching the search criteria			
-		if ($oUpcomingPerformances->getPerformance())
+		if (!empty($aUpcomingPerformances))
 		{
-			//Records found
-			if (sizeof($oUpcomingPerformances->aPerformanceRecords) > 0)
+			foreach($aUpcomingPerformances as $upcomingPerformance)
 			{
-				foreach($oUpcomingPerformances->aPerformanceRecords as $oUpcomingPerformance)
-				{
-					$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y",strtotime($oUpcomingPerformance->dtPerformanceDate)) . "&eventID={$oUpcomingPerformance->nPerformanceID}#performance-{$oUpcomingPerformance->nPerformanceID}";
-			
-					echo "<BR><a href='{$sPerformanceURL}'>";
-					echo "{$oUpcomingPerformance->sLocation}, {$oUpcomingPerformance->sLocationCity}, {$oUpcomingPerformance->sLocationState} (" . date("l",strtotime($oUpcomingPerformance->dtPerformanceDate)) . ", " . date("m-d-Y",strtotime($oUpcomingPerformance->dtPerformanceDate)) . " at {$oUpcomingPerformance->sPerformanceTime})";
-					echo "</a>";			  			
+				$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y",strtotime($upcomingPerformance->performanceDate)) . "&eventID={$upcomingPerformance->id}#performance-{$upcomingPerformance->id}";
+		
+				echo "<BR><a href='{$sPerformanceURL}'>";
+				echo "{$upcomingPerformance->location}, {$upcomingPerformance->locationCity}, {$upcomingPerformance->locationState} (" . date("l",strtotime($upcomingPerformance->performanceDate)) . ", " . date("m-d-Y",strtotime($upcomingPerformance->performanceDate)) . " at {$upcomingPerformance->performanceTime})";
+				echo "</a>";			  			
 
-				}
-			}
-			else
-			{
-				echo "NO UPCOMING PERFORMANCES FOUND.";
 			}
 		}
 		else
 		{
-			echo "ERROR RETRIEVING PERFORMANCE DATA! ";
+			echo "NO UPCOMING PERFORMANCES FOUND.";
 		}
 	?>
 		</div>

@@ -17,6 +17,8 @@ Date        Change
 2020-09-30	Changed Datepicker to render hidden field if date is old
 2022-05-16  Added NONE and ALL to Product dropdown
 2024-02-01 Corrected error in tour dropdown
+2026-07-30	Migrated dropdown helpers to Datalayer repositories
+2026-07-30	Fixed renderDatePicker to show picker for empty add-mode dates
 *******************************************************************
 */	
 ?>
@@ -26,10 +28,26 @@ Date        Change
 
 <?php
 
-//include Product Class		
-include_once (CLASS_DIR . "/class_Product.php");
+// Datalayer (PDO) used by render*DropDown helpers
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Product.php");
+include_once(DATALAYER_DIR . "/ProductRepository.php");
+include_once(DATALAYER_DIR . "/Vendor.php");
+include_once(DATALAYER_DIR . "/VendorRepository.php");
+include_once(DATALAYER_DIR . "/TaxCategory.php");
+include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
+include_once(DATALAYER_DIR . "/ThurdyDrop.php");
+include_once(DATALAYER_DIR . "/ThurdyDropRepository.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
+include_once(DATALAYER_DIR . "/Artist.php");
+include_once(DATALAYER_DIR . "/ArtistRepository.php");
+include_once(DATALAYER_DIR . "/Tour.php");
+include_once(DATALAYER_DIR . "/TourRepository.php");
 
-require_once (CLASS_DIR . "/tc_calendar.php");
+require_once(CLASS_DIR . "/tc_calendar.php");
 
 /*
  ********************************************************************************
@@ -44,7 +62,8 @@ function calculateSongTimeTotal($aSongs)
 	$seconds = 0;
 
 	foreach ($aSongs as $oPerformanceSongsRecord) {
-		list($hour, $minute, $second) = explode(':', $oPerformanceSongsRecord->tEstimatedTime ?? '');
+		$sEstimatedTime = $oPerformanceSongsRecord->estimatedTime ?? $oPerformanceSongsRecord->tEstimatedTime ?? '';
+		list($hour, $minute, $second) = explode(':', $sEstimatedTime);
 		$seconds += $hour * 3600;
 		$seconds += $minute * 60;
 		$seconds += $second;
@@ -88,20 +107,16 @@ function renderProductDropDown($nProductID)
 	if ($nProductID === 0){
 		echo "SELECTED ";
 	}
-	echo "}>NONE</OPTION>\n";
-	$oProducts = new Product();
-	if($oProducts->getProduct())
+	echo ">NONE</OPTION>\n";
+	$productRepo = new \Datalayer\ProductRepository();
+	foreach ($productRepo->find() as $product)
 	{
-		foreach($oProducts->aProductRecords as $oProduct)
+		echo "<OPTION VALUE=\"{$product->id}\" ";
+		if ($product->id == ($_POST['selProduct'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oProduct->nProductID}\" ";
-			if ($oProduct->nProductID == $_POST['selProduct'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oProduct->sProductName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$product->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -121,25 +136,18 @@ function renderProductDropDown($nProductID)
 */
 function renderVendorDropDown($nVendorID)
 {
-	//include Song Class		
-	include_once (CLASS_DIR . "/class_Vendor.php");
-	
  	echo "VENDOR:\n"; 
 	echo "<SELECT NAME=\"selVendor\" ID=\"selVendor\">\n";
 	echo "<OPTION VALUE=\"0\">NONE</OPTION>\n";
-	$oVendors = new Vendor();
-	if($oVendors->getVendor())
+	$vendorRepo = new \Datalayer\VendorRepository();
+	foreach ($vendorRepo->find() as $vendor)
 	{
-		foreach($oVendors->aVendorRecords as $oVendor)
+		echo "<OPTION VALUE=\"{$vendor->id}\" ";
+		if ($vendor->id == ($_POST['selVendor'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oVendor->nVendorID}\" ";
-			if ($oVendor->nVendorID == $_POST['selVendor'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oVendor->sVendorName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$vendor->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -159,25 +167,18 @@ function renderVendorDropDown($nVendorID)
 */
 function renderTaxCategoryDropDown($nTaxCategoryID)
 {
-	//include Song Class		
-	include_once (CLASS_DIR . "/class_TaxCategory.php");
-	
  	echo "TAX CATEGORY:\n"; 
 	echo "<SELECT NAME=\"selTaxCategory\" ID=\"selTaxCategory\">\n";
 	echo "<OPTION VALUE=\"0\">NONE</OPTION>\n";
-	$oTaxCategories = new TaxCategory();
-	if($oTaxCategories->getTaxCategory())
+	$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
+	foreach ($taxCategoryRepo->find() as $taxCategory)
 	{
-		foreach($oTaxCategories->aTaxCategoryRecords as $oTaxCategory)
+		echo "<OPTION VALUE=\"{$taxCategory->id}\" ";
+		if ($taxCategory->id == ($_POST['selTaxCategory'] ?? null))
 		{
-			echo "<OPTION VALUE=\"{$oTaxCategory->nTaxCategoryID}\" ";
-			if ($oTaxCategory->nTaxCategoryID == $_POST['selTaxCategory'])
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oTaxCategory->sTaxCategoryName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$taxCategory->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -197,27 +198,18 @@ function renderTaxCategoryDropDown($nTaxCategoryID)
 */
 function renderSongDropDown($nSongID)
 {
-
-//include Song Class		
-include_once (CLASS_DIR . "/class_Song.php");
-
  	echo "Song:\n"; 
 	echo "<SELECT NAME=\"selSong\" ID=\"selSong\">\n";
 	echo "<OPTION VALUE=\"\">ALL</OPTION>\n";
-	$oSongs = new Song();
-	$oSongs->sOrderBy = NAME_ORDER;
-	if($oSongs->getSong())
+	$songRepo = new \Datalayer\SongRepository();
+	foreach ($songRepo->find(['orderBy' => 'name']) as $song)
 	{
-		foreach($oSongs->aSongRecords as $oSong)
+		echo "<OPTION VALUE=\"{$song->id}\" ";
+		if ($song->id == $nSongID)
 		{
-			echo "<OPTION VALUE=\"{$oSong->nSongID}\" ";
-			if ($oSong->nSongID == $nSongID)
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oSong->sSongName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$song->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -237,28 +229,18 @@ include_once (CLASS_DIR . "/class_Song.php");
 */
 function renderArtistSongDropDown($nSongID, $nArtistID)
 {
-
-//include Song Class		
-include_once (CLASS_DIR . "/class_Song.php");
-
  	echo "Songs:\n"; 
 	echo "<SELECT NAME=\"selSong\" ID=\"selSong\">\n";
 	echo "<OPTION VALUE=\"\">ALL</OPTION>\n";
-	$oSongs = new Song();
-	$oSongs->sOrderBy = NAME_ORDER;
-	$oSongs->nArtistID = $nArtistID;
-	if($oSongs->getSong())
+	$songRepo = new \Datalayer\SongRepository();
+	foreach ($songRepo->find(['artistId' => (int) $nArtistID, 'orderBy' => 'name']) as $song)
 	{
-		foreach($oSongs->aSongRecords as $oSong)
+		echo "<OPTION VALUE=\"{$song->id}\" ";
+		if ($song->id == $nSongID)
 		{
-			echo "<OPTION VALUE=\"{$oSong->nSongID}\" ";
-			if ($oSong->nSongID == $nSongID)
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oSong->sSongName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$song->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -278,28 +260,20 @@ include_once (CLASS_DIR . "/class_Song.php");
 */
 function renderDropDropDown($nDropID)
 {
-
-	//include Song Class		
-	include_once (CLASS_DIR . "/class_ThurdyDrop.php");
-
 	echo "Drop:\n"; 
 
 	echo "<SELECT NAME=\"selDrop\" ID=\"selDrop\">\n";
 
 	echo "<OPTION VALUE=\"0\">NONE</OPTION>\n";
-	$oDrops = new ThurdyDrop();
-	if($oDrops->getThurdyDrop())
+	$dropRepo = new \Datalayer\ThurdyDropRepository();
+	foreach ($dropRepo->find() as $drop)
 	{
-		foreach($oDrops->aDropRecords as $oDrop)
+		echo "<OPTION VALUE=\"{$drop->id}\" ";
+		if ($drop->id == $nDropID)
 		{
-			echo "<OPTION VALUE=\"{$oDrop->nDropID}\" ";
-			if ($oDrop->nDropID == $nDropID)
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oDrop->sDropLocation}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$drop->dropLocation}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -320,28 +294,18 @@ function renderDropDropDown($nDropID)
 */
 function renderCDDropDown($nCDID)
 {
-
-	//include CD Class		
-	include_once (CLASS_DIR . "/class_CD.php");
-
  	echo "CD:\n"; 
 	echo "<SELECT NAME=\"selCD\" ID=\"selCD\">\n";
 	echo "<OPTION VALUE=\"\">ALL</OPTION>\n";
-	$oCDs = new CD();
-	$oCDs->bIncludeSingles = TRUE;
-	$oCDs->sOrderBy = NAME_ORDER;
-	if($oCDs->getCD())
+	$cdRepo = new \Datalayer\CDRepository();
+	foreach ($cdRepo->find(['includeSingles' => true, 'orderBy' => 'name']) as $cd)
 	{
-		foreach($oCDs->aCDRecords as $oCD)
+		echo "<OPTION VALUE=\"{$cd->id}\" ";
+		if ($cd->id == $nCDID)
 		{
-			echo "<OPTION VALUE=\"{$oCD->nCDID}\" ";
-			if ($oCD->nCDID == $nCDID)
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oCD->sCDName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$cd->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -364,26 +328,18 @@ This function renders a drop-down list of Artists
 */
 function renderArtistDropDown($nArtistID = 0)
 {
-
-	//include Artist Class		
-	include_once (CLASS_DIR . "/class_Artist.php");
-
  	echo "ARTIST:\n"; 
 	echo "<SELECT NAME=\"selArtist\" ID=\"selArtist\">\n";
 	echo "<OPTION VALUE=\"0\">ALL</OPTION>\n";
-	$oArtists = new Artist();
-	if($oArtists->getArtist())
+	$artistRepo = new \Datalayer\ArtistRepository();
+	foreach ($artistRepo->find() as $artist)
 	{
-		foreach($oArtists->aArtistRecords as $oArtist)
+		echo "<OPTION VALUE=\"{$artist->id}\" ";
+		if ($artist->id == $nArtistID)
 		{
-			echo "<OPTION VALUE=\"{$oArtist->nArtistID}\" ";
-			if ($oArtist->nArtistID == $nArtistID)
-			{
-				echo " SELECTED ";
-			}
-			echo ">{$oArtist->sArtistName}</OPTION>";
-
+			echo " SELECTED ";
 		}
+		echo ">{$artist->name}</OPTION>";
 	}
 	
 	echo "</SELECT>";
@@ -403,42 +359,35 @@ function renderArtistDropDown($nArtistID = 0)
 */
 function renderTourDropDown()
 {
-	echo "<input type=\"hidden\" id=\"hdnTourID\" name=\"hdnTourID\" value={$_POST['hdnTourID']} />";
+	$postedTourId = $_POST['hdnTourID'] ?? 0;
+	echo "<input type=\"hidden\" id=\"hdnTourID\" name=\"hdnTourID\" value={$postedTourId} />";
 	echo "TOUR:"; 
 	echo "<SELECT NAME=\"selTour\" ID=\"selTour\" onchange=\"buildTourLink()\">";
 	echo "<OPTION VALUE=\"0\">NONE</OPTION>";
 
 	$nThisTourID = 0;
 		
-	if(!is_null($_POST['hdnTourID']) && $_POST['hdnTourID'] > 0)
+	if (!is_null($postedTourId) && $postedTourId > 0)
 	{
-		$nThisTourID = $_POST['hdnTourID'];
-	}
-	elseif((!is_null($_POST['hdnTourID']) && $_POST['hdnTourID'] > 0))
-	{
-		$nThisTourID = $_POST['hdnTourID'];
+		$nThisTourID = (int) $postedTourId;
 	}
 	
-	if (!is_null($nThisTourID) && $nThisTourID > 0)
+	if ($nThisTourID > 0)
 	{
-		$oThisTour = new Tour();
-		$oThisTour->nTourID = $nThisTourID;
-		if($oThisTour->getTour())
+		$tourRepo = new \Datalayer\TourRepository();
+		$thisTour = $tourRepo->findById($nThisTourID);
+		if ($thisTour !== null)
 		{
-			if(sizeof($oThisTour->aTourRecords) > 0)
-			{
-				echo "<OPTION VALUE={$oThisTour->aTourRecords[0]->nTourID} SELECTED>{$oThisTour->aTourRecords[0]->sTourName}</OPTION>";
-			}
+			echo "<OPTION VALUE={$thisTour->id} SELECTED>{$thisTour->name}</OPTION>";
 		}
-		
 	}
 
 	echo "</SELECT>";
 	echo "<INPUT type=\"button\" ID=\"btnAssignTour\" value=\"Assign Tour\" onclick=\"getTours()\" />"; 
 
-	if($_POST['hdnTourID'] > 0)
+	if ($postedTourId > 0)
 	{
-		echo "<A HREF='" . ADMIN_DIR . "/TourMaintenance.php?ID={$_POST['hdnTourID']}' class='secondaryLinkButton'>Edit Tour</A>";	
+		echo "<A HREF='" . ADMIN_DIR . "/TourMaintenance.php?ID={$postedTourId}' class='secondaryLinkButton'>Edit Tour</A>";	
 	} 
 }
 
@@ -451,13 +400,18 @@ function renderTourDropDown()
 */
 function renderDatePicker($sDateFieldName, $dtExistingDate)
 {
-	if($dtExistingDate > "2015-01-01" || $dtExistingDate == "0000-00-00" || is_null($dtExistingDate))
+	// Empty / placeholder dates (add mode) must show the picker. Only pre-2015
+	// dates are read-only (legacy behavior for historical records).
+	$dtExistingDate = $dtExistingDate ?? '';
+	$showPicker = ($dtExistingDate === ''
+		|| $dtExistingDate === '0000-00-00'
+		|| $dtExistingDate > '2015-01-01');
+
+	if ($showPicker)
 	{
-		//DEBUG
-		//echo "DATE IS: {$dtExistingDate}";
-		$dateParts = explode("-",$dtExistingDate ?? '');
+		$dateParts = explode("-", $dtExistingDate);
 		$sExistingDate = '';
-		if(sizeof($dateParts) == 3){
+		if (sizeof($dateParts) == 3) {
 			$sExistingDate = "{$dateParts[1]}/{$dateParts[2]}/{$dateParts[0]}";
 		}
 

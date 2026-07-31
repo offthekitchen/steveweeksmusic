@@ -9,6 +9,7 @@ Date        Change
 -------------------------------------------------------------
 2018-11-21	Created.
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer ThurdySongData repository
 *******************************************************************
 */
 
@@ -29,16 +30,18 @@ include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
-//include Song Class		
-include_once(CLASS_DIR . "/class_ThurdySongData.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/ThurdySongData.php");
+include_once(DATALAYER_DIR . "/ThurdySongDataRepository.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
 
 //include Form Class		
 include(CLASS_DIR . "/class_Form.php");
 
 //Array of Song records from the DB
-global $aThurdySongDataRecords;
-
-global $nThisSongId;
+$aThurdySongDataRecords = [];
 
 $sActiveMenuItem = MISC_ACTIVE;
 $sPageName = "Thurdy Song Data Maintenance";
@@ -64,45 +67,33 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			<?php
 
 			//Instantiate needed objects
-			$thisSong = new ThurdySongData();
+			$songDataRepo = new \Datalayer\ThurdySongDataRepository();
+			$songRepo = new \Datalayer\SongRepository();
+			$thisSong = new \Datalayer\ThurdySongData();
 			$form = new Form();
 
 			//Get the Song ID query string parameter
-			if (isset($_REQUEST['SONGID']) && $_REQUEST['SONGID'] != "") {
-				$nThisSongId = $_REQUEST['SONGID'];
-				if (!is_numeric($nThisSongID)) {
-					error_log('SongMaintenance.php: INVALID SONG ID: ' . $nThisSongID);
-				}
+			$nThisSongId = $_REQUEST['SONGID'] ?? null;
+			if (isset($nThisSongId) && $nThisSongId !== '' && !is_numeric($nThisSongId)) {
+				error_log('ThurdySongDataMaintenance.php: INVALID SONG ID: ' . $nThisSongId);
 			}
 
+			try {
 			//If an ID was passed to the page, retrieve that record for update		
-			if (!is_null($nThisSongId)) {
-				$thisSong->nSongId = $nThisSongId;
+			if (!is_null($nThisSongId) && $nThisSongId !== '') {
 
-				//Search the Database for records matching the search criteria			
-				if ($thisSong->getThurdySongData()) {
+				$aThurdySongDataRecords = $songDataRepo->find(['songId' => (int) $nThisSongId]);
 
-					//Records found
-					if (sizeof($thisSong->aThurdySongDataRecords) > 0) {
+				if (sizeof($aThurdySongDataRecords) > 0) {
+					$thisSong = $aThurdySongDataRecords[0];
+					loadData($thisSong, $form);
 
-						//Only One Record should be returned.  Add this to the form field array						
-						//so that it displays in the form fields and to the values in the
-						//current Object.
-						loadData($thisSong->aThurdySongDataRecords[0], $form);
-
-						$form->sMessage = "Update record.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;
-					} else {
-						//The record was not found
-						$form->sMessage = "Song record not found.";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;
-					}
+					$form->sMessage = "Update record.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;
 				} else {
-					//Error
-					$form->sMessage = $thisSong->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->sMessage = "Song record not found.";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 			} else {
@@ -112,25 +103,20 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// *   ADD      *
 				// **************
 				if (isset($_POST["btnAdd"])) {
-					//Load values into DB array
 					buildObject($thisSong);
 
-					//Insert record
-					if ($thisSong->insertThurdySongData()) {
-						//Load the form fields with the newly populated object
+					if ($songDataRepo->insert($thisSong)) {
+						$thisSong = $songDataRepo->findById((int) $thisSong->id) ?? $thisSong;
+						$aThurdySongDataRecords = [$thisSong];
 						loadData($thisSong, $form);
 
-						//Success
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->sMessage = "Song Added";
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-
-						//The insert of the new expense failed
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ADD RECORD FAILED: {$thisSong->sErrorMessage}";
+						$form->sMessage = "ADD RECORD FAILED";
 						$form->nFormMode = FORM_MODE_EDIT;
-
 					}
 
 				}
@@ -139,22 +125,19 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// **************
 				else if (isset($_POST["btnUpdate"])) {
 
-					//Load values from form field array into DB object
 					buildObject($thisSong);
 
-					//Update record
-					if ($thisSong->updateSongData()) {
-						//Load the form fields with the newly populated object
+					if ($songDataRepo->update($thisSong)) {
+						$thisSong = $songDataRepo->findById((int) $thisSong->id) ?? $thisSong;
+						$aThurdySongDataRecords = [$thisSong];
 						loadData($thisSong, $form);
 
-						//Success
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->sMessage = "Song Updated";
 						$form->nFormMode = FORM_MODE_EDIT;
 					} else {
-						//Failed to update expense record
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "ERROR: Update Failed - {$thisSong->sErrorMessage}";
+						$form->sMessage = "ERROR: Update Failed";
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
 				}
@@ -163,20 +146,16 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// **************
 				else if (isset($_POST["btnDelete"])) {
 
-					//Load DB record
 					buildObject($thisSong);
 
-					//Delete record
-					if ($thisSong->deleteThurdySongData()) {
-						//Clear the form fields
+					if (!empty($thisSong->id) && $songDataRepo->delete((int) $thisSong->id)) {
 						clearFormFields($form);
 
-						//Success
 						$form->sMessage = "Song Data Deleted";
 						$form->nMessageType = MESSAGE_TYPE_INFO;
 						$form->nFormMode = FORM_MODE_NEW;
 					} else {
-						$form->sMessage = "DELETE FAILED: {$thisSong->sErrorMessage}";
+						$form->sMessage = "DELETE FAILED";
 						$form->nMessageType = MESSAGE_TYPE_ERROR;
 						$form->nFormMode = FORM_MODE_EDIT;
 					}
@@ -186,42 +165,35 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// *   SEARCH   *
 				// **************
 				else if (isset($_POST["btnSearch"])) {
-					//Load Array of Search Values
 					buildObject($thisSong);
-					$thisSong->sOrderByField = "SONG_ID";
 
-					//Search the Database for records matching the search criteria			
-					if ($thisSong->getThurdySongData()) {
-						//No records found
-						if (sizeof($thisSong->aThurdySongDataRecords) < 1) {
-							$form->sMessage = "No Song Data records found matching search criteria";
-							$form->nMessageType = MESSAGE_TYPE_WARNING;
-							$form->nFormMode = FORM_MODE_NEW;
-						} else if (sizeof($thisSong->aThurdySongDataRecords) == 1) {
-							//Only One Record returned.  Add this to the form field array
-							//so that it displays in the form fields
-							loadData($thisSong->aThurdySongDataRecords[0], $form);
-							//Store the ID of the performance
-							$nThisSongId = $thisSong->aThurdySongDataRecords[0]->nSongId;
+					$aThurdySongDataRecords = $songDataRepo->find([
+						'id' => $thisSong->id,
+						'songId' => $thisSong->songId,
+						'videoLink' => $thisSong->videoLink,
+						'videoSubmittedBy' => $thisSong->videoSubmittedBy,
+						'liveVersion' => $thisSong->liveVersion,
+						'dropId' => $thisSong->dropId,
+						'artImage' => $thisSong->artImage,
+						'orderBy' => 'SONG_ID',
+					]);
 
-							$form->sMessage = "One Song record found.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_EDIT;
+					if (sizeof($aThurdySongDataRecords) < 1) {
+						$form->sMessage = "No Song Data records found matching search criteria";
+						$form->nMessageType = MESSAGE_TYPE_WARNING;
+						$form->nFormMode = FORM_MODE_NEW;
+					} else if (sizeof($aThurdySongDataRecords) == 1) {
+						$thisSong = $aThurdySongDataRecords[0];
+						loadData($thisSong, $form);
 
-						}
-						//If Multiple records found, the array of search reults will be populated
-						else {
-							//Multiiple records returned
-							$form->sMessage = "Select Song record to edit from results list below.";
-							$form->nMessageType = MESSAGE_TYPE_INFO;
-							$form->nFormMode = FORM_MODE_SELECT;
-						}
+						$form->sMessage = "One Song record found.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_EDIT;
 
 					} else {
-						//Attempt to get records failed
-						$form->sMessage = $thisSong->sErrorMessage;
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->nFormMode = FORM_MODE_NEW;
+						$form->sMessage = "Select Song record to edit from results list below.";
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->nFormMode = FORM_MODE_SELECT;
 					}
 				}
 				// *************
@@ -250,17 +222,21 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				// *  1st TIME   *
 				// ***************
 				else {
-					copyFormFields($form);
 					$form->sMessage = "Search for records or Add new record";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;
 				}
 
 			}
+			} catch (\Throwable $e) {
+				$form->sMessage = $e->getMessage();
+				$form->nMessageType = MESSAGE_TYPE_ERROR;
+				$form->nFormMode = FORM_MODE_NEW;
+			}
 
 			?>
 			<!-- Hidden Fields -->
-			<input type="hidden" name="hdnThurdySongDataID" value="<?php echo $_POST['hdnThurdySongDataID'] ?>" />
+			<input type="hidden" name="hdnThurdySongDataID" value="<?php echo $_POST['hdnThurdySongDataID'] ?? '' ?>" />
 
 			<div class="row">
 				<?php
@@ -307,7 +283,13 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						echo "<div class='visible-xs col-xs-12 result-header'>Songs</div>";
 						echo "</div>";
 
-						foreach ($thisSong->aThurdySongDataRecords as $oThurdySongDataRecord) {
+						foreach ($aThurdySongDataRecords as $oThurdySongDataRecord) {
+
+							$sSongTitle = '';
+							if (!empty($oThurdySongDataRecord->songId)) {
+								$oSong = $songRepo->findById((int) $oThurdySongDataRecord->songId);
+								$sSongTitle = htmlentities($oSong->name ?? '', ENT_QUOTES);
+							}
 
 							//Alternate the result style
 							if ($sResultStyleClass == RESULT_STYLE_CLASS) {
@@ -318,10 +300,10 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							echo "<div class='row {$sResultStyleClass}'>";
 
 							echo "<div class='col-xs-12 col-sm-6 {$sResultStyleClass}'>";
-							echo "<A HREF='./ThurdySongDataMaintenance.php?SONGID={$oThurdySongDataRecord->nSongId}'>{$oThurdySongDataRecord->nSongId}</A></div>";
+							echo "<A HREF='./ThurdySongDataMaintenance.php?SONGID={$oThurdySongDataRecord->songId}'>{$oThurdySongDataRecord->songId}</A></div>";
 
 							echo "<div class='col-xs-12 col-sm-6 {$sResultStyleClass}'>";
-							echo "<A HREF='./ThurdySongDataMaintenance.php?SONGID={$oThurdySongDataRecord->nSongId}'>{$oThurdySongDataRecord->sSongTitle}</A></div>";
+							echo "<A HREF='./ThurdySongDataMaintenance.php?SONGID={$oThurdySongDataRecord->songId}'>{$sSongTitle}</A></div>";
 							echo "</div>";
 
 						}
@@ -339,26 +321,26 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						<div class="row">
 							<div class="col-xs-12 col-md-5">
 								SONG:
-								<?php renderArtistSongDropDown($_POST['selSong'], THURDY_ARTIST_ID); ?>
+								<?php renderArtistSongDropDown($_POST['selSong'] ?? null, THURDY_ARTIST_ID); ?>
 							</div>
 							<div class="col-xs-12 col-md-5">
 								DROP:
-								<?php renderDropDropDown($_POST['selDrop']); ?>
+								<?php renderDropDropDown($_POST['selDrop'] ?? null); ?>
 							</div>
 							<div class="col-xs-12 col-md-5">
 								VIDEO LINK:
-								<input type="text" name="txtVideoLink" value="<?php echo $_POST['txtVideoLink']; ?>"
+								<input type="text" name="txtVideoLink" value="<?php echo $_POST['txtVideoLink'] ?? ''; ?>"
 									size="40" />
 							</div>
 
 							<div class="col-xs-12 col-md-5">
 								SUBMITTED BY:
 								<input type="text" name="txtVideoSubmittedBy"
-									value="<?php echo $_POST['txtVideoSubmittedBy']; ?>" size="30" />
+									value="<?php echo $_POST['txtVideoSubmittedBy'] ?? ''; ?>" size="30" />
 							</div>
 							<div class="col-xs-12 col-md-5">
 								LIVE VERSION:
-								<input type="text" name="txtLiveVersion" value="<?php echo $_POST['txtLiveVersion']; ?>"
+								<input type="text" name="txtLiveVersion" value="<?php echo $_POST['txtLiveVersion'] ?? ''; ?>"
 									size="40" />
 							</div>
 							<div class="col-xs-12 col-md-5">
@@ -378,7 +360,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 									</div>
 									<div class="col-xs-12">
 										<input type="text" name="txtArtImage" id="txtArtImage"
-											value="<?php echo $_POST['txtArtImage']; ?>" size="30" /><BR />
+											value="<?php echo $_POST['txtArtImage'] ?? ''; ?>" size="30" /><BR />
 									</div>
 								</div>
 							</div>
@@ -389,10 +371,10 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							<div class="col-xs-12">
 								<div class="row">
 									<div class=" col-xs-3 FormFieldNoEdit">
-										ID: <?php echo $_POST['hdnThurdySongDataID']; ?>
+										ID: <?php echo $_POST['hdnThurdySongDataID'] ?? ''; ?>
 									</div>
 									<div class=" col-xs-9 FormFieldNoEdit">
-										LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+										LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 									</div>
 								</div>
 							</div>
@@ -433,18 +415,22 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 * form fields.
 	 ********************************************************************************
 	 */
-	function buildObject($oSong)
+	function buildObject(\Datalayer\ThurdySongData $Song)
 	{
+		$id = $_POST['hdnThurdySongDataID'] ?? null;
+		$Song->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-		//Load the Array used to populate the form fields based on the newly loaded object
-		$oSong->nSongId = $_POST['selSong'];
-		$oSong->nThurdySongDataId = $_POST['hdnThurdySongDataID'];
-		$oSong->sVideoLink = $_POST['txtVideoLink'];
-		$oSong->sVideoSubmittedBy = $_POST['txtVideoSubmittedBy'];
-		$oSong->sLiveVersion = $_POST['txtLiveVersion'];
-		$oSong->nDropId = $_POST['selDrop'];
-		$oSong->sArtImage = $_POST['txtArtImage'];
+		$songId = $_POST['selSong'] ?? '';
+		$Song->songId = ($songId !== '' && is_numeric($songId)) ? (int) $songId : null;
 
+		$Song->videoLink = html_entity_decode($_POST['txtVideoLink'] ?? '', ENT_QUOTES);
+		$Song->videoSubmittedBy = html_entity_decode($_POST['txtVideoSubmittedBy'] ?? '', ENT_QUOTES);
+		$Song->liveVersion = html_entity_decode($_POST['txtLiveVersion'] ?? '', ENT_QUOTES);
+
+		$dropId = $_POST['selDrop'] ?? '';
+		$Song->dropId = ($dropId !== '' && is_numeric($dropId) && (int) $dropId > 0) ? (int) $dropId : null;
+
+		$Song->artImage = html_entity_decode($_POST['txtArtImage'] ?? '', ENT_QUOTES);
 	}
 
 
@@ -456,31 +442,23 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 * so that it will be displayed in the form fields
 	 ********************************************************************************
 	 */
-	function loadData(&$oSong, $form)
+	function loadData(\Datalayer\ThurdySongData $Song, $form)
 	{
-		if (!is_null($oSong->nSongId)) {
-			//Load Hidden Fields
-			$_POST['hdnThurdySongDataID'] = $oSong->nThurdySongDataId;
+		if (!is_null($Song->id)) {
+			$_POST['hdnThurdySongDataID'] = $Song->id;
 
-			$_POST['selSong'] = $oSong->nSongId;
-			$_POST['txtSongTitle'] = htmlentities($oSong->sSongTitle, ENT_QUOTES);
-			$_POST['txtVideoLink'] = htmlentities($oSong->sVideoLink, ENT_QUOTES);
-			$_POST['txtVideoSubmittedBy'] = htmlentities($oSong->sVideoSubmittedBy, ENT_QUOTES);
-			$_POST['txtLiveVersion'] = htmlentities($oSong->sLiveVersion, ENT_QUOTES);
-			$_POST['selDrop'] = $oSong->nDropId;
-			$_POST['txtArtImage'] = htmlentities($oSong->sArtImage, ENT_QUOTES);
+			$_POST['selSong'] = $Song->songId;
+			$_POST['txtVideoLink'] = htmlentities($Song->videoLink ?? '', ENT_QUOTES);
+			$_POST['txtVideoSubmittedBy'] = htmlentities($Song->videoSubmittedBy ?? '', ENT_QUOTES);
+			$_POST['txtLiveVersion'] = htmlentities($Song->liveVersion ?? '', ENT_QUOTES);
+			$_POST['selDrop'] = $Song->dropId;
+			$_POST['txtArtImage'] = htmlentities($Song->artImage ?? '', ENT_QUOTES);
+			$_POST['txtLastUpdate'] = htmlentities($Song->lastUpdate ?? '', ENT_QUOTES);
 		} else {
-			//Load Form field values into array 
 			foreach ($_POST as $fieldName => $fieldValue) {
-
-				//$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-				$_POST[$fieldName] = $fieldValue;
-
+				$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 			}
-
-
 		}
-
 	}
 
 
@@ -493,7 +471,6 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 */
 	function clearFormFields($form)
 	{
-		//Hidden Fileds must be set to 0
 		$_POST = array();
 	}
 
@@ -506,11 +483,9 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 */
 	function copyFormFields($form)
 	{
-		//Load Form field values into array 
 		foreach ($_POST as $fieldName => $fieldValue) {
 			$_POST[$fieldName] = htmlentities(stripslashes($fieldValue));
 		}
-
 	}
 
 

@@ -9,6 +9,7 @@ Date        Change
 2017-05-01	Made Responsive
 2022-01-20	Adjusted Veribiage
 2024-03-09	Added Show List
+2026-07-30	Migrated to new Datalayer Tour/Performance repositories
 *******************************************************************
 */
 
@@ -26,14 +27,12 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //inlcude admin settings
 include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 
-//include Tour Class		
-include_once(CLASS_DIR . "/class_Tour.php");
-
-//include Performance Class		
-include_once(CLASS_DIR . "/class_Performance.php");
-
-//Array of Performance records from the DB
-global $aTourRecords;
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Tour.php");
+include_once(DATALAYER_DIR . "/TourRepository.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;
 $sPageName = "Tour Emails";
@@ -53,33 +52,26 @@ $sFBImage = "";
 	<?php
 
 	//Instantiate needed objects
-	$thisTour = new Tour();
+	$tourRepo = new \Datalayer\TourRepository();
+	$performanceRepo = new \Datalayer\PerformanceRepository();
+	$thisTour = null;
+	$aTourPerformances = [];
 
 	//Get the ID query string parameter
-	$nThisTourID = $_REQUEST['TOUR_ID'];
+	$nThisTourID = $_REQUEST['TOUR_ID'] ?? null;
 
 	//If an ID was passed to the page, retrieve that record for update		
-	if (!is_null($nThisTourID)) {
+	if (!is_null($nThisTourID) && $nThisTourID !== '') {
 
-		$thisTour->nTourID = $nThisTourID;
+		$thisTour = $tourRepo->findById((int) $nThisTourID);
 
-		//Search the Database for records matching the search criteria			
-		if ($thisTour->getTour()) {
-			//Records found
-			if (sizeof($thisTour->aTourRecords) > 0) {
-
-				//Get all the performances for the tour
-				$oTourPerformances = new Performance();
-				$oTourPerformances->nTourID = $nThisTourID;
-				if (!$oTourPerformances->getPerformance()) {
-					echo "ERROR RETRIEVING PERFORMANCES FOR TOUR " . $thisTour->aTourRecords[0]->sTourName;
-				}
-
-			} else {
-				echo "NO TOUR DATA FOUND FOR ID: " . $thisTour->aTourRecords[0]->nTourID;
+		if ($thisTour) {
+			$aTourPerformances = $performanceRepo->find(['tourId' => (int) $nThisTourID]);
+			if (empty($aTourPerformances)) {
+				echo "NO PERFORMANCES FOUND FOR TOUR " . htmlspecialchars($thisTour->name);
 			}
 		} else {
-			echo "ERROR RETRIEVING TOUR DATA FOR " . $thisTour->aTourRecords[0]->sTourName;
+			echo "NO TOUR DATA FOUND FOR ID: " . htmlspecialchars((string) $nThisTourID);
 		}
 	} else {
 		//NO ID Passed
@@ -104,24 +96,24 @@ $sFBImage = "";
 							<th>Location</th>
 							<th>Contact</th>
 							<?php
-							foreach ($oTourPerformances->aPerformanceRecords as $oTourPerformance) {
+							foreach ($aTourPerformances as $tourPerformance) {
 								echo "<tr>";
 								echo "<td>";
-								echo date("l", strtotime($oTourPerformance->dtPerformanceDate)) . "<br>" . date("m-d-Y", strtotime($oTourPerformance->dtPerformanceDate));
+								echo date("l", strtotime($tourPerformance->performanceDate)) . "<br>" . date("m-d-Y", strtotime($tourPerformance->performanceDate));
 								echo "</td>";
 								echo "<td>";
-								echo $oTourPerformance->sPerformanceTime;
+								echo $tourPerformance->performanceTime;
 								echo "</td>";
 								echo "<td>";
-								echo "{$oTourPerformance->sLocation}<br>";
-								echo "{$oTourPerformance->sLocationAddr1}<br>";
-								echo $oTourPerformance->sLocationAddr2 ? "{$oTourPerformance->sLocationAddr2}<br>" : "";
-								echo "{$oTourPerformance->sLocationCity}, {$oTourPerformance->sLocationState} {$oTourPerformance->sLocationZip}<br>";
+								echo "{$tourPerformance->location}<br>";
+								echo "{$tourPerformance->locationAddr1}<br>";
+								echo $tourPerformance->locationAddr2 ? "{$tourPerformance->locationAddr2}<br>" : "";
+								echo "{$tourPerformance->locationCity}, {$tourPerformance->locationState} {$tourPerformance->locationZip}<br>";
 								echo "</td>";
 								echo "<td>";
-								echo $oTourPerformance->sContactName ? "{$oTourPerformance->sContactName}<br>" : "";
-								echo $oTourPerformance->sContactPhone ? "{$oTourPerformance->sContactPhone}<br>" : "";
-								echo $oTourPerformance->sContactEmail ? "{$oTourPerformance->sContactEmail}<br>" : "";
+								echo $tourPerformance->contactName ? "{$tourPerformance->contactName}<br>" : "";
+								echo $tourPerformance->contactPhone ? "{$tourPerformance->contactPhone}<br>" : "";
+								echo $tourPerformance->contactEmail ? "{$tourPerformance->contactEmail}<br>" : "";
 						
 								echo "</td>";
 								echo "</tr>";
@@ -146,11 +138,11 @@ $sFBImage = "";
 					I&rsquo;ve posted the events on my web site at the links below.&nbsp; Let me know if you&rsquo;d
 					like to see any adjustments to the information or verbiage.<br />
 					<?php
-					foreach ($oTourPerformances->aPerformanceRecords as $oTourPerformance) {
-						$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y", strtotime($oTourPerformance->dtPerformanceDate)) . "&eventID=" . $oTourPerformance->nPerformanceID . "#performance-" . $oTourPerformance->nPerformanceID;
+					foreach ($aTourPerformances as $tourPerformance) {
+						$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y", strtotime($tourPerformance->performanceDate)) . "&eventID=" . $tourPerformance->id . "#performance-" . $tourPerformance->id;
 
 						echo "<BR><a href='{$sPerformanceURL}'>";
-						echo "{$oTourPerformance->sLocation} (" . date("l", strtotime($oTourPerformance->dtPerformanceDate)) . ", " . date("m-d-Y", strtotime($oTourPerformance->dtPerformanceDate)) . " at {$oTourPerformance->sPerformanceTime})";
+						echo "{$tourPerformance->location} (" . date("l", strtotime($tourPerformance->performanceDate)) . ", " . date("m-d-Y", strtotime($tourPerformance->performanceDate)) . " at {$tourPerformance->performanceTime})";
 						echo "</a>";
 					}
 					?>
@@ -200,11 +192,11 @@ $sFBImage = "";
 					<br><br>Please don't hesitate to contact me if you have any questions or need
 					anything.&nbsp;&nbsp;Otherwise I'll get back in touch about a month out.<br>
 					<?php
-					foreach ($oTourPerformances->aPerformanceRecords as $oTourPerformance) {
-						$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y", strtotime($oTourPerformance->dtPerformanceDate)) . "&eventID=" . $oTourPerformance->nPerformanceID . "#performance-" . $oTourPerformance->nPerformanceID;
+					foreach ($aTourPerformances as $tourPerformance) {
+						$sPerformanceURL = "http://www.steveweeksmusic.com/schedule.php?year=" . date("Y", strtotime($tourPerformance->performanceDate)) . "&eventID=" . $tourPerformance->id . "#performance-" . $tourPerformance->id;
 
 						echo "<BR><a href='{$sPerformanceURL}'>";
-						echo "{$oTourPerformance->sLocation} (" . date("l", strtotime($oTourPerformance->dtPerformanceDate)) . ", " . date("m-d-Y", strtotime($oTourPerformance->dtPerformanceDate)) . " at {$oTourPerformance->sPerformanceTime})";
+						echo "{$tourPerformance->location} (" . date("l", strtotime($tourPerformance->performanceDate)) . ", " . date("m-d-Y", strtotime($tourPerformance->performanceDate)) . " at {$tourPerformance->performanceTime})";
 						echo "</a>";
 					}
 					?>

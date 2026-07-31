@@ -9,6 +9,7 @@ Date        Change
 2016-11-22  Created
 2017-04-15	Made Responsive
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer RevenueType/Product/Revenue repositories
 *******************************************************************
 */	
 
@@ -28,15 +29,15 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude Common Functions
  include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
- 	
-//include RevenueType Class		
-include_once (CLASS_DIR . "/class_RevenueType.php");
 
-//include Product Class		
-include_once (CLASS_DIR . "/class_Product.php");
-
-//include Revenue Class		
-include_once (CLASS_DIR . "/class_Revenue.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/RevenueType.php");
+include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
+include_once(DATALAYER_DIR . "/Product.php");
+include_once(DATALAYER_DIR . "/ProductRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
 //include Form Class		
 include (CLASS_DIR . "/class_Form.php");
@@ -76,13 +77,13 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 
 	//Instantiate needed objects
 	$form = new Form();
-	$aRevenueTypeData = array();
-	$oThisRevenueTypes = new RevenueType();
+	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
+	$productRepo = new \Datalayer\ProductRepository();
+	$revenueRepo = new \Datalayer\RevenueRepository();
 
 	//Set the Year range based on year selection 
 	if ($_POST['selYear'] > 0)
 	{
-		$oThisRevenueTypes->nPaidYear = $_POST['selYear'];		
 		$nStartYear = $_POST['selYear'];
 		$nEndYear = $_POST['selYear'];
 	}
@@ -92,16 +93,18 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 		$nEndYear = date('Y');
 	}
 		
-	//If a RevenueType is selected, retrieve that product's information
+	$revenueTypeCriteria = [];
 	if ($_POST['selRevenueType'] > 0)
 	{
-		$oThisRevenueTypes->nRevenueTypeID = $_POST['selRevenueType'];		
+		$revenueTypeCriteria['id'] = (int) $_POST['selRevenueType'];
 	}
 
-	if(!$oThisRevenueTypes->getRevenueType())
-	{
+	try {
+		$aRevenueTypeRecords = $revenueTypeRepo->find($revenueTypeCriteria);
+	} catch (\Throwable $e) {
+		$aRevenueTypeRecords = [];
 		$form->nMessageType = MESSAGE_TYPE_ERROR;
-		$form->sMessage = "FAILED TO GET REVENUE_TYPES: {$oThisRevenueType->sErrorMessage}";
+		$form->sMessage = "FAILED TO GET REVENUE_TYPES: " . $e->getMessage();
 	}
 		
 ?>	
@@ -116,9 +119,9 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 				<div class="col-xs-12 Title">
 				REVENUE_TYPE REPORT:  
 				<?php
-				if($_POST['selRevenueType'] > 0)
+				if($_POST['selRevenueType'] > 0 && !empty($aRevenueTypeRecords))
 				{
-					echo " {$oThisRevenueTypes->aRevenueTypeRecords[0]->sRevenueTypeName}";
+					echo " {$aRevenueTypeRecords[0]->name}";
 				}
 				if($_POST['selYear'] > 0)
 				{
@@ -174,38 +177,30 @@ if (isset($_POST["btnGenerate"]))
 				<?php
 					$nTotalRevenueAmount = 0;
 
-					foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+					foreach($aRevenueTypeRecords as $revenueType)
 					{
-						$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}"; 
+						$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$revenueType->id}"; 
 						
-						$oRevenue = new Revenue();
-						$oRevenue->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
-						$oRevenue->nPaidYear = $_POST['selYear'];
-						$nTotalRevenueTypeAmount = $oRevenue->getRevenueAmountTotal();
-						if($nTotalRevenueTypeAmount == -1)
-						{
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "FAILED TO GET REVENUES: {$oRevenue->sErrorMessage}";
+						$revenueCriteria = ['revenueTypeId' => $revenueType->id];
+						if ($_POST['selYear'] > 0) {
+							$revenueCriteria['paidYear'] = (int) $_POST['selYear'];
 						}
-						else
-						{
-							//Display a report row if any revenues were found matching criteria
-							if(!empty($nTotalRevenueTypeAmount) && $nTotalRevenueTypeAmount > 0)
-							{	
-								$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
-							
-								echo "<tr>";
-								echo "<td>{$oRevenueType->sRevenueTypeName}</td>";
-								echo "<td>$";
-								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";  
-								echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', ',');
-								echo "</a>";
-								echo"</td>";
-								echo "</tr>";
-							}
+						$nTotalRevenueTypeAmount = sumRevenueAmount($revenueRepo, $revenueCriteria);
 
-						}
+						//Display a report row if any revenues were found matching criteria
+						if(!empty($nTotalRevenueTypeAmount) && $nTotalRevenueTypeAmount > 0)
+						{	
+							$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
 						
+							echo "<tr>";
+							echo "<td>{$revenueType->name}</td>";
+							echo "<td>$";
+							echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";  
+							echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', ',');
+							echo "</a>";
+							echo"</td>";
+							echo "</tr>";
+						}
 					}			
 
 					echo "<tr>";
@@ -239,9 +234,9 @@ if (isset($_POST["btnGenerate"]))
 					echo " FOR {$_POST['selYear']}";
 				}
 	
-				if($_POST['selRevenueType'] > 0)
+				if($_POST['selRevenueType'] > 0 && !empty($aRevenueTypeRecords))
 				{
-					echo " {$oThisRevenueTypes->aRevenueTypeRecords[0]->sRevenueTypeName}";
+					echo " {$aRevenueTypeRecords[0]->name}";
 				}
 				?>
 			</div>
@@ -250,33 +245,36 @@ if (isset($_POST["btnGenerate"]))
 					<tr>								
 						<th></th>
 						<?php
-						 foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+						 foreach($aRevenueTypeRecords as $revenueType)
 						 {
-							echo "<th>{$oRevenueType->sRevenueTypeName}</th>";
+							echo "<th>{$revenueType->name}</th>";
 						 }
 						?>
 					</tr>
 				<?php
 				$aRevenueTypeTotals = array();
 				
-				$oProducts = new Product;
+				$aProductRecords = $productRepo->find();
 				
-				if ($oProducts->getProduct())
+				if (!empty($aProductRecords))
 				{
 				
-					foreach ($oProducts->aProductRecords as $oProduct)
+					foreach ($aProductRecords as $product)
 					{
 						echo "<tr>";
-						echo "<td>{$oProduct->sProductName}</td>";
-						foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+						echo "<td>{$product->name}</td>";
+						foreach($aRevenueTypeRecords as $revenueType)
 						{
 	
-							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$oProduct->nProductID}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}";
-							$oProductRevenues = new Revenue();
-							$oProductRevenues->nProductID = $oProduct->nProductID;
-							$oProductRevenues->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
-							$oProductRevenues->nPaidYear = $_POST['selYear'];
-							$nProductRevenueTotal = $oProductRevenues->getRevenueAmountTotal();
+							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$product->id}&REVENUE_TYPE_ID={$revenueType->id}";
+							$revenueCriteria = [
+								'productId' => $product->id,
+								'revenueTypeId' => $revenueType->id,
+							];
+							if ($_POST['selYear'] > 0) {
+								$revenueCriteria['paidYear'] = (int) $_POST['selYear'];
+							}
+							$nProductRevenueTotal = sumRevenueAmount($revenueRepo, $revenueCriteria);
 	
 							echo "<td>";
 							if($nProductRevenueTotal > 0)
@@ -284,7 +282,7 @@ if (isset($_POST["btnGenerate"]))
 								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
 								echo "$" . number_format((float)$nProductRevenueTotal, 2, '.', ',');
 								echo "</a>";	
-								$aRevenueTypeTotals[$oProductRevenues->nRevenueTypeID] += $nProductRevenueTotal;
+								$aRevenueTypeTotals[$revenueType->id] = ($aRevenueTypeTotals[$revenueType->id] ?? 0) + $nProductRevenueTotal;
 							}
 							else
 							{
@@ -299,12 +297,12 @@ if (isset($_POST["btnGenerate"]))
 				echo "<tr>";
 				echo "<th>Total</th>";
 				
-				foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+				foreach($aRevenueTypeRecords as $revenueType)
 				{
-					$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}";
+					$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$revenueType->id}";
 					echo "<td>";
 					echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
-					echo "$" . number_format((float)$aRevenueTypeTotals[$oRevenueType->nRevenueTypeID], 2, '.', ',');	
+					echo "$" . number_format((float)($aRevenueTypeTotals[$revenueType->id] ?? 0), 2, '.', ',');	
 					echo "</a>";
 					echo "</td>";
 				}
@@ -326,9 +324,9 @@ if (isset($_POST["btnGenerate"]))
 			<div class="FieldGroupTitle">
 				REVENUES BY YEAR
 				<?php
-				if ($_POST['selRevenueType'] > 0)
+				if ($_POST['selRevenueType'] > 0 && !empty($aRevenueTypeRecords))
 				{
-					echo " FOR {$oThisRevenueTypes->aRevenueTypeRecords[0]->sRevenueTypeName}";
+					echo " FOR {$aRevenueTypeRecords[0]->name}";
 				}
 				?>						
 			</div>
@@ -337,9 +335,9 @@ if (isset($_POST["btnGenerate"]))
 					<tr>								
 						<th></th>
 						<?php
-						 foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+						 foreach($aRevenueTypeRecords as $revenueType)
 						 {
-							echo "<th>{$oRevenueType->sRevenueTypeName}</th>";
+							echo "<th>{$revenueType->name}</th>";
 						 }
 						?>
 					</tr>
@@ -355,14 +353,14 @@ if (isset($_POST["btnGenerate"]))
 						echo "<tr>";
 						echo "<th>{$nYear}</th>";
 	
-						foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+						foreach($aRevenueTypeRecords as $revenueType)
 						{
 	
-							$sQueryString = "{$sBaseQueryString}&YEAR={$nYear}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}";
-							$oYearRevenues = new Revenue();
-							$oYearRevenues->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
-							$oYearRevenues->nPaidYear = $nYear;
-							$nYearRevenuesTotal = $oYearRevenues->getRevenueAmountTotal();
+							$sQueryString = "{$sBaseQueryString}&YEAR={$nYear}&REVENUE_TYPE_ID={$revenueType->id}";
+							$nYearRevenuesTotal = sumRevenueAmount($revenueRepo, [
+								'revenueTypeId' => $revenueType->id,
+								'paidYear' => $nYear,
+							]);
 	
 							echo "<td>";
 							if($nYearRevenuesTotal > 0)
@@ -370,7 +368,7 @@ if (isset($_POST["btnGenerate"]))
 								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
 								echo "$" . number_format((float)$nYearRevenuesTotal, 2, '.', ',');
 								echo "</a>";	
-								$aRevenueTypeTotals[$oYearRevenues->nRevenueTypeID] += $nYearRevenuesTotal;
+								$aRevenueTypeTotals[$revenueType->id] = ($aRevenueTypeTotals[$revenueType->id] ?? 0) + $nYearRevenuesTotal;
 							}
 							else
 							{
@@ -385,12 +383,12 @@ if (isset($_POST["btnGenerate"]))
 					echo "<tr>";
 					echo "<th>Total</th>";
 					
-					foreach($oThisRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+					foreach($aRevenueTypeRecords as $revenueType)
 					{
-						$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}";
+						$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$revenueType->id}";
 						echo "<td>";
 						echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
-						echo "$" . number_format((float)$aRevenueTypeTotals[$oRevenueType->nRevenueTypeID], 2, '.', ',');	
+						echo "$" . number_format((float)($aRevenueTypeTotals[$revenueType->id] ?? 0), 2, '.', ',');	
 						echo "</a>";
 						echo "</td>";
 					}
@@ -435,3 +433,17 @@ function validate_form ( )
 //-->
 </script>
 </html>
+
+<?php
+/**
+ * Sum REVENUE_AMOUNT for records matching criteria (legacy getRevenueAmountTotal).
+ */
+function sumRevenueAmount(\Datalayer\RevenueRepository $revenueRepo, array $criteria): float
+{
+	$total = 0.0;
+	foreach ($revenueRepo->find($criteria) as $revenue) {
+		$total += (float) ($revenue->amount ?? 0);
+	}
+	return $total;
+}
+?>

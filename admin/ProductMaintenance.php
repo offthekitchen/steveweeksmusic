@@ -11,34 +11,53 @@ Date        Change
 2016-12-11	Made Responsive
 2016-12-29	Improved Responsivity for phone
 2019-08-14  Added Artist Dropdown
+2026-07-30	Migrated to new Datalayer Product repository
 *******************************************************************
-*/	
+*/
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
 //This include defines the relative path to the root directory from this sub-directory
- include_once ("root.inc.php");
+include_once("root.inc.php");
 
 //inlcude web site settings
-include_once ($ROOT . "/includes/websiteSettings.php");
+include_once($ROOT . "/includes/websiteSettings.php");
 
 //inlcude web site settings
-include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude admin settings
- include_once (ADMIN_DIR . "/includes/AdminSettings.php");
- 
-//inlcude Common Functions
- include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 
- $sActiveMenuItem = PRODUCTS_ACTIVE;	
- $sPageName = "Product Maintenance";
+//inlcude Common Functions
+include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Product.php");
+include_once(DATALAYER_DIR . "/ProductRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
+
+//Require the Class for the calendar picker
+require_once(CLASS_DIR . "/tc_calendar.php");
+
+//include Form Class		
+include(CLASS_DIR . "/class_Form.php");
+
+//Array of Product records from the DB
+$aProductRecords = [];
+
+$sActiveMenuItem = PRODUCTS_ACTIVE;
+$sPageName = "Product Maintenance";
 ?>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 
 <body>
@@ -46,41 +65,20 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 	<!-- DIV used for Image Preview Popup -->
 	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
 
-	<?php
-	
-	//include Product Class		
-	 include_once (CLASS_DIR . "/class_Product.php");
-	//Include Artist Class 
-	 include_once (CLASS_DIR . "/class_Artist.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
-
-	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
-
-	//Array of Product records from the DB
-	global $aProductRecords;
-	
-	?>
 <div class="container-fluid">	
 <form name="ProductMaint" action="ProductMaintenance.php" method="post">
 
 	<?php
 
-		//Get Artists for drop-down list
-		$oArtists = new Artist();
-		if (!$oArtists->getArtist())
-		{
-			//ERROR
-		}
-
 		//Instantiate needed objects
-		$thisProduct = new Product();
+		$productRepo = new \Datalayer\ProductRepository();
+		$expenseRepo = new \Datalayer\ExpenseRepository();
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		$thisProduct = new \Datalayer\Product();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisProductID = $_REQUEST['ID'];
+		$nThisProductID = $_REQUEST['ID'] ?? null;
 
 		//If an Artist ID is passed, go ahead and search products for that artist
 		if (isset($_REQUEST['ARTIST_ID']) && $_REQUEST['ARTIST_ID'] != "")
@@ -89,44 +87,24 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			$_POST['btnSearch'] = "Search";
 		}
 
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisProductID))
+		if (!is_null($nThisProductID) && $nThisProductID !== '')
 		{
-						
-			$thisProduct->nProductID = $nThisProductID;
+			$entity = $productRepo->findById((int) $nThisProductID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisProduct->getProduct())
-			{
-			
-				//Records found
-				if (sizeof($thisProduct->aProductRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadProduct($thisProduct->aProductRecords[0], $form);
+			if ($entity) {
+				$thisProduct = $entity;
+				$aProductRecords = [$entity];
+				loadProduct($thisProduct, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Product record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisProduct->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Product record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -138,28 +116,23 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildProductObject($thisProduct);
 				
-				//Insert record
-				if ($thisProduct->insertProduct())			
+				if ($productRepo->insert($thisProduct))
 				{
-					//Load the form fields with the newly populated object
+					$thisProduct = $productRepo->findById((int) $thisProduct->id) ?? $thisProduct;
+					$aProductRecords = [$thisProduct];
 					loadProduct($thisProduct, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Product Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisProduct->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -168,33 +141,22 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildProductObject($thisProduct);
 				
-				//Update record
-				if ($thisProduct->updateProduct())			
+				if ($productRepo->update($thisProduct))
 				{
+					$thisProduct = $productRepo->findById((int) $thisProduct->id) ?? $thisProduct;
+					$aProductRecords = [$thisProduct];
+					loadProduct($thisProduct, $form);
 				
-					//reload Product
-					if (!$thisProduct->getProduct())
-					{
-						echo "Product was updated, but error was encountered retrieving product data {$thisProduct->sErrorMessage}";
-					}
-				
-					//Load the form fields with the newly populated DB object						
-					loadProduct($thisProduct->aProductRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Product Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisProduct->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -203,24 +165,38 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildProductObject($thisProduct);				
+				buildProductObject($thisProduct);
 
-				//Delete record
-				if ($thisProduct->deleteProduct())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisProduct->id)) {
+					$relatedExpenses = $expenseRepo->find(['productId' => (int) $thisProduct->id]);
+					$relatedRevenues = $revenueRepo->find(['productId' => (int) $thisProduct->id]);
+
+					if (sizeof($relatedExpenses) > 0) {
+						$deleteError = "PRD012 - Can not delete Product because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?PRODUCT_ID=" . $thisProduct->id . "'>";
+						$deleteError .= sizeof($relatedExpenses) . " expenses.</A>";
+					} elseif (sizeof($relatedRevenues) > 0) {
+						$deleteError = "PRD013 - Can not delete Product because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/RevenueMaintenance.php?PRODUCT_ID=" . $thisProduct->id . "'>";
+						$deleteError .= sizeof($relatedRevenues) . " revenues.</A>";
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisProduct->id) && $productRepo->delete((int) $thisProduct->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Product Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisProduct->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -231,46 +207,42 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildProductObject($thisProduct);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisProduct->getProduct())
-				{
-					//No records found
-					if(sizeof($thisProduct->aProductRecords) < 1)
-					{
-						$form->sMessage = "No Product records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisProduct->aProductRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadProduct($thisProduct->aProductRecords[0], $form);			
+				$criteria = [
+					'id' => $thisProduct->id,
+					'name' => $thisProduct->name,
+					'fuzzyName' => true,
+					'image' => $thisProduct->image,
+					'thumbnail' => $thisProduct->thumbnail,
+				];
 
-						$form->sMessage = "One Product record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Product record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+				if (!empty($thisProduct->artistId)) {
+					$criteria['artistId'] = $thisProduct->artistId;
 				}
-				else
+
+				$aProductRecords = $productRepo->find($criteria);
+
+				if (sizeof($aProductRecords) < 1)
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisProduct->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "No Product records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aProductRecords) == 1)
+				{
+					$thisProduct = $aProductRecords[0];
+					loadProduct($thisProduct, $form);			
+
+					$form->sMessage = "One Product record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else 
+				{
+					$form->sMessage = "Select Product record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -278,7 +250,6 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -317,14 +288,19 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnProductID" value="<?php echo $_POST['hdnProductID']?>" />	
+	<input type="hidden" name="hdnProductID" value="<?php echo $_POST['hdnProductID'] ?? ''?>" />	
 	<div class="row">
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
+	include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 ?>	
 	</div>
 	<div class="row">
@@ -368,7 +344,7 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			echo "</div>";
 
 				
-		foreach($thisProduct->aProductRecords as $oProductRecord)
+		foreach($aProductRecords as $oProductRecord)
 		{
 			
 			//Alternate the result style
@@ -384,7 +360,7 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			
 			//The first column is the ID and is used to build a link
 			echo "<div class='col-xs-12 result-selector {$sResultStyleClass}'>";
-			echo "<A HREF='./ProductMaintenance.php?ID={$oProductRecord->nProductID}'>{$oProductRecord->sProductName}</A>";
+			echo "<A HREF='./ProductMaintenance.php?ID={$oProductRecord->id}'>{$oProductRecord->name}</A>";
 			echo "</div>";
 			
 			$i = 1;
@@ -404,29 +380,31 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 		<div class="row"> 
 			<div class="col-xs-12">
 				<?php
-				if ($_POST['hdnProductID'] > 0)
-				{					
-					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?PRODUCT_ID={$thisProduct->aProductRecords[0]->nProductID}";					
+				if (($_POST['hdnProductID'] ?? 0) > 0)
+				{
+					$nProductId = $_POST['hdnProductID'];
+					$sProductName = $aProductRecords[0]->name ?? ($_POST['txtProductName'] ?? 'Product');
+					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?PRODUCT_ID={$nProductId}";					
 					echo "'  class='secondaryLinkButton'>Edit Expenses</a>";					
 					echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";	
 					echo "<br class='visible-xs'>";
-					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?PRODUCT_ID={$thisProduct->aProductRecords[0]->nProductID}";										
+					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?PRODUCT_ID={$nProductId}";										
 					echo "&ACTION=ADD_EXPENSE'  class='secondaryLinkButton'>Enter Expense</a>";					
 					echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";					
 					echo "<br class='visible-xs'>";
-					echo "<a href='". ADMIN_DIR . "/ProductReport.php?PRODUCT_ID={$thisProduct->aProductRecords[0]->nProductID}";												
-					echo "'  class='secondaryLinkButton'>\"{$thisProduct->aProductRecords[0]->sProductName}\" Report</a>";
+					echo "<a href='". ADMIN_DIR . "/ProductReport.php?PRODUCT_ID={$nProductId}";												
+					echo "'  class='secondaryLinkButton'>\"{$sProductName}\" Report</a>";
 				}
 				?>
 			</div>			
 			<div class="col-xs-12 col-md-6 FieldGroup">
 				<div class="row">
 					<div class="col-xs-12">
-						NAME: <input type="text" name="txtProductName" value="<?php echo $_POST['txtProductName']; ?>" placeholder="Product Name" size="60" />
+						NAME: <input type="text" name="txtProductName" value="<?php echo $_POST['txtProductName'] ?? ''; ?>" placeholder="Product Name" size="60" />
 					</div>
 					<div class="col-xs-12">
 						<?php
-							renderArtistDropDown($_POST['selArtist']);
+							renderArtistDropDown($_POST['selArtist'] ?? 0);
 						?>
 					</div>
 					
@@ -447,7 +425,7 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 						}
 						$form->renderImagePreview($sFullImagePath, ""); 
 						?>												
-						<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage']; ?>" size="30" /><BR />
+						<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage'] ?? ''; ?>" size="30" /><BR />
 						<input type="button" name="btnPreviewImage" class="btnPreviewImage" onclick="preview_image('txtImage','<?php echo IMG_DIR ?>')" value="Preview" />												
 					</div>
 					<div class="col-xs-12 col-sm-6 col-md-12 thumbnail-preview">
@@ -463,7 +441,7 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 						}
 						$form->renderImagePreview($sFullImagePath, ""); 
 						?>												
-						<input type="text" name="txtThumbnail" id="txtThumbnail" value="<?php echo $_POST['txtThumbnail']; ?>" size="30" /><BR />
+						<input type="text" name="txtThumbnail" id="txtThumbnail" value="<?php echo $_POST['txtThumbnail'] ?? ''; ?>" size="30" /><BR />
 						<input type="button" name="btnPreviewThumbnail" class="btnPreviewImage" onclick="preview_image('txtThumbnail','<?php echo IMG_DIR ?>')" value="Preview" />												
 					</div>
 				</div>
@@ -471,10 +449,10 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3 FormFieldNoEdit">
-						ID: <?php echo $_POST['hdnProductID']; ?>						
+						ID: <?php echo $_POST['hdnProductID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -510,20 +488,15 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
  * form fields.
  ********************************************************************************
 */
-function buildProductObject($product)
+function buildProductObject(\Datalayer\Product $Product)
 {
+	$id = $_POST['hdnProductID'] ?? null;
+	$Product->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$product->nProductID = $_POST['hdnProductID'];
-
-	$product->sProductName = html_entity_decode($_POST['txtProductName'], ENT_QUOTES);
-	$product->bFuzzyNameSearch = TRUE;
-	$product->nArtistID = $_POST['selArtist'];
-	
-	$product->sImage = html_entity_decode($_POST['txtImage'], ENT_QUOTES);
-	$product->sThumbnail = html_entity_decode($_POST['txtThumbnail'], ENT_QUOTES);
-
-
+	$Product->name = html_entity_decode($_POST['txtProductName'] ?? '', ENT_QUOTES);
+	$Product->artistId = (int) ($_POST['selArtist'] ?? 0);
+	$Product->image = html_entity_decode($_POST['txtImage'] ?? '', ENT_QUOTES);
+	$Product->thumbnail = html_entity_decode($_POST['txtThumbnail'] ?? '', ENT_QUOTES);
 }
 
 
@@ -535,24 +508,22 @@ function buildProductObject($product)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadProduct(&$product, $form)
+function loadProduct(\Datalayer\Product $Product, $form)
 {
 
-	if (!is_null($product->nProductID))
+	if (!is_null($Product->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnProductID'] = $product->nProductID;
+		$_POST['hdnProductID'] = $Product->id;
 		
-		$_POST['txtProductName'] = htmlentities($product->sProductName, ENT_QUOTES);
-		$_POST['selArtist'] = $product->nArtistID;
-		$_POST['txtImage'] = htmlentities($product->sImage, ENT_QUOTES);
-		$_POST['txtThumbnail'] = htmlentities($product->sThumbnail, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($product->dtLastUpdate, ENT_QUOTES);
+		$_POST['txtProductName'] = htmlentities($Product->name ?? '', ENT_QUOTES);
+		$_POST['selArtist'] = $Product->artistId;
+		$_POST['txtImage'] = htmlentities($Product->image ?? '', ENT_QUOTES);
+		$_POST['txtThumbnail'] = htmlentities($Product->thumbnail ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($Product->lastUpdate ?? '', ENT_QUOTES);
 		
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
 	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
@@ -587,7 +558,6 @@ function clearFormFields($form)
 function copyFormFields($form)
 {
 
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
