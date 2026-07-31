@@ -9,6 +9,7 @@ Date        Change
 2016-02-12 - Refactored 
 2017-02-11	Made Responsive
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Category repository
 *******************************************************************
 */	
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -24,15 +25,19 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude admin settings
 include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	
-//include Category Class		
-include_once (CLASS_DIR . "/class_Category.php");
+
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Category.php");
+include_once(DATALAYER_DIR . "/CategoryRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
 
 //include Form Class		
 include (CLASS_DIR . "/class_Form.php");
 
 //Array of Category records from the DB
-global $aCategoryRecords;
+$aCategoryRecords = [];
 $sActiveMenuItem = FINANCES_ACTIVE;	
 $sPageName = "Category Maintenance";
 ?>
@@ -54,50 +59,32 @@ $sPageName = "Category Maintenance";
 	<?php
 
 		//Instantiate needed objects
-		$thisCategory = new Category();
+		$categoryRepo = new \Datalayer\CategoryRepository();
+		$expenseRepo = new \Datalayer\ExpenseRepository();
+		$thisCategory = new \Datalayer\Category();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisCategoryID = $_REQUEST['CATEGORY_ID'];
+		$nThisCategoryID = $_REQUEST['CATEGORY_ID'] ?? null;
 		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisCategoryID))
+		if (!is_null($nThisCategoryID) && $nThisCategoryID !== '')
 		{
-						
-			$thisCategory->nCategoryID = $nThisCategoryID;
+			$entity = $categoryRepo->findById((int) $nThisCategoryID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisCategory->getCategory())
-			{
-			
-				//Records found
-				if (sizeof($thisCategory->aCategoryRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadCategory($thisCategory->aCategoryRecords[0], $form);
+			if ($entity) {
+				$thisCategory = $entity;
+				$aCategoryRecords = [$entity];
+				loadCategory($thisCategory, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Category record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisCategory->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Category record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -109,28 +96,23 @@ $sPageName = "Category Maintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildCategoryObject($thisCategory);
 				
-				//Insert record
-				if ($thisCategory->insertCategory())			
+				if ($categoryRepo->insert($thisCategory))
 				{
-					//Load the form fields with the newly populated object
+					$thisCategory = $categoryRepo->findById((int) $thisCategory->id) ?? $thisCategory;
+					$aCategoryRecords = [$thisCategory];
 					loadCategory($thisCategory, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Category Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisCategory->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -139,30 +121,22 @@ $sPageName = "Category Maintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildCategoryObject($thisCategory);
 				
-				//Update record
-				if ($thisCategory->updateCategory())			
+				if ($categoryRepo->update($thisCategory))
 				{
+					$thisCategory = $categoryRepo->findById((int) $thisCategory->id) ?? $thisCategory;
+					$aCategoryRecords = [$thisCategory];
+					loadCategory($thisCategory, $form);
 				
-					//reload Category
-					$thisCategory->getCategory();
-				
-					//Load the form fields with the newly populated DB object						
-					loadCategory($thisCategory->aCategoryRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Category Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisCategory->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -171,24 +145,35 @@ $sPageName = "Category Maintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildCategoryObject($thisCategory);				
+				buildCategoryObject($thisCategory);
 
-				//Delete record
-				if ($thisCategory->deleteCategory())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisCategory->id)) {
+					$relatedExpenses = $expenseRepo->find([
+						'categoryIds' => [(int) $thisCategory->id],
+					]);
+
+					if (sizeof($relatedExpenses) > 0) {
+						$deleteError = "CAT013 - Can not delete Category because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?CATEGORY_ID={$thisCategory->id}'>";
+						$deleteError .= sizeof($relatedExpenses) . " expenses.</A>";
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisCategory->id) && $categoryRepo->delete((int) $thisCategory->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Category Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisCategory->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -199,46 +184,43 @@ $sPageName = "Category Maintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildCategoryObject($thisCategory);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisCategory->getCategory())
-				{
-					//No records found
-					if(sizeof($thisCategory->aCategoryRecords) < 1)
-					{
-						$form->sMessage = "No Category records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisCategory->aCategoryRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadCategory($thisCategory->aCategoryRecords[0], $form);			
+				$criteria = [
+					'id' => $thisCategory->id,
+					'name' => $thisCategory->name,
+					'fuzzyName' => true,
+				];
 
-						$form->sMessage = "One Category record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Category record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+				if ($thisCategory->expenseRelated) {
+					$criteria['expenseRelated'] = true;
 				}
-				else
+				if ($thisCategory->revenueRelated) {
+					$criteria['revenueRelated'] = true;
+				}
+
+				$aCategoryRecords = $categoryRepo->find($criteria);
+
+				if (sizeof($aCategoryRecords) < 1)
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisCategory->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "No Category records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aCategoryRecords) == 1)
+				{
+					$thisCategory = $aCategoryRecords[0];
+					loadCategory($thisCategory, $form);			
+
+					$form->sMessage = "One Category record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else 
+				{
+					$form->sMessage = "Select Category record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -246,7 +228,6 @@ $sPageName = "Category Maintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -285,11 +266,16 @@ $sPageName = "Category Maintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnCategoryID" value="<?php echo $_POST['hdnCategoryID']?>" />	
+	<input type="hidden" name="hdnCategoryID" value="<?php echo $_POST['hdnCategoryID'] ?? ''?>" />	
 	<div class="row">
 <?php
  	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
@@ -336,7 +322,7 @@ $sPageName = "Category Maintenance";
 		echo "</div>";
 
 				
-		foreach($thisCategory->aCategoryRecords as $oCategoryRecord)
+		foreach($aCategoryRecords as $oCategoryRecord)
 		{
 			
 			//Alternate the result style
@@ -350,7 +336,7 @@ $sPageName = "Category Maintenance";
 			}
 			echo "<div class='row {$sResultStyleClass}'>";
 		
-			echo "	<div class='col-xs-12 {$sResultStyleClass}'><A HREF='./CategoryMaintenance.php?CATEGORY_ID={$oCategoryRecord->nCategoryID}'>{$oCategoryRecord->sCategoryName}</a></div>";
+			echo "	<div class='col-xs-12 {$sResultStyleClass}'><A HREF='./CategoryMaintenance.php?CATEGORY_ID={$oCategoryRecord->id}'>{$oCategoryRecord->name}</a></div>";
 			echo "</div>";
 		}
 		?>
@@ -365,7 +351,7 @@ $sPageName = "Category Maintenance";
 		<div class="row"> 
 			<div class="col-xs-12">
 				<?php
-				if ($_POST['hdnCategoryID'] > 0)
+				if (($_POST['hdnCategoryID'] ?? 0) > 0)
 				{
 					echo "<a href='". ADMIN_DIR . "/RevenueMaintenance.php?CATEGORY_ID={$_POST['hdnCategoryID']}'";
 					echo " class='secondaryLinkButton'>Edit Revenues</a>";
@@ -373,24 +359,25 @@ $sPageName = "Category Maintenance";
 					echo "<a href='". ADMIN_DIR . "/ExpenseMaintenance.php?CATEGORY_ID={$_POST['hdnCategoryID']}'";					
 					echo " class='secondaryLinkButton'>Edit Expenses</a>";
 					echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";
+					$reportName = $aCategoryRecords[0]->name ?? ($_POST['txtCategoryName'] ?? 'Category');
 					echo "<a href='". ADMIN_DIR . "/ProductReport.php?CATEGORY_ID={$_POST['hdnCategoryID']}'";							
-					echo " class='secondaryLinkButton'>{$thisCategory->aCategoryRecords[0]->sCategoryName} - Product Report</a>";
+					echo " class='secondaryLinkButton'>{$reportName} - Product Report</a>";
 				}
 				?>
 			</div>			
 			<div class="col-xs-12 FieldGroup">
 				<div class="row">
 					<div class="col-xs-12">
-							NAME: <input type="text" name="txtCategoryName" value="<?php echo $_POST['txtCategoryName']; ?>" size="60" />
+							NAME: <input type="text" name="txtCategoryName" value="<?php echo $_POST['txtCategoryName'] ?? ''; ?>" size="60" />
 						</div>
 					</div>
 				<div class="row">
 					<div class="col-xs-2">
-						<input class="result-checkbox" type="checkbox" name="chkExpenseRelated" value="ExpenseRelated"<?php if( $_POST['chkExpenseRelated']) {echo " checked ";}; ?> />
+						<input class="result-checkbox" type="checkbox" name="chkExpenseRelated" value="ExpenseRelated"<?php if (!empty($_POST['chkExpenseRelated'])) {echo " checked ";}; ?> />
 					</div> 
 					<div class="col-xs-10 result-checkbox-text">EXPENSE RELATED</div>
 					<div class="col-xs-2">
-						<input class="result-checkbox" type="checkbox" name="chkRevenueRelated" value="RevenueRelated"<?php if( $_POST['chkRevenueRelated']) {echo " checked ";}; ?> /> 
+						<input class="result-checkbox" type="checkbox" name="chkRevenueRelated" value="RevenueRelated"<?php if (!empty($_POST['chkRevenueRelated'])) {echo " checked ";}; ?> /> 
 					</div>
 					<div class="col-xs-10 result-checkbox-text">REVENUE RELATED
 				  	</div>
@@ -399,10 +386,10 @@ $sPageName = "Category Maintenance";
 			<div class="col-xs-12">		
 				<div class="row">
 					<div class ="col-xs-3 FormFieldNoEdit">
-						ID: <?php echo $_POST['hdnCategoryID']; ?>						
+						ID: <?php echo $_POST['hdnCategoryID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -438,32 +425,14 @@ $sPageName = "Category Maintenance";
  * form fields.
  ********************************************************************************
 */
-function buildCategoryObject($category)
+function buildCategoryObject(\Datalayer\Category $Category)
 {
+	$id = $_POST['hdnCategoryID'] ?? null;
+	$Category->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$category->nCategoryID = $_POST['hdnCategoryID'];
-
-	$category->sCategoryName = html_entity_decode($_POST['txtCategoryName'], ENT_QUOTES);
-	$category->bFuzzyNameSearch = TRUE;
-	if($_POST['chkExpenseRelated'] == "ExpenseRelated")
-	{
-		$category->bExpenseRelated = TRUE;
-	}
-	else
-	{
-		$category->bExpenseRelated = FALSE;
-	}
- 
- 	if($_POST['chkRevenueRelated'] == "RevenueRelated")
-	{
-		$category->bRevenueRelated = TRUE;
-	}
-	else
-	{
-		$category->bRevenueRelated = FALSE;
-	}
-
+	$Category->name = html_entity_decode($_POST['txtCategoryName'] ?? '', ENT_QUOTES);
+	$Category->expenseRelated = (($_POST['chkExpenseRelated'] ?? '') == "ExpenseRelated");
+	$Category->revenueRelated = (($_POST['chkRevenueRelated'] ?? '') == "RevenueRelated");
 }
 
 
@@ -475,23 +444,21 @@ function buildCategoryObject($category)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadCategory(&$category, $form)
+function loadCategory(\Datalayer\Category $Category, $form)
 {
 
-	if (!is_null($category->nCategoryID))
+	if (!is_null($Category->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnCategoryID'] = $category->nCategoryID;
+		$_POST['hdnCategoryID'] = $Category->id;
 
-		$_POST['txtCategoryName'] = htmlentities($category->sCategoryName, ENT_QUOTES);
-		$_POST['chkExpenseRelated'] = $category->bExpenseRelated;
-		$_POST['chkRevenueRelated'] = $category->bRevenueRelated;
-		$_POST['txtLastUpdate'] = htmlentities($category->dtLastUpdate, ENT_QUOTES);
+		$_POST['txtCategoryName'] = htmlentities($Category->name ?? '', ENT_QUOTES);
+		$_POST['chkExpenseRelated'] = $Category->expenseRelated;
+		$_POST['chkRevenueRelated'] = $Category->revenueRelated;
+		$_POST['txtLastUpdate'] = htmlentities($Category->lastUpdate ?? '', ENT_QUOTES);
 		
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
 	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
@@ -512,10 +479,7 @@ function loadCategory(&$category, $form)
 */
 function clearFormFields($form)
 {
-
-	//Hidden Fileds must be set to 0
 	$_POST = array();
-
 }
 
 /*
@@ -527,8 +491,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

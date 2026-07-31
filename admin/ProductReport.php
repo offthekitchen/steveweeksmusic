@@ -10,6 +10,7 @@ Date        Change
 2017-04-15	Made Responsive
 2020-03-14	Added logic to for revenues and expenses with no product
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer repositories
 *******************************************************************
 */	
 
@@ -43,26 +44,23 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 <body>
 	<?php
 	
-	//include Product Class		
- 	include_once (CLASS_DIR . "/class_Product.php");
+	//include new datalayer
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Product.php");
+	include_once(DATALAYER_DIR . "/ProductRepository.php");
+	include_once(DATALAYER_DIR . "/Expense.php");
+	include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+	include_once(DATALAYER_DIR . "/Revenue.php");
+	include_once(DATALAYER_DIR . "/RevenueRepository.php");
+	include_once(DATALAYER_DIR . "/RevenueType.php");
+	include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
+	include_once(DATALAYER_DIR . "/TaxCategory.php");
+	include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
+	include_once(DATALAYER_DIR . "/Category.php");
+	include_once(DATALAYER_DIR . "/CategoryRepository.php");
 
-	//include Expense Class		
- 	include_once (CLASS_DIR . "/class_Expense.php");
-
-	//include Revenue Class		
- 	include_once (CLASS_DIR . "/class_Revenue.php");
-
-	//include Revenue_Type Class		
- 	include_once (CLASS_DIR . "/class_RevenueType.php");
-
-	//include TaxCategory Class		
- 	include_once (CLASS_DIR . "/class_TaxCategory.php");
-
-	//include Category Class		
- 	include_once (CLASS_DIR . "/class_Category.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
+	//include Form Class
+	include (CLASS_DIR . "/class_Form.php");
 
 	//Require the Class for the calendar picker
  	require_once (CLASS_DIR . "/tc_calendar.php");
@@ -91,30 +89,40 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 	}
 
 	//Instantiate needed objects
+	$productRepo = new \Datalayer\ProductRepository();
+	$categoryRepo = new \Datalayer\CategoryRepository();
+	$revenueRepo = new \Datalayer\RevenueRepository();
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
+	$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
 	$form = new Form();
 	$aProductData = array();
-	$oThisProduct = new Product();
-	$oThisCategory = new Category();
+	$oThisProduct = null;
+	$oThisCategory = null;
+	$aProducts = array();
+	$oNoProduct = new \Datalayer\Product();
+	$oNoProduct->id = 0;
+	$oNoProduct->name = "NO PRODUCT";
 	
 	//If a Product is selected, retrieve that product's information
-	if ($_POST['selProduct'] > 0)
+	if (($_POST['selProduct'] ?? 0) > 0)
 	{
-		$oThisProduct->nProductID = $_POST['selProduct'];
-		if(!$oThisProduct->getProduct())
+		$oThisProduct = $productRepo->findById((int) $_POST['selProduct']);
+		if (!$oThisProduct)
 		{
 			$form->nMessageType = MESSAGE_TYPE_ERROR;
-			$form->sMessage = "FAILED TO GET PRODUCT: {$oThisProduct->sErrorMessage}";
+			$form->sMessage = "FAILED TO GET PRODUCT";
 		}
 	}
 
-	//If a category is selected, retrieve that product's information
-	if ($_POST['selCategory'] > 0)
+	//If a category is selected, retrieve that category's information
+	if (($_POST['selCategory'] ?? 0) > 0)
 	{
-		$oThisCategory->nCategoryID = $_POST['selCategory'];
-		if(!$oThisCategory->getCategory())
+		$oThisCategory = $categoryRepo->findById((int) $_POST['selCategory']);
+		if (!$oThisCategory)
 		{
 			$form->nMessageType = MESSAGE_TYPE_ERROR;
-			$form->sMessage = "FAILED TO GET CATEGORY: {$oThisCategory->sErrorMessage}";
+			$form->sMessage = "FAILED TO GET CATEGORY";
 		}
 	}
 
@@ -135,106 +143,105 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 	{
 		for ($nYear = $nStartYear; $nYear <= $nEndYear; $nYear++)
 		{
-			$oProductRevenues = new Revenue();
-			$oProductExpenses = new Expense();
-	
-			if ($_POST['selProduct'] > 0)
+			$aRevenueCriteria = [];
+			$aExpenseCriteria = ['expenseYear' => $nYear];
+
+			if (($_POST['selProduct'] ?? 0) > 0)
 			{
-				$oProductRevenues->nProductID = $_POST['selProduct'];
-				$oProductExpenses->nProductID = $_POST['selProduct'];
+				$aRevenueCriteria['productId'] = (int) $_POST['selProduct'];
+				$aExpenseCriteria['productId'] = (int) $_POST['selProduct'];
 			}
-	
-			//If a specific Category is chosen, limit revenues and expenses to that category
-			if ($_POST['selCategory'] > 0)
+
+			if (($_POST['selCategory'] ?? 0) > 0)
 			{
-				$oProductRevenues->aRevenueCategoryIDs[0] = $_POST['selCategory'];
-				$oProductExpenses->aExpenseCategoryIDs[0] = $_POST['selCategory'];
+				$aRevenueCriteria['categoryIds'] = [(int) $_POST['selCategory']];
+				$aExpenseCriteria['categoryIds'] = [(int) $_POST['selCategory']];
 			}
-	
-			$oProductRevenues->nPaidYear = $nYear;
-			$oProductExpenses->nExpenseYear = $nYear;
+
+			$aRevenueCriteria['paidYear'] = $nYear;
+
+			$aYearlyData[$nYear]['Revenue'] = 0.0;
+			foreach ($revenueRepo->find($aRevenueCriteria) as $oRevenue) {
+				$aYearlyData[$nYear]['Revenue'] += $oRevenue->amount ?? 0;
+			}
+
+			$aYearlyData[$nYear]['Quantity'] = 0;
+			foreach ($revenueRepo->find($aRevenueCriteria) as $oRevenue) {
+				$aYearlyData[$nYear]['Quantity'] += $oRevenue->productQty ?? 0;
+			}
+
+			$aPerformanceRevenueCriteria = $aRevenueCriteria;
+			$aPerformanceRevenueCriteria['performanceRelated'] = true;
+			$aYearlyData[$nYear]['PerformanceQuantity'] = 0;
+			foreach ($revenueRepo->find($aPerformanceRevenueCriteria) as $oRevenue) {
+				$aYearlyData[$nYear]['PerformanceQuantity'] += $oRevenue->productQty ?? 0;
+			}
+
+			$aYearlyData[$nYear]['Expense'] = 0.0;
+			foreach ($expenseRepo->find($aExpenseCriteria) as $oExpense) {
+				$aYearlyData[$nYear]['Expense'] += $oExpense->expenseAmount ?? 0;
+			}
 			
-			//Retrieve Total Revenue
-			$aYearlyData[$nYear]['Revenue'] = $oProductRevenues->getRevenueAmountTotal();
-			//Retrieve Total Quantity
-			$aYearlyData[$nYear]['Quantity'] = $oProductRevenues->getProductQuantityTotal();
-			//Retrieve Product Quantity related to performances
-			$oProductRevenues->bPerformanceRelated = TRUE;
-			$aYearlyData[$nYear]['PerformanceQuantity'] = $oProductRevenues->getProductQuantityTotal();
-	
-			//Retrieve Total Expenses
-			$aYearlyData[$nYear]['Expense'] = $oProductExpenses->getExpenseAmountTotal();
-			
-			//Calculate Profit data
 			$aYearlyData[$nYear]['Profit'] = $aYearlyData[$nYear]['Revenue'] - $aYearlyData[$nYear]['Expense'];
 		}
 	}
 
 	//If multiple products are being reported, retrieve data for each product
-	if ($_POST['selProduct'] == 0)
+	if (($_POST['selProduct'] ?? 0) == 0)
 	{
-		//Must add a fake product NO PRODUCT to match Product Data records
-		$oNoProduct = new Product();
-		$oNoProduct->nProductID = 0;
-		$oNoProduct->sProductName = "NO PRODUCT";
-
-		$oProducts = new Product();
-		if ($oProducts->getProduct())
-		{			
-			array_unshift($oProducts->aProductRecords,$oNoProduct);
-			
-			foreach ($oProducts->aProductRecords as $oProduct)
-			{
-
-				$oProductRevenues = new Revenue();
-				$oProductExpenses = new Expense();
+		$aProducts = $productRepo->find();
+		array_unshift($aProducts, $oNoProduct);
 		
-				if($oProduct->nProductID == 0){
-					$oProductRevenues->nProductID = 0;
-					$oProductExpenses->nProductID = 0;
-				}
-				else
-				{
-					$oProductRevenues->nProductID = $oProduct->nProductID;
-					$oProductExpenses->nProductID = $oProduct->nProductID;	
-				}
-		
-				//If a specific Category is chosen, limit revenues and expenses to that category
-				if ($_POST['selCategory'] > 0)
-				{
-					$oProductRevenues->aRevenueCategoryIDs[0] = $_POST['selCategory'];
-					$oProductExpenses->aExpenseCategoryIDs[0] = $_POST['selCategory'];
-				}
-		
-				//If a specific Year is chosen, limit revenues and expenses to that year
-				if ($_POST['selYear'] > 0)
-				{
-					$oProductRevenues->nPaidYear = $_POST['selYear'];
-					$oProductExpenses->nExpenseYear = $_POST['selYear'];
-				}
+		foreach ($aProducts as $oProduct)
+		{
+			$aRevenueCriteria = [];
+			$aExpenseCriteria = [];
 
-				//Product Name
-				$aProductData[$oProduct->nProductID]['ProductName'] = $oProduct->sProductName;
-				//Retrieve Total Revenue
-				$aProductData[$oProduct->nProductID]['Revenue'] = $oProductRevenues->getRevenueAmountTotal();
-				//Retrieve Total Quantity
-				$aProductData[$oProduct->nProductID]['Quantity'] = $oProductRevenues->getProductQuantityTotal();
-				//Retrieve Product Quantity related to performances
-				$oProductRevenues->bPerformanceRelated = TRUE;
-				$aProductData[$oProduct->nProductID]['PerformanceQuantity'] = $oProductRevenues->getProductQuantityTotal();
-
-				//Retrieve Total Expenses
-				$aProductData[$oProduct->nProductID]['Expense'] = $oProductExpenses->getExpenseAmountTotal();
-				
-				//Calculate Profit data
-				$aProductData[$oProduct->nProductID]['Profit'] = $aProductData[$oProduct->nProductID]['Revenue'] - $aProductData[$oProduct->nProductID]['Expense'];
+			if ($oProduct->id == 0) {
+				$aRevenueCriteria['productId'] = 0;
+				$aExpenseCriteria['productId'] = 0;
+			} else {
+				$aRevenueCriteria['productId'] = $oProduct->id;
+				$aExpenseCriteria['productId'] = $oProduct->id;
 			}
 
+			if (($_POST['selCategory'] ?? 0) > 0)
+			{
+				$aRevenueCriteria['categoryIds'] = [(int) $_POST['selCategory']];
+				$aExpenseCriteria['categoryIds'] = [(int) $_POST['selCategory']];
+			}
 
-		}
-		else
-		{
-			//ERROR: Failed to retrieve Products
+			if (($_POST['selYear'] ?? 0) > 0)
+			{
+				$aRevenueCriteria['paidYear'] = (int) $_POST['selYear'];
+				$aExpenseCriteria['expenseYear'] = (int) $_POST['selYear'];
+			}
+
+			$aProductData[$oProduct->id]['ProductName'] = $oProduct->name;
+
+			$aProductData[$oProduct->id]['Revenue'] = 0.0;
+			foreach ($revenueRepo->find($aRevenueCriteria) as $oRevenue) {
+				$aProductData[$oProduct->id]['Revenue'] += $oRevenue->amount ?? 0;
+			}
+
+			$aProductData[$oProduct->id]['Quantity'] = 0;
+			foreach ($revenueRepo->find($aRevenueCriteria) as $oRevenue) {
+				$aProductData[$oProduct->id]['Quantity'] += $oRevenue->productQty ?? 0;
+			}
+
+			$aPerformanceRevenueCriteria = $aRevenueCriteria;
+			$aPerformanceRevenueCriteria['performanceRelated'] = true;
+			$aProductData[$oProduct->id]['PerformanceQuantity'] = 0;
+			foreach ($revenueRepo->find($aPerformanceRevenueCriteria) as $oRevenue) {
+				$aProductData[$oProduct->id]['PerformanceQuantity'] += $oRevenue->productQty ?? 0;
+			}
+
+			$aProductData[$oProduct->id]['Expense'] = 0.0;
+			foreach ($expenseRepo->find($aExpenseCriteria) as $oExpense) {
+				$aProductData[$oProduct->id]['Expense'] += $oExpense->expenseAmount ?? 0;
+			}
+			
+			$aProductData[$oProduct->id]['Profit'] = $aProductData[$oProduct->id]['Revenue'] - $aProductData[$oProduct->id]['Expense'];
 		}
 	}
 	
@@ -250,17 +257,17 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 				<div class="col-xs-12 Title">
 					PRODUCT REPORT:  
 				<?php
-				if($_POST['selProduct'] > 0)
+				if(($_POST['selProduct'] ?? 0) > 0 && $oThisProduct)
 				{
-					echo " {$oThisProduct->aProductRecords[0]->sProductName}";
+					echo " {$oThisProduct->name}";
 				}
-				if($_POST['selYear'] > 0)
+				if(($_POST['selYear'] ?? 0) > 0)
 				{
 					echo "  {$_POST['selYear']}";
 				}
-				if($_POST['selCategory'] > 0)
+				if(($_POST['selCategory'] ?? 0) > 0 && $oThisCategory)
 				{
-					echo "  {$oThisCategory->aCategoryRecords[0]->sCategoryName}";
+					echo "  {$oThisCategory->name}";
 				}
 				?>
 				</div>
@@ -303,67 +310,57 @@ if (isset($_POST["btnGenerate"]))
 				<table class="table table-striped"> 				
 				<?php
 					$nTotalRevenueAmount = 0;
-					$oRevenueTypes = new RevenueType();
-					if ($oRevenueTypes->getRevenueType())
+					foreach ($revenueTypeRepo->find() as $oRevenueType)
 					{
-						foreach($oRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+						$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$oRevenueType->id}";
+
+						$aRevenueCriteria = ['revenueTypeId' => $oRevenueType->id];
+						if (($_POST['selProduct'] ?? null) !== null && $_POST['selProduct'] !== '') {
+							$aRevenueCriteria['productId'] = (int) $_POST['selProduct'];
+						}
+						if (($_POST['selYear'] ?? 0) > 0) {
+							$aRevenueCriteria['paidYear'] = (int) $_POST['selYear'];
+						}
+						if (($_POST['selCategory'] ?? 0) > 0) {
+							$aRevenueCriteria['categoryIds'] = [(int) $_POST['selCategory']];
+						}
+
+						$nTotalRevenueTypeAmount = 0.0;
+						foreach ($revenueRepo->find($aRevenueCriteria) as $oRevenue) {
+							$nTotalRevenueTypeAmount += $oRevenue->amount ?? 0;
+						}
+
+						if(!empty($nTotalRevenueTypeAmount) && $nTotalRevenueTypeAmount > 0)
 						{
-							$sQueryString = "{$sBaseQueryString}&REVENUE_TYPE_ID={$oRevenueType->nRevenueTypeID}"; 
-							
-							$oRevenue = new Revenue();
-							$oRevenue->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
-							$oRevenue->nProductID = $_POST['selProduct'];
-							$oRevenue->nPaidYear = $_POST['selYear'];
-							$oRevenue->aRevenueCategoryIDs[0] = $_POST['selCategory'];
-							$nTotalRevenueTypeAmount = $oRevenue->getRevenueAmountTotal();
-							if($nTotalRevenueTypeAmount == -1)
-							{
-								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "FAILED TO GET REVENUES: {$oRevenue->sErrorMessage}";
-							}
-							else
-							{
-								//Display a report row if any revenues were found matching criteria
-								if(!empty($nTotalRevenueTypeAmount) && $nTotalRevenueTypeAmount > 0)
-								{	
-									$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
-								
-									echo "<tr>";
-									echo "<td width='200px'>{$oRevenueType->sRevenueTypeName}</td>";
-									echo "<td>$";
-									echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";  
-									echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', ',');
-									echo "</a>";
-									echo"</td>";
-									echo "</tr>";
-								}
+							$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
 
-							}
-							
-						}			
+							echo "<tr>";
+							echo "<td width='200px'>{$oRevenueType->name}</td>";
+							echo "<td>$";
+							echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
+							echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', ',');
+							echo "</a>";
+							echo"</td>";
+							echo "</tr>";
+						}
+					}
 
-						echo "<tr><td colspan=2><HR></td></tr>";
-						echo "<tr>";
-						echo "<td width='200px'>Total</td>";
-						echo "<td width='200px'> $";
-							if ($nTotalRevenueAmount > 0)
-							{
-								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sBaseQueryString}'>";  
-								echo number_format((float)$nTotalRevenueAmount, 2, '.', ',');
-								echo "</a>";
-							}
-							else
-							{
-								echo number_format((float)$nTotalRevenueAmount, 2, '.', ',');
-							}
-						echo "</td>";
-						echo "</tr>";
+					echo "<tr><td colspan=2><HR></td></tr>";
+					echo "<tr>";
+					echo "<td width='200px'>Total</td>";
+					echo "<td width='200px'> $";
+					if ($nTotalRevenueAmount > 0)
+					{
+						echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sBaseQueryString}'>";
+						echo number_format((float)$nTotalRevenueAmount, 2, '.', ',');
+						echo "</a>";
 					}
 					else
 					{
-						$form->nMessageType = MESSAGE_TYPE_ERROR;
-						$form->sMessage = "FAILED TO GET REVENUE TYPES: {$oRevenueTypes->sErrorMessage}";
+						echo number_format((float)$nTotalRevenueAmount, 2, '.', ',');
 					}
+					echo "</td>";
+					echo "</tr>";
 				?>
 				</table>			
 			</div>
@@ -374,55 +371,40 @@ if (isset($_POST["btnGenerate"]))
 			</div>
 			<div class="table-responsive">	
 			<?php
-				$oTaxCategories = new TaxCategory();
-				if($oTaxCategories->getTaxCategory())
+				echo "<table class='table table-striped'>";
+				$nExpenseTotal = 0;
+				foreach ($taxCategoryRepo->find() as $oTaxCategory)
 				{
-					echo "<table class='table table-striped'>";
-					$nExpenseTotal = 0;
-					foreach($oTaxCategories->aTaxCategoryRecords as $oTaxCategory)
-					{
-					
-						$sQueryString = "{$sBaseQueryString}&TAX_CATEGORY_ID={$oTaxCategory->nTaxCategoryID}"; 
-						
-						$oProductExpenses = new Expense();
-						$oProductExpenses->nTaxCategoryID = $oTaxCategory->nTaxCategoryID; 
-						$oProductExpenses->nProductID = $_POST['selProduct'];
-						$oProductExpenses->nExpenseYear = isset($_POST["selYear"]) ? $_POST["selYear"] : "";
-						$oProductExpenses->aExpenseCategoryIDs[0] = isset($_POST["selCategory"]) ? $_POST["selCategory"] : "";
-						if($oProductExpenses->getExpense())
-						{
-							
-							$nProductExpenseTotal = 0;
-							foreach($oProductExpenses->aExpenseRecords as $oProductExpense)
-							{
-								$nProductExpenseTotal += $oProductExpense->nExpenseAmount;
-								$nExpenseTotal += $oProductExpense->nExpenseAmount;
-							}
-							
-							if($nProductExpenseTotal > 0)
-							{
+					$sQueryString = "{$sBaseQueryString}&TAX_CATEGORY_ID={$oTaxCategory->id}";
 
-								echo "<tr>";
-								echo "<td width='200px'>{$oTaxCategory->sTaxCategoryName}</td>";
-								echo "<td> $";
-								echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sQueryString}'>";  
-								echo number_format((float)$nProductExpenseTotal, 2, '.', ',');
-								echo "</a>";
-								echo "</td>";
-								echo "</tr>";
-							}
-						}
-						else
-						{
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "FAILED TO GET EXPENSES: {$oProductExpenses->sErrorMessage}";
-						}
+					$aExpenseCriteria = ['taxCategoryId' => $oTaxCategory->id];
+					if (($_POST['selProduct'] ?? null) !== null && $_POST['selProduct'] !== '') {
+						$aExpenseCriteria['productId'] = (int) $_POST['selProduct'];
 					}
-				}
-				else
-				{
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "FAILED TO GET TAX CATEGORIES: {$oTaxCategories->sErrorMessage}";
+					if (!empty($_POST['selYear'])) {
+						$aExpenseCriteria['expenseYear'] = (int) $_POST['selYear'];
+					}
+					if (!empty($_POST['selCategory'])) {
+						$aExpenseCriteria['categoryIds'] = [(int) $_POST['selCategory']];
+					}
+
+					$nProductExpenseTotal = 0.0;
+					foreach ($expenseRepo->find($aExpenseCriteria) as $oProductExpense) {
+						$nProductExpenseTotal += $oProductExpense->expenseAmount ?? 0;
+						$nExpenseTotal += $oProductExpense->expenseAmount ?? 0;
+					}
+
+					if($nProductExpenseTotal > 0)
+					{
+						echo "<tr>";
+						echo "<td width='200px'>{$oTaxCategory->name}</td>";
+						echo "<td> $";
+						echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sQueryString}'>";
+						echo number_format((float)$nProductExpenseTotal, 2, '.', ',');
+						echo "</a>";
+						echo "</td>";
+						echo "</tr>";
+					}
 				}
 				echo "<tr><td colspan=2><HR></td></tr>";
 				echo "<tr>";
@@ -430,7 +412,7 @@ if (isset($_POST["btnGenerate"]))
 				echo "<td width='200px'> $";
 				if ($nExpenseTotal > 0)
 				{
-					echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sBaseQueryString}'>";  
+					echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sBaseQueryString}'>";
 					echo number_format((float)$nExpenseTotal, 2, '.', ',') . "</a>";
 				}
 				else
@@ -449,7 +431,7 @@ if (isset($_POST["btnGenerate"]))
 <?php
 }
 //Only display the data for each product if no Product is selected
-if ($_POST['selProduct'] == 0)
+if (($_POST['selProduct'] ?? 0) == 0)
 {
 ?>
 	<div class="row">		
@@ -470,65 +452,63 @@ if ($_POST['selProduct'] == 0)
 					<?php
 						$aProductTotals = array();
 
-						array_unshift($oProducts->aProductRecords,$oNoProduct);
-
-						foreach ($oProducts->aProductRecords as $oProduct)
+						foreach ($aProducts as $oProduct)
 						{
 						
-							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$oProduct->nProductID}";
+							$sQueryString = "{$sBaseQueryString}&PRODUCT_ID={$oProduct->id}";
 
 							//Only display a yearly row if there is data to report 
-							if($aProductData[$oProduct->nProductID]['Revenue'] > 0 || $aProductData[$oProduct->nProductID]['Expense'] > 0 ||$aProductData[$oProduct->nProductID]['Quantity'] > 0)
+							if(($aProductData[$oProduct->id]['Revenue'] ?? 0) > 0 || ($aProductData[$oProduct->id]['Expense'] ?? 0) > 0 || ($aProductData[$oProduct->id]['Quantity'] ?? 0) > 0)
 							{
 							
 								echo "<tr>";
-								echo "<td align='left'><small>{$oProduct->sProductName}</small></td>";
+								echo "<td align='left'><small>{$oProduct->name}</small></td>";
 								// Product Sales Quantity
 								echo "<td>";
-								echo number_format((float)$aProductData[$oProduct->nProductID]['Quantity'],0,"",",");	
-								$aProductTotals['Quantity'] += $aProductData[$oProduct->nProductID]['Quantity'];
+								echo number_format((float)$aProductData[$oProduct->id]['Quantity'],0,"",",");	
+								$aProductTotals['Quantity'] += $aProductData[$oProduct->id]['Quantity'];
 								echo "</td>";
 								// Product Performance Sales Quantity
 								echo "<td>";
-								echo number_format((float)$aProductData[$oProduct->nProductID]['PerformanceQuantity'],0,"",",");	
-								$aProductTotals['PerformanceQuantity'] += $aProductData[$oProduct->nProductID]['PerformanceQuantity'];
+								echo number_format((float)$aProductData[$oProduct->id]['PerformanceQuantity'],0,"",",");	
+								$aProductTotals['PerformanceQuantity'] += $aProductData[$oProduct->id]['PerformanceQuantity'];
 								echo "</td>";
 								// Revenue										
 								echo "<td>";
-								if($aProductData[$oProduct->nProductID]['Revenue'] > 0)
+								if($aProductData[$oProduct->id]['Revenue'] > 0)
 								{
 									echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php{$sQueryString}'>";
-									echo "$" . number_format((float)$aProductData[$oProduct->nProductID]['Revenue'], 2, '.', ',');
+									echo "$" . number_format((float)$aProductData[$oProduct->id]['Revenue'], 2, '.', ',');
 									echo "</a>";	
-									$aProductTotals['Revenue'] += $aProductData[$oProduct->nProductID]['Revenue'];
+									$aProductTotals['Revenue'] += $aProductData[$oProduct->id]['Revenue'];
 								}
 								else
 								{
-									echo "$" . number_format((float)$aProductData[$oProduct->nProductID]['Revenue'], 2, '.', ',');
+									echo "$" . number_format((float)$aProductData[$oProduct->id]['Revenue'], 2, '.', ',');
 								}
 								echo "</td>";
 								// Expense
 								echo "<td>";
-								if($aProductData[$oProduct->nProductID]['Expense'] > 0)
+								if($aProductData[$oProduct->id]['Expense'] > 0)
 								{
 									echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php{$sQueryString}'>";
-									echo "$" . number_format((float)$aProductData[$oProduct->nProductID]['Expense'], 2, '.', ',');
+									echo "$" . number_format((float)$aProductData[$oProduct->id]['Expense'], 2, '.', ',');
 									echo "</a>";	
-									$aProductTotals['Expense'] += $aProductData[$oProduct->nProductID]['Expense'];
+									$aProductTotals['Expense'] += $aProductData[$oProduct->id]['Expense'];
 								}
 								else
 								{
-									echo "$" . number_format((float)$aProductData[$oProduct->nProductID]['Expense'], 2, '.', ',');
+									echo "$" . number_format((float)$aProductData[$oProduct->id]['Expense'], 2, '.', ',');
 								}
 								echo "</td>";
 								// Profit
-								if(intval($aProductData[$oProduct->nProductID]['Profit']) < 0){
+								if(intval($aProductData[$oProduct->id]['Profit']) < 0){
 									echo "<td style=\"color: red;\">";
 								}
 								else{
 									echo "<td>";
 								}
-								echo "$" . number_format((float)$aProductData[$oProduct->nProductID]['Profit'], 2, '.', ',');	
+								echo "$" . number_format((float)$aProductData[$oProduct->id]['Profit'], 2, '.', ',');	
 								echo "</td>";
 								echo "</tr>";
 							}		

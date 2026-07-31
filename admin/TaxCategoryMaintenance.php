@@ -10,39 +10,45 @@ Date        Change
 2017-02-19	Make Responsive
 2017-08-25	Improved Responsivity
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer TaxCategory repository
 *******************************************************************
 */	
 
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 	
 //This include defines the relative path to the root directory from this sub-directory
- include_once ("root.inc.php");
+include_once("root.inc.php");
 
 //inlcude web site settings
-include_once ($ROOT . "/includes/websiteSettings.php");
+include_once($ROOT . "/includes/websiteSettings.php");
 
 //inlcude web site settings
-include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude admin settings
- include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 
- //include TaxCategory Class		
-include_once (CLASS_DIR . "/class_TaxCategory.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/TaxCategory.php");
+include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
 
 //include Form Class		
-include (CLASS_DIR . "/class_Form.php");
+include(CLASS_DIR . "/class_Form.php");
 
 //Array of TaxCategory records from the DB
-global $aTaxCategoryRecords;
- $sActiveMenuItem = FINANCES_ACTIVE;
- $sPageName = "Tax Category Maintenance";
+$aTaxCategoryRecords = [];
+
+$sActiveMenuItem = FINANCES_ACTIVE;
+$sPageName = "Tax Category Maintenance";
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 
 <body>
@@ -53,50 +59,32 @@ global $aTaxCategoryRecords;
 	<?php
 
 		//Instantiate needed objects
-		$thisTaxCategory = new TaxCategory();
+		$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
+		$expenseRepo = new \Datalayer\ExpenseRepository();
+		$thisTaxCategory = new \Datalayer\TaxCategory();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisTaxCategoryID = $_REQUEST['ID'];
+		$nThisTaxCategoryID = $_REQUEST['ID'] ?? null;
 		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisTaxCategoryID))
+		if (!is_null($nThisTaxCategoryID) && $nThisTaxCategoryID !== '')
 		{
-						
-			$thisTaxCategory->nTaxCategoryID = $nThisTaxCategoryID;
+			$entity = $taxCategoryRepo->findById((int) $nThisTaxCategoryID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisTaxCategory->getTaxCategory())
-			{
-			
-				//Records found
-				if (sizeof($thisTaxCategory->aTaxCategoryRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadTaxCategory($thisTaxCategory->aTaxCategoryRecords[0], $form);
+			if ($entity) {
+				$thisTaxCategory = $entity;
+				$aTaxCategoryRecords = [$entity];
+				loadTaxCategory($thisTaxCategory, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "TaxCategory record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisTaxCategory->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "TaxCategory record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -108,28 +96,23 @@ global $aTaxCategoryRecords;
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildTaxCategoryObject($thisTaxCategory);
 				
-				//Insert record
-				if ($thisTaxCategory->insertTaxCategory())			
+				if ($taxCategoryRepo->insert($thisTaxCategory))
 				{
-					//Load the form fields with the newly populated object
+					$thisTaxCategory = $taxCategoryRepo->findById((int) $thisTaxCategory->id) ?? $thisTaxCategory;
+					$aTaxCategoryRecords = [$thisTaxCategory];
 					loadTaxCategory($thisTaxCategory, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Tax Category Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: " . $thisTaxCategory->sErrorMessage;
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -138,30 +121,22 @@ global $aTaxCategoryRecords;
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildTaxCategoryObject($thisTaxCategory);
 				
-				//Update record
-				if ($thisTaxCategory->updateTaxCategory())			
+				if ($taxCategoryRepo->update($thisTaxCategory))
 				{
+					$thisTaxCategory = $taxCategoryRepo->findById((int) $thisTaxCategory->id) ?? $thisTaxCategory;
+					$aTaxCategoryRecords = [$thisTaxCategory];
+					loadTaxCategory($thisTaxCategory, $form);
 				
-					//reload TaxCategory
-					$thisTaxCategory->getTaxCategory();
-				
-					//Load the form fields with the newly populated DB object						
-					loadTaxCategory($thisTaxCategory->aTaxCategoryRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Tax Category Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - " . $thisTaxCategory->sErrorMessage;
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -170,24 +145,33 @@ global $aTaxCategoryRecords;
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildTaxCategoryObject($thisTaxCategory);				
+				buildTaxCategoryObject($thisTaxCategory);
 
-				//Delete record
-				if ($thisTaxCategory->deleteTaxCategory())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisTaxCategory->id)) {
+					$relatedExpenses = $expenseRepo->find(['taxCategoryId' => (int) $thisTaxCategory->id]);
+
+					if (sizeof($relatedExpenses) > 0) {
+						$deleteError = "TXC011 - Can not delete Tax Category because it has ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/ExpenseMaintenance.php?TAX_CATEGORY_ID=" . $thisTaxCategory->id;
+						$deleteError .= "'>" . sizeof($relatedExpenses) . " expenses.</A>";
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisTaxCategory->id) && $taxCategoryRepo->delete((int) $thisTaxCategory->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Tax Category Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: " . $thisTaxCategory->sErrorMessage;
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -198,46 +182,34 @@ global $aTaxCategoryRecords;
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildTaxCategoryObject($thisTaxCategory);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisTaxCategory->getTaxCategory())
+				$aTaxCategoryRecords = $taxCategoryRepo->find([
+					'id' => $thisTaxCategory->id,
+					'name' => $thisTaxCategory->name,
+					'fuzzyName' => true,
+				]);
+
+				if (sizeof($aTaxCategoryRecords) < 1)
 				{
-					//No records found
-					if(sizeof($thisTaxCategory->aTaxCategoryRecords) < 1)
-					{
-						$form->sMessage = "No Tax Category records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisTaxCategory->aTaxCategoryRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadTaxCategory($thisTaxCategory->aTaxCategoryRecords[0], $form);			
+					$form->sMessage = "No Tax Category records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aTaxCategoryRecords) == 1)
+				{
+					$thisTaxCategory = $aTaxCategoryRecords[0];
+					loadTaxCategory($thisTaxCategory, $form);			
 
-						$form->sMessage = "One Tax Category record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Tax Category record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+					$form->sMessage = "One Tax Category record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
 				}
-				else
+				else 
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisTaxCategory->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "Select Tax Category record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -245,7 +217,6 @@ global $aTaxCategoryRecords;
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -284,15 +255,20 @@ global $aTaxCategoryRecords;
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnTaxCategoryID" value="<?php echo $_POST['hdnTaxCategoryID']?>" />	
+	<input type="hidden" name="hdnTaxCategoryID" value="<?php echo $_POST['hdnTaxCategoryID'] ?? '' ?>" />	
 
 	<div class="row">
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
+include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 ?>	
 	</div>
 	<div class="row">
@@ -335,7 +311,7 @@ global $aTaxCategoryRecords;
 		echo "</div>";
 
 				
-		foreach($thisTaxCategory->aTaxCategoryRecords as $oTaxCategoryRecord)
+		foreach($aTaxCategoryRecords as $oTaxCategoryRecord)
 		{
 			
 			//Alternate the result style
@@ -349,7 +325,7 @@ global $aTaxCategoryRecords;
 			}
 			echo "<div class='row {$sResultStyleClass}'>";
 				
-			echo "	<div class='col-xs-12 result-selector {$sResultStyleClass}'><A HREF='./TaxCategoryMaintenance.php?ID={$oTaxCategoryRecord->nTaxCategoryID}'>{$oTaxCategoryRecord->sTaxCategoryName}</a></div>";
+			echo "	<div class='col-xs-12 result-selector {$sResultStyleClass}'><A HREF='./TaxCategoryMaintenance.php?ID={$oTaxCategoryRecord->id}'>{$oTaxCategoryRecord->name}</a></div>";
 			echo "</div>";
 		}
 		?>
@@ -364,15 +340,15 @@ global $aTaxCategoryRecords;
 	
 		<div class="row"> 
 			<div class="col-xs-12  FieldGroup">
-				NAME: <input type="text" name="txtTaxCategoryName" value="<?php echo $_POST['txtTaxCategoryName']; ?>" size="60" />
+				NAME: <input type="text" name="txtTaxCategoryName" value="<?php echo $_POST['txtTaxCategoryName'] ?? ''; ?>" size="60" />
 			</div>
 			<div class="col-xs-12">		
 				<div class="row">
 					<div class ="col-xs-3 FormFieldNoEdit">
-						ID: <?php echo $_POST['hdnTaxCategoryID']; ?>						
+						ID: <?php echo $_POST['hdnTaxCategoryID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -409,15 +385,12 @@ global $aTaxCategoryRecords;
  * form fields.
  ********************************************************************************
 */
-function buildTaxCategoryObject($taxCategory)
+function buildTaxCategoryObject(\Datalayer\TaxCategory $taxCategory)
 {
+	$id = $_POST['hdnTaxCategoryID'] ?? null;
+	$taxCategory->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$taxCategory->nTaxCategoryID = $_POST['hdnTaxCategoryID'];
-
-	$taxCategory->sTaxCategoryName = html_entity_decode($_POST['txtTaxCategoryName'], ENT_QUOTES);
-	$taxCategory->bFuzzyNameSearch = TRUE;
-
+	$taxCategory->name = html_entity_decode($_POST['txtTaxCategoryName'] ?? '', ENT_QUOTES);
 }
 
 
@@ -429,29 +402,21 @@ function buildTaxCategoryObject($taxCategory)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadTaxCategory(&$taxCategory, $form)
+function loadTaxCategory(\Datalayer\TaxCategory $taxCategory, $form)
 {
-
-	if (!is_null($taxCategory->nTaxCategoryID))
+	if (!is_null($taxCategory->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnTaxCategoryID'] = $taxCategory->nTaxCategoryID;
+		$_POST['hdnTaxCategoryID'] = $taxCategory->id;
 
-		$_POST['txtTaxCategoryName'] = htmlentities($taxCategory->sTaxCategoryName, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($taxCategory->dtLastUpdate, ENT_QUOTES);
-		
+		$_POST['txtTaxCategoryName'] = htmlentities($taxCategory->name ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($taxCategory->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
-	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-	
 		}
-
 	}
-
 }
 
 
@@ -476,8 +441,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

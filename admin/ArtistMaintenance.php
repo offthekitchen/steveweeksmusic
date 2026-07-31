@@ -11,36 +11,41 @@ Date        Change
 			changed query parm to ARTIST_ID
 2017-03-28	Made Responsive
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Artist repository
 *******************************************************************
 */	
 
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
 //This include defines the relative path to the root directory from this sub-directory
- include_once ("root.inc.php");
+include_once("root.inc.php");
 
 //inlcude web site settings
-include_once ($ROOT . "/includes/websiteSettings.php");
+include_once($ROOT . "/includes/websiteSettings.php");
 
 //inlcude web site settings
-include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
 //inlcude admin settings
- include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 
- 	
-//include Artist Class		
-include_once (CLASS_DIR . "/class_Artist.php");
-
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Artist.php");
+include_once(DATALAYER_DIR . "/ArtistRepository.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
 
 //Require the Class for the calendar picker
-require_once (CLASS_DIR . "/tc_calendar.php");
+require_once(CLASS_DIR . "/tc_calendar.php");
 
 //include Form Class		
-include (CLASS_DIR . "/class_Form.php");
+include(CLASS_DIR . "/class_Form.php");
 
 //Array of Artist records from the DB
-global $aArtistRecords;
+$aArtistRecords = [];
 
 $sActiveMenuItem = DISCOGRAPHY_ACTIVE;
 $sPageName = "Artist Maintenance";
@@ -50,7 +55,7 @@ $sPageName = "Artist Maintenance";
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <?php
- 	include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
+include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 
 <body>
@@ -64,50 +69,33 @@ $sPageName = "Artist Maintenance";
 	<?php
 
 		//Instantiate needed objects
-		$thisArtist = new Artist();
+		$artistRepo = new \Datalayer\ArtistRepository();
+		$songRepo = new \Datalayer\SongRepository();
+		$cdRepo = new \Datalayer\CDRepository();
+		$thisArtist = new \Datalayer\Artist();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisArtistID = $_REQUEST['ARTIST_ID'];
+		$nThisArtistID = $_REQUEST['ARTIST_ID'] ?? null;
 		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisArtistID))
+		if (!is_null($nThisArtistID) && $nThisArtistID !== '')
 		{
-						
-			$thisArtist->nArtistID = $nThisArtistID;
+			$entity = $artistRepo->findById((int) $nThisArtistID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisArtist->getArtist())
-			{
-			
-				//Records found
-				if (sizeof($thisArtist->aArtistRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadArtist($thisArtist->aArtistRecords[0], $form);
+			if ($entity) {
+				$thisArtist = $entity;
+				$aArtistRecords = [$entity];
+				loadArtist($thisArtist, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "Artist record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisArtist->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "Artist record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -119,28 +107,23 @@ $sPageName = "Artist Maintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildArtistObject($thisArtist);
 				
-				//Insert record
-				if ($thisArtist->insertArtist())			
+				if ($artistRepo->insert($thisArtist))
 				{
-					//Load the form fields with the newly populated object
+					$thisArtist = $artistRepo->findById((int) $thisArtist->id) ?? $thisArtist;
+					$aArtistRecords = [$thisArtist];
 					loadArtist($thisArtist, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Artist Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisArtist->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -149,30 +132,22 @@ $sPageName = "Artist Maintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildArtistObject($thisArtist);
 				
-				//Update record
-				if ($thisArtist->updateArtist())			
+				if ($artistRepo->update($thisArtist))
 				{
+					$thisArtist = $artistRepo->findById((int) $thisArtist->id) ?? $thisArtist;
+					$aArtistRecords = [$thisArtist];
+					loadArtist($thisArtist, $form);
 				
-					//reload Artist
-					$thisArtist->getArtist();
-				
-					//Load the form fields with the newly populated DB object						
-					loadArtist($thisArtist->aArtistRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "Artist Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisArtist->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -181,24 +156,39 @@ $sPageName = "Artist Maintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildArtistObject($thisArtist);				
+				buildArtistObject($thisArtist);
 
-				//Delete record
-				if ($thisArtist->deleteArtist())
-				{
-					//Clear the form fields
+				$deleteError = null;
+				if (!empty($thisArtist->id)) {
+					$relatedSongs = $songRepo->find(['artistId' => (int) $thisArtist->id]);
+					$relatedCDs = $cdRepo->find([
+						'artistId' => (int) $thisArtist->id,
+						'includeSingles' => true,
+					]);
+
+					if (sizeof($relatedSongs) > 0 || sizeof($relatedCDs) > 0) {
+						$deleteError = "ART0013 - Can not delete Artist because it is associated with ";
+						$deleteError .= "<A HREF='" . ADMIN_DIR . "/SongMaintenance.php?ARTIST_ID=" . $thisArtist->id;
+						$deleteError .= "'>" . sizeof($relatedSongs) . " songs</A>";
+						$deleteError .= " and <A HREF='" . ADMIN_DIR . "/CDMaintenance.php?ARTIST_ID=" . $thisArtist->id;
+						$deleteError .= "'>" . sizeof($relatedCDs) . " CDs.</A>";
+					}
+				}
+
+				if ($deleteError !== null) {
+					$form->sMessage = $deleteError;
+					$form->nMessageType = MESSAGE_TYPE_ERROR;
+					$form->nFormMode = FORM_MODE_EDIT;
+				} else if (!empty($thisArtist->id) && $artistRepo->delete((int) $thisArtist->id)) {
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "Artist Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisArtist->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -209,46 +199,35 @@ $sPageName = "Artist Maintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildArtistObject($thisArtist);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisArtist->getArtist())
+				$aArtistRecords = $artistRepo->find([
+					'id' => $thisArtist->id,
+					'name' => $thisArtist->name,
+					'fuzzyName' => true,
+					'image' => $thisArtist->image,
+				]);
+
+				if (sizeof($aArtistRecords) < 1)
 				{
-					//No records found
-					if(sizeof($thisArtist->aArtistRecords) < 1)
-					{
-						$form->sMessage = "No Artist records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisArtist->aArtistRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadArtist($thisArtist->aArtistRecords[0], $form);			
+					$form->sMessage = "No Artist records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aArtistRecords) == 1)
+				{
+					$thisArtist = $aArtistRecords[0];
+					loadArtist($thisArtist, $form);			
 
-						$form->sMessage = "One Artist record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select Artist record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+					$form->sMessage = "One Artist record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
 				}
-				else
+				else 
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisArtist->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "Select Artist record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -256,7 +235,6 @@ $sPageName = "Artist Maintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -295,11 +273,16 @@ $sPageName = "Artist Maintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnArtistID" value="<?php echo $_POST['hdnArtistID']?>" />	
+	<input type="hidden" name="hdnArtistID" value="<?php echo $_POST['hdnArtistID'] ?? ''?>" />	
 
 	<div class="row">
 		<?php
@@ -348,7 +331,7 @@ $sPageName = "Artist Maintenance";
 		echo "</div>";
 
 				
-		foreach($thisArtist->aArtistRecords as $oArtistRecord)
+		foreach($aArtistRecords as $oArtistRecord)
 		{
 			
 			//Alternate the result style
@@ -361,7 +344,7 @@ $sPageName = "Artist Maintenance";
 				$sResultStyleClass = RESULT_STYLE_CLASS;
 			}
 			echo "<div class='row {$sResultStyleClass}'>";	
-			echo "	<div class='col-xs-12 {$sResultStyleClass}'><A HREF='./ArtistMaintenance.php?ARTIST_ID={$oArtistRecord->nArtistID}'>{$oArtistRecord->sArtistName}</A></div>";
+			echo "	<div class='col-xs-12 {$sResultStyleClass}'><A HREF='./ArtistMaintenance.php?ARTIST_ID={$oArtistRecord->id}'>{$oArtistRecord->name}</A></div>";
 			echo "</div>";
 		}
 		?>
@@ -379,7 +362,7 @@ $sPageName = "Artist Maintenance";
 		<div class="col-xs-12">
 	
 			<?php
-			if ($_POST['hdnArtistID'] > 0)
+			if (($_POST['hdnArtistID'] ?? 0) > 0)
 			{
 				echo "<a href='". ADMIN_DIR . "/SongMaintenance.php?ARTIST_ID={$_POST['hdnArtistID']}";
 				echo "' class='secondaryLinkButton'>Edit Songs</a>";
@@ -389,15 +372,16 @@ $sPageName = "Artist Maintenance";
 				echo "&ACTION=ADD_EXPENSE'  class='secondaryLinkButton'>Edit CDs</a>";
 				echo "<span class='hidden-xs hidden-sm'>&nbsp;&nbsp;&nbsp;&nbsp;&#8226;&nbsp;&nbsp;&nbsp;&nbsp;</span>";	
 				echo "<br class='visible-xs'>";
+				$reportName = $aArtistRecords[0]->name ?? ($_POST['txtArtistName'] ?? 'Artist');
 				echo "<a href='". ADMIN_DIR . "/ArtistReport.php?ARTIST_ID={$_POST['hdnArtistID']}";							
-				echo "'  class='secondaryLinkButton'>{$thisArtist->aArtistRecords[0]->sArtistName} Report</a>";
+				echo "'  class='secondaryLinkButton'>{$reportName} Report</a>";
 			}
 			?>
 			</div>			
 				<div class="col-xs-12 FieldGroup">
 					<div class="row">
 						<div class="col-xs-12 col-sm-6">
-							NAME: <input type="text" name="txtArtistName" value="<?php echo $_POST['txtArtistName']; ?>" size="40" />
+							NAME: <input type="text" name="txtArtistName" value="<?php echo $_POST['txtArtistName'] ?? ''; ?>" size="40" />
 							</div>
 						<div class="col-xs-12 col-sm-3 image-preview">
 							<span class="Subtitle">Image</span><br />												
@@ -413,7 +397,7 @@ $sPageName = "Artist Maintenance";
 							$form->renderImagePreview($sFullImagePath, ""); 
 							?>												
 						<br /><br />
-							<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage']; ?>" size="30" /><BR />
+							<input type="text" name="txtImage" id="txtImage" value="<?php echo $_POST['txtImage'] ?? ''; ?>" size="30" /><BR />
 							<input type="button" name="btnPreviewImage" onclick="preview_image('txtImage','<?php echo IMG_DIR ?>')" value="Preview" />												
 					</div>
 				</div>
@@ -421,10 +405,10 @@ $sPageName = "Artist Maintenance";
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3">
-						ID: <?php echo $_POST['hdnArtistID']; ?>						
+						ID: <?php echo $_POST['hdnArtistID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -461,14 +445,13 @@ $sPageName = "Artist Maintenance";
  * form fields.
  ********************************************************************************
 */
-function buildArtistObject($Artist)
+function buildArtistObject(\Datalayer\Artist $Artist)
 {
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$Artist->nArtistID = $_POST['hdnArtistID'];
+	$id = $_POST['hdnArtistID'] ?? null;
+	$Artist->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	$Artist->sArtistName = html_entity_decode($_POST['txtArtistName'], ENT_QUOTES);
-	$Artist->sArtistImage = html_entity_decode($_POST['txtImage'], ENT_QUOTES);
-	$Artist->bFuzzyNameSearch = TRUE;
+	$Artist->name = html_entity_decode($_POST['txtArtistName'] ?? '', ENT_QUOTES);
+	$Artist->image = html_entity_decode($_POST['txtImage'] ?? '', ENT_QUOTES);
 }
 
 
@@ -480,22 +463,20 @@ function buildArtistObject($Artist)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadArtist(&$Artist, $form)
+function loadArtist(\Datalayer\Artist $Artist, $form)
 {
 
-	if (!is_null($Artist->nArtistID))
+	if (!is_null($Artist->id))
 	{
-		//Load Hidden Fields
-		$_POST['hdnArtistID'] = $Artist->nArtistID;
+		$_POST['hdnArtistID'] = $Artist->id;
 
-		$_POST['txtArtistName'] = htmlentities($Artist->sArtistName, ENT_QUOTES);
-		$_POST['txtImage'] = htmlentities($Artist->sArtistImage, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($Artist->dtLastUpdate, ENT_QUOTES);
+		$_POST['txtArtistName'] = htmlentities($Artist->name ?? '', ENT_QUOTES);
+		$_POST['txtImage'] = htmlentities($Artist->image ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($Artist->lastUpdate ?? '', ENT_QUOTES);
 		
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
 	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
@@ -529,7 +510,6 @@ function clearFormFields($form)
 function copyFormFields($form)
 {
 
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

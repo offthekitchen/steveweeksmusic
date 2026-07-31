@@ -7,6 +7,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2020-03-15	Created
+2026-07-30	Migrated to new Datalayer PerformanceTask repository
 *******************************************************************
 */	
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -26,6 +27,24 @@ include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/PerformanceTask.php");
+include_once(DATALAYER_DIR . "/PerformanceTaskRepository.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+include_once(DATALAYER_DIR . "/Tour.php");
+include_once(DATALAYER_DIR . "/TourRepository.php");
+
+//Require the Class for the calendar picker
+require_once (CLASS_DIR . "/tc_calendar.php");
+
+//include Form Class		
+include (CLASS_DIR . "/class_Form.php");
+
+//Array of PerformanceTask records from the DB
+$aPerformanceTaskRecords = [];
+
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName = "Performance Task Maiintenance";
 ?>
@@ -40,87 +59,48 @@ $sPageName = "Performance Task Maiintenance";
 	<!-- DIV used for Image Preview Popup -->
 	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
 
-	<?php
-	
-	//include PerformanceTask Class		
- 	include_once (CLASS_DIR . "/class_PerformanceTask.php");
-
-	
-	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
-
-	//Array of PerformanceTask records from the DB
-	global $aPerformanceTaskRecords;
-	
-	?>
-	
 <div class="container-fluid">		
 <form name="PerformanceTaskMaint" action="PerformanceTaskMaintenance.php" method="post">
 
 	<?php
 
 		//Instantiate needed objects
-		$thisPerformanceTask = new PerformanceTask();
+		$performanceTaskRepo = new \Datalayer\PerformanceTaskRepository();
+		$performanceRepo = new \Datalayer\PerformanceRepository();
+		$tourRepo = new \Datalayer\TourRepository();
+		$thisPerformanceTask = new \Datalayer\PerformanceTask();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisPerformanceTaskID = $_REQUEST['PERFORMANCE_TASK_ID'];
-        $nPerformanceID = $_REQUEST['PERFORMANCE_ID'];
-		if(isset($_REQUEST['PERFORMANCE_NAME'])){
-			$sPerformanceName = $_REQUEST['PERFORMANCE_NAME'];
-		}
+		$nThisPerformanceTaskID = $_REQUEST['PERFORMANCE_TASK_ID'] ?? null;
+        $nPerformanceID = $_REQUEST['PERFORMANCE_ID'] ?? null;
+		$sPerformanceName = $_REQUEST['PERFORMANCE_NAME'] ?? null;
 
-		$nTourID = $_REQUEST['TOUR_ID'];
-        if(isset($_REQUEST['TOUR_NAME'])){
-			$sTourName = $_REQUEST['TOUR_NAME'];
-		}
+		$nTourID = $_REQUEST['TOUR_ID'] ?? null;
+        $sTourName = $_REQUEST['TOUR_NAME'] ?? null;
        		
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisPerformanceTaskID))
+		if (!is_null($nThisPerformanceTaskID) && $nThisPerformanceTaskID !== '')
 		{
-						
-			$thisPerformanceTask->nPerformanceTaskID = $nThisPerformanceTaskID;
+			$entity = $performanceTaskRepo->findById((int) $nThisPerformanceTaskID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisPerformanceTask->getPerformanceTask())
-			{
-			
-				//Records found
-				if (sizeof($thisPerformanceTask->aPerformanceTaskRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadPerformanceTask($thisPerformanceTask->aPerformanceTaskRecords[0], $form);
+			if ($entity) {
+				$thisPerformanceTask = $entity;
+				$aPerformanceTaskRecords = [$entity];
+				loadPerformanceTask($thisPerformanceTask, $form, $performanceRepo, $tourRepo);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "PerformanceTask record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisPerformanceTask->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "PerformanceTask record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
 		{
-
 			//Based on which button was selected, perform processing necessary 
 			//before the page is rendered
 			// **************
@@ -128,29 +108,23 @@ $sPageName = "Performance Task Maiintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildPerformanceTaskObject($thisPerformanceTask);
 				
-				//Insert record
-				if ($thisPerformanceTask->insertPerformanceTask())			
+				if ($performanceTaskRepo->insert($thisPerformanceTask))			
 				{
-
-					//Load the form fields with the newly populated object
-					loadPerformanceTask($thisPerformanceTask, $form);
+					$thisPerformanceTask = $performanceTaskRepo->findById((int) $thisPerformanceTask->id) ?? $thisPerformanceTask;
+					$aPerformanceTaskRecords = [$thisPerformanceTask];
+					loadPerformanceTask($thisPerformanceTask, $form, $performanceRepo, $tourRepo);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "PerformanceTask Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisPerformanceTask->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -159,30 +133,22 @@ $sPageName = "Performance Task Maiintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildPerformanceTaskObject($thisPerformanceTask);
 				
-				//Update record
-				if ($thisPerformanceTask->updatePerformanceTask())			
+				if ($performanceTaskRepo->update($thisPerformanceTask))			
 				{
+					$thisPerformanceTask = $performanceTaskRepo->findById((int) $thisPerformanceTask->id) ?? $thisPerformanceTask;
+					$aPerformanceTaskRecords = [$thisPerformanceTask];
+					loadPerformanceTask($thisPerformanceTask, $form, $performanceRepo, $tourRepo);
 				
-					//reload PerformanceTask
-					$thisPerformanceTask->getPerformanceTask();
-				
-					//Load the form fields with the newly populated DB object						
-					loadPerformanceTask($thisPerformanceTask->aPerformanceTaskRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "PerformanceTask Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisPerformanceTask->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -191,24 +157,19 @@ $sPageName = "Performance Task Maiintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildPerformanceTaskObject($thisPerformanceTask);				
+				buildPerformanceTaskObject($thisPerformanceTask);
 
-				//Delete record
-				if ($thisPerformanceTask->deletePerformanceTask())
+				if (!empty($thisPerformanceTask->id) && $performanceTaskRepo->delete((int) $thisPerformanceTask->id))
 				{
-					//Clear the form fields
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "PerformanceTask Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisPerformanceTask->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -219,46 +180,43 @@ $sPageName = "Performance Task Maiintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildPerformanceTaskObject($thisPerformanceTask);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisPerformanceTask->getPerformanceTask())
-				{
-					//No records found
-					if(sizeof($thisPerformanceTask->aPerformanceTaskRecords) < 1)
-					{
-						$form->sMessage = "No PerformanceTask records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisPerformanceTask->aPerformanceTaskRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadPerformanceTask($thisPerformanceTask->aPerformanceTaskRecords[0], $form);			
+				$criteria = [
+					'id' => $thisPerformanceTask->id,
+					'description' => $thisPerformanceTask->description,
+					'fuzzyDescription' => true,
+				];
 
-						$form->sMessage = "One PerformanceTask record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select PerformanceTask record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+				if (!empty($thisPerformanceTask->tourId)) {
+					$criteria['tourId'] = $thisPerformanceTask->tourId;
 				}
-				else
+				if (!empty($thisPerformanceTask->performanceId)) {
+					$criteria['performanceId'] = $thisPerformanceTask->performanceId;
+				}
+
+				$aPerformanceTaskRecords = $performanceTaskRepo->find($criteria);
+
+				if (sizeof($aPerformanceTaskRecords) < 1)
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisPerformanceTask->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "No PerformanceTask records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aPerformanceTaskRecords) == 1)
+				{
+					$thisPerformanceTask = $aPerformanceTaskRecords[0];
+					loadPerformanceTask($thisPerformanceTask, $form, $performanceRepo, $tourRepo);
+
+					$form->sMessage = "One PerformanceTask record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else 
+				{
+					$form->sMessage = "Select PerformanceTask record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -266,7 +224,6 @@ $sPageName = "Performance Task Maiintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -302,9 +259,17 @@ $sPageName = "Performance Task Maiintenance";
 			{
                 if(!empty($nPerformanceID)){
                     $_POST['hdnPerformanceID'] = $nPerformanceID;
+					if (empty($sPerformanceName)) {
+						$performance = $performanceRepo->findById((int) $nPerformanceID);
+						$sPerformanceName = $performance->name ?? '';
+					}
                 }
                 if(!empty($nTourID)){
                     $_POST['hdnTourID'] = $nTourID;
+					if (empty($sTourName)) {
+						$tour = $tourRepo->findById((int) $nTourID);
+						$sTourName = $tour->name ?? '';
+					}
                 }
 				if(!empty($sPerformanceName)){
                     $_POST['hdnPerformanceName'] = $sPerformanceName;
@@ -318,15 +283,20 @@ $sPageName = "Performance Task Maiintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnPerformanceTaskID" value="<?php echo $_POST['hdnPerformanceTaskID']?>" />	
-    <input type="hidden" name="hdnPerformanceID" value="<?php echo $_POST['hdnPerformanceID']?>" />	
-	<input type="hidden" name="hdnPerformanceName" value="<?php echo $_POST['hdnPerformanceName']?>" />		
-    <input type="hidden" name="hdnTourID" value="<?php echo $_POST['hdnTourID']?>" />
-	<input type="hidden" name="hdnTourName" value="<?php echo $_POST['hdnTourName']?>" />	
+	<input type="hidden" name="hdnPerformanceTaskID" value="<?php echo $_POST['hdnPerformanceTaskID'] ?? ''?>" />	
+    <input type="hidden" name="hdnPerformanceID" value="<?php echo $_POST['hdnPerformanceID'] ?? ''?>" />	
+	<input type="hidden" name="hdnPerformanceName" value="<?php echo $_POST['hdnPerformanceName'] ?? ''?>" />		
+    <input type="hidden" name="hdnTourID" value="<?php echo $_POST['hdnTourID'] ?? ''?>" />
+	<input type="hidden" name="hdnTourName" value="<?php echo $_POST['hdnTourName'] ?? ''?>" />	
 
 	<div class="row">
 <?php
@@ -379,8 +349,14 @@ $sPageName = "Performance Task Maiintenance";
 		echo "</div>";
 
 				
-		foreach($thisPerformanceTask->aPerformanceTaskRecords as $oPerformanceTaskRecord)
+		foreach($aPerformanceTaskRecords as $oPerformanceTaskRecord)
 		{
+			list($sPerformanceName, $sTourName) = getPerformanceTaskRelatedNames(
+				$oPerformanceTaskRecord,
+				$performanceRepo,
+				$tourRepo
+			);
+
 			//Alternate the result style
 			if ($sResultStyleClass == RESULT_STYLE_CLASS)
 			{
@@ -391,16 +367,16 @@ $sPageName = "Performance Task Maiintenance";
 				$sResultStyleClass = RESULT_STYLE_CLASS;
 			}
 			echo "<div class='row {$sResultStyleClass}'>";	
-			echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->sDescription}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->sPerformanceName}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->sTourName}</A></div>";
-            if($oPerformanceTaskRecord->bComplete){
-                echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>YES</A></div>";
+			echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$oPerformanceTaskRecord->description}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$sPerformanceName}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$sTourName}</A></div>";
+            if($oPerformanceTaskRecord->complete){
+                echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>YES</A></div>";
             }
             else {
-                echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>NO</A></div>";
+                echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>NO</A></div>";
             }
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->nPerformanceTaskID}'>{$oPerformanceTaskRecord->dtLastUpdate}</A></div>";			
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceTaskMaintenance.php?PERFORMANCE_TASK_ID={$oPerformanceTaskRecord->id}'>{$oPerformanceTaskRecord->lastUpdate}</A></div>";			
 			echo "</div>";
 		}
 		?>
@@ -419,20 +395,20 @@ $sPageName = "Performance Task Maiintenance";
 				<div class="col-xs-12 FieldGroup">
 					<div class="row">
 						<div class="col-xs-12 col-md-4">
-								DESCRIPTION: <input type="text" name="txtDescription" value="<?php echo $_POST['txtDescription']; ?>" size="40" />
+								DESCRIPTION: <input type="text" name="txtDescription" value="<?php echo $_POST['txtDescription'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-4">
-								PERFORMANCE: <?php echo $_POST['hdnPerformanceName']; ?> 
+								PERFORMANCE: <?php echo $_POST['hdnPerformanceName'] ?? ''; ?> 
 						</div>
 						<div class="col-xs-12 col-md-4">
-								TOUR: <?php echo $_POST['hdnTourName']; ?>
+								TOUR: <?php echo $_POST['hdnTourName'] ?? ''; ?>
 						</div>
 						<div class="col-xs-12">
 							<div class="row">
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									<div class="row">
 										<div class="col-xs-3 col-sm-2">
-											<input type="checkbox" name="chkComplete" class="result-checkbox" value="COMPLETE"<?php if( $_POST['chkComplete']) {echo " checked ";}; ?> />
+											<input type="checkbox" name="chkComplete" class="result-checkbox" value="COMPLETE"<?php if( !empty($_POST['chkComplete'])) {echo " checked ";}; ?> />
 										</div>
 										<div class="col-xs-9 col-sm-10 result-checkbox-text">
 											COMPLETE
@@ -448,10 +424,10 @@ $sPageName = "Performance Task Maiintenance";
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3">
-						ID: <?php echo $_POST['hdnPerformanceTaskID']; ?>						
+						ID: <?php echo $_POST['hdnPerformanceTaskID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -488,23 +464,19 @@ $sPageName = "Performance Task Maiintenance";
  * form fields.
  ********************************************************************************
 */
-function buildPerformanceTaskObject($PerformanceTask)
+function buildPerformanceTaskObject(\Datalayer\PerformanceTask $PerformanceTask)
 {
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$PerformanceTask->nPerformanceTaskID = $_POST['hdnPerformanceTaskID'];
-	$PerformanceTask->nPerformanceID =$_POST['hdnPerformanceID'];
-	$PerformanceTask->nTourID = $_POST['hdnTourID'];
+	$id = $_POST['hdnPerformanceTaskID'] ?? null;
+	$PerformanceTask->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	$PerformanceTask->sDescription = html_entity_decode($_POST['txtDescription'], ENT_QUOTES);
-    $PerformanceTask->sPerformanceName = html_entity_decode($_POST['hdnPerformanceName'], ENT_QUOTES);
-    $PerformanceTask->sTourName = html_entity_decode($_POST['hdnTourName'], ENT_QUOTES);
+	$performanceId = $_POST['hdnPerformanceID'] ?? null;
+	$PerformanceTask->performanceId = (!empty($performanceId) && is_numeric($performanceId)) ? (int) $performanceId : null;
 
-	if($_POST['chkComplete'] == "COMPLETE")
-	{
-		$PerformanceTask->bComplete = TRUE;
-	}
+	$tourId = $_POST['hdnTourID'] ?? null;
+	$PerformanceTask->tourId = (!empty($tourId) && is_numeric($tourId)) ? (int) $tourId : null;
 
-    $PerformanceTask->bFuzzyDescriptionSearch = TRUE;
+	$PerformanceTask->description = html_entity_decode($_POST['txtDescription'] ?? '', ENT_QUOTES);
+	$PerformanceTask->complete = (($_POST['chkComplete'] ?? '') == "COMPLETE");
 }
 
 
@@ -516,33 +488,62 @@ function buildPerformanceTaskObject($PerformanceTask)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadPerformanceTask(&$PerformanceTask, $form)
-{
-
-	if (!is_null($PerformanceTask->nPerformanceTaskID))
+function loadPerformanceTask(
+	\Datalayer\PerformanceTask $PerformanceTask,
+	$form,
+	\Datalayer\PerformanceRepository $performanceRepo,
+	\Datalayer\TourRepository $tourRepo
+) {
+	if (!is_null($PerformanceTask->id))
 	{
+		$_POST['hdnPerformanceTaskID'] = $PerformanceTask->id;
+        $_POST['hdnPerformanceID'] = $PerformanceTask->performanceId;
+        $_POST['hdnTourID'] = $PerformanceTask->tourId;
 
-		//Load Hidden Fields
-		$_POST['hdnPerformanceTaskID'] = $PerformanceTask->nPerformanceTaskID;
-        $_POST['hdnPerformanceID'] = $PerformanceTask->nPerformanceID;
-        $_POST['hdnTourID'] = $PerformanceTask->nTourID;
-		$_POST['hdnPerformanceName'] = isset($PerformanceTask->sPerformanceName) ? htmlentities($PerformanceTask->sPerformanceName, ENT_QUOTES) : '';
-		$_POST['hdnTourName'] = isset($PerformanceTask->sTourName) ? htmlentities($PerformanceTask->sTourName, ENT_QUOTES) : '';
-		$_POST['txtDescription'] = isset($PerformanceTask->sDescription) ? htmlentities($PerformanceTask->sDescription, ENT_QUOTES) : '';
-		$_POST['txtLastUpdate'] = isset($PerformanceTask->dtLastUpdate) ? htmlentities($PerformanceTask->dtLastUpdate, ENT_QUOTES) : '';
-		$_POST['chkComplete'] = isset($PerformanceTask->bComplete) ? htmlentities($PerformanceTask->bComplete, ENT_QUOTES) : '';	
+		list($sPerformanceName, $sTourName) = getPerformanceTaskRelatedNames(
+			$PerformanceTask,
+			$performanceRepo,
+			$tourRepo
+		);
+		$_POST['hdnPerformanceName'] = htmlentities($sPerformanceName, ENT_QUOTES);
+		$_POST['hdnTourName'] = htmlentities($sTourName, ENT_QUOTES);
+
+		$_POST['txtDescription'] = htmlentities($PerformanceTask->description ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($PerformanceTask->lastUpdate ?? '', ENT_QUOTES);
+		$_POST['chkComplete'] = $PerformanceTask->complete;
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
-	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-	
 		}
+	}
+}
 
+
+/*
+ ********************************************************************************
+ * getPerformanceTaskRelatedNames
+ ********************************************************************************
+*/
+function getPerformanceTaskRelatedNames(
+	\Datalayer\PerformanceTask $PerformanceTask,
+	\Datalayer\PerformanceRepository $performanceRepo,
+	\Datalayer\TourRepository $tourRepo
+): array {
+	$sPerformanceName = '';
+	$sTourName = '';
+
+	if (!empty($PerformanceTask->performanceId)) {
+		$performance = $performanceRepo->findById((int) $PerformanceTask->performanceId);
+		$sPerformanceName = $performance->name ?? '';
+	}
+	if (!empty($PerformanceTask->tourId)) {
+		$tour = $tourRepo->findById((int) $PerformanceTask->tourId);
+		$sTourName = $tour->name ?? '';
 	}
 
+	return [$sPerformanceName, $sTourName];
 }
 
 
@@ -567,8 +568,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

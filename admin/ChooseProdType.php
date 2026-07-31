@@ -5,23 +5,26 @@
 	//This include defines the relative path to the root directory from this sub-directory
  	include_once ("root.inc.php");
 
-	//inlcude common application settings
- 	include_once ($ROOT . "/includes/AppSettings.php");
+	//inlcude web site settings
+ 	include_once ($ROOT . "/includes/websiteSettings.php");
+
+	//inlcude web site settings
+ 	include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
+
+	//include new datalayer
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/ProductType.php");
+	include_once(DATALAYER_DIR . "/ProductTypeRepository.php");
 	?>
 
 <LINK HREF="<?php echo CSS_DIR; ?>/SWM.css" type="text/css" rel="StyleSheet">
 <?php
-	//include Product Type Class		
- 	include_once (CLASS_DIR . "/class_ProductType.php");
- 	include_once (CLASS_DIR . "/class_Form.php");
-
-
 	//Get the Product Type ID to exclude from the query string parameter
 //	$nExcludeProdTypeID = $_REQUEST['ExcludeID'];
 //	$nTopProdTypeID = $_REQUEST['TopID'];
-	$sCallingForm = $_REQUEST['CallingForm'];
-	$sCallingFormIDField = $_REQUEST['IDField'];
-	$sCallingFormNameField = $_REQUEST['NameField'];
+	$sCallingForm = $_REQUEST['CallingForm'] ?? '';
+	$sCallingFormIDField = $_REQUEST['IDField'] ?? '';
+	$sCallingFormNameField = $_REQUEST['NameField'] ?? '';
 
 ?>
 
@@ -55,9 +58,15 @@ function closeWindow(){
 //DEBUG
 //echo "Calling Form " . $sCallingForm . "<BR>"; 
 
-	//Instantiate needed objects
-	$thisProductType = new ProductType();
-	$aSearchFields = array();
+	$aProductTypeRecords = [];
+	$sLoadError = null;
+
+	try {
+		$productTypeRepo = new \Datalayer\ProductTypeRepository();
+		$aProductTypeRecords = $productTypeRepo->find();
+	} catch (\Throwable $e) {
+		$sLoadError = $e->getMessage();
+	}
 
 ?>
 
@@ -80,30 +89,26 @@ function closeWindow(){
 	</TR>
 <?php
 
-	//Get the entire Product Type Hierarchy from this Product Type down
-	if($thisProductType->getProductType())
+	if ($sLoadError !== null)
 	{
-		if (sizeof($thisProductType->aProductTypeRecords) > 0 )
+		echo "<TR><TD> ERROR RETRIEVING PRODUCT TYPE RECORDS </TD></TR>";
+		echo "<TR><TD>" . htmlentities($sLoadError) . "</TD></TR>";
+	}
+	else if (sizeof($aProductTypeRecords) > 0)
+	{
+		foreach ($aProductTypeRecords as $oProductType)
 		{
-			foreach ($thisProductType->aProductTypeRecords as $oProductType)
-			{
-				echo "<TR>";
-				echo "<TD align=left>";
-				//slashes have to be added to quotes and double quotes and then HTML special chars encoded sicne the name will be passed to a javascript function and displayed as HTML
-				echo "<A HREF=\"javascript: sendValue('" . $oProductType->nProductTypeID . "','" . htmlentities(addslashes($oProductType->sProductTypeName)) . "')\">" . htmlentities($oProductType->sProductTypeName) . "</A><BR>";	
-				echo "</TD>";
-				echo "</TR>";
-			}
-		}
-		else
-		{
-			echo "<TR><TD>NO PRODUCT TYPES FOUND</TD></TR>";
+			echo "<TR>";
+			echo "<TD align=left>";
+			//slashes have to be added to quotes and double quotes and then HTML special chars encoded sicne the name will be passed to a javascript function and displayed as HTML
+			echo "<A HREF=\"javascript: sendValue('" . $oProductType->id . "','" . htmlentities(addslashes($oProductType->name ?? '')) . "')\">" . htmlentities($oProductType->name ?? '') . "</A><BR>";	
+			echo "</TD>";
+			echo "</TR>";
 		}
 	}
 	else
 	{
-		echo "<TR><TD> ERROR RETRIEVING PRODUCT TYPE RECORDS </TD></TR>";
-		echo "<TR><TD>" . $thisProductType->ErrorMessage . "</TD></TR>";
+		echo "<TR><TD>NO PRODUCT TYPES FOUND</TD></TR>";
 	}
 
 ?>

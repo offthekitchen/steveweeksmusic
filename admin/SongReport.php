@@ -10,6 +10,7 @@ Date        Change
 2016-01-25  Added BMI Number and link to Song Maintenance
 2016-01-27  Changed dropdowns to use common functions
 2017-04-09	Made Responsive
+2026-07-30	Migrated to new Datalayer Song repository
 *******************************************************************
 */
 
@@ -29,11 +30,12 @@ include_once(ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
-//include Song Class		
-include_once(CLASS_DIR . "/class_Song.php");
-
-//include Expense Class		
-include_once(CLASS_DIR . "/class_CD.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
 
 //include Form Class		
 include(CLASS_DIR . "/class_Form.php");
@@ -51,14 +53,6 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 ?>
 
 <body>
-	<?php
-
-
-
-	//Require the Class for the calendar picker
-	//require_once (CLASS_DIR . "/tc_calendar.php");
-	
-	?>
 	<div class="container-fluid">
 		<form name="SongReport" action="SongReport.php" method="post">
 			<?php
@@ -76,8 +70,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 			//Instantiate needed objects
 			$form = new Form();
-			$aSongData = array();
-			$oThisSong = new Song();
+			$songRepo = new \Datalayer\SongRepository();
+			$cdRepo = new \Datalayer\CDRepository();
 
 			include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 
@@ -126,25 +120,32 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 					renderSongDropDown($_POST['selSong']);
 
 					if (isset($_POST["btnGenerate"])) {
-						$oSongs = new Song();
+						$criteria = [];
 
 						if ($_POST['selSong'] > 0) {
-							$oSongs->nSongID = $_POST['selSong'];
+							$criteria['id'] = (int) $_POST['selSong'];
 						}
 
 						if (is_numeric($_POST['selCD'])) {
-							$oSongs->nCDID = $_POST['selCD'];
+							$criteria['cdId'] = (int) $_POST['selCD'];
 						}
 
-						if ($oSongs->getSong()) {
-							foreach ($oSongs->aSongRecords as $oSong) {
-								echo "<div class='row'><div class='col-xs-12'> ";
-								buildSongData($oSong);
-								echo "</div></div>";
+						try {
+							$aSongRecords = $songRepo->find($criteria);
+
+							if (!empty($aSongRecords)) {
+								foreach ($aSongRecords as $song) {
+									echo "<div class='row'><div class='col-xs-12'> ";
+									buildSongData($song, $cdRepo);
+									echo "</div></div>";
+								}
+							} else {
+								$form->nMessageType = MESSAGE_TYPE_ERROR;
+								$form->sMessage = "FAILED TO GET SONG DATA: No records found.";
 							}
-						} else {
+						} catch (\Throwable $e) {
 							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "FAILED TO GET SONG DATA: {$oThisSong->sErrorMessage}";
+							$form->sMessage = "FAILED TO GET SONG DATA: " . $e->getMessage();
 						}
 					}
 					?>
@@ -181,36 +182,31 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
  * This function builds a table of Song Data
  ********************************************************************************
  */
-function buildSongData(&$oSong)
+function buildSongData(\Datalayer\Song $song, \Datalayer\CDRepository $cdRepo)
 {
 
-	//Default some values in case there is no CD associated with it to avoid fdormatting problems
-	$dtReleaseDate = "Unknown";
+	//Default some values in case there is no CD associated with it to avoid formatting problems
 	$dtReleaseDate = "Unknown";
 	$sUPC = "Unknown";
+	$cd = null;
 
-	if ($oSong->nCDID > 0) {
-		$oCD = new CD();
-		$oCD->nCDID = $oSong->nCDID;
-		if ($oCD->getCD()) {
-			$sCDName = $oCD->aCDRecords[0]->sCDName;
-
-			if (empty($oSong->sUPC)) {
-				$sUPC = $oCD->aCDRecords[0]->sUPC;
+	if (!empty($song->cdId) && $song->cdId > 0) {
+		$cd = $cdRepo->findById((int) $song->cdId);
+		if ($cd) {
+			if (empty($song->upc)) {
+				$sUPC = $cd->upc;
 			} else {
-				$sUPC = $oSong->sUPC;
+				$sUPC = $song->upc;
 			}
-			if (empty($oSong->dtReleaseDate) || $oSong->dtReleaseDate == '0000-00-00') {
-				$dtReleaseDate = $oCD->aCDRecords[0]->dtReleaseDate;
+			if (empty($song->releaseDate) || $song->releaseDate == '0000-00-00') {
+				$dtReleaseDate = $cd->releaseDate;
 			} else {
-				$dtReleaseDate = $oSong->dtReleaseDate;
+				$dtReleaseDate = $song->releaseDate;
 			}
-		} else {
-			//ERROR RETRIEVING CD
 		}
 	} else {
-		$sUPC = $oSong->sUPC;
-		$dtReleaseDate = $oSong->dtReleaseDate;
+		$sUPC = $song->upc;
+		$dtReleaseDate = $song->releaseDate;
 	}
 
 	echo "<div class='SongInfo'>";
@@ -220,14 +216,14 @@ function buildSongData(&$oSong)
 	echo "<dt>Song Name:</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<dd class='wordWrap'><a href='" . ADMIN_DIR . "/SongMaintenance.php?SONG_ID={$oSong->nSongID}'>{$oSong->sSongName}</a></dd>";
+	echo "<dd class='wordWrap'><a href='" . ADMIN_DIR . "/SongMaintenance.php?SONG_ID={$song->id}'>{$song->name}</a></dd>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-2'>";
 	echo "<dt>CD</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	if (!empty($oCD->aCDRecords[0]->sCDName)) {
-		echo "<dd class='wordWrap'><a href='" . ADMIN_DIR . "/CDMaintenance.php?CD_ID={$oCD->aCDRecords[0]->nCDID}' class='CDName'>{$oCD->aCDRecords[0]->sCDName}</a></dd>";
+	if ($cd && !empty($cd->name)) {
+		echo "<dd class='wordWrap'><a href='" . ADMIN_DIR . "/CDMaintenance.php?CD_ID={$cd->id}' class='CDName'>{$cd->name}</a></dd>";
 	} else {
 		echo "<dd>None</dd>";
 	}
@@ -251,7 +247,7 @@ function buildSongData(&$oSong)
 	echo "<dt>Run Time</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<dd>{$oSong->sRunTime}</dd>";
+	echo "<dd>{$song->runTime}</dd>";
 	echo "</div>";
 
 	echo "<div>";
@@ -259,7 +255,7 @@ function buildSongData(&$oSong)
 	echo "<dt>ISRC</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<dd>{$oSong->sISRC}</dd>";
+	echo "<dd>{$song->isrc}</dd>";
 	echo "</div>";
 
 	echo "<div>";
@@ -267,14 +263,14 @@ function buildSongData(&$oSong)
 	echo "<dt>Catalog #</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<dd>{$oSong->sCatalogNumber}</dd>";
+	echo "<dd>{$song->catalogNumber}</dd>";
 	echo "</div>";
 
 	echo "<div class='col-xs-12 col-sm-2'>";
 	echo "<dt>BMI #</dt>";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<dd>{$oSong->nBMINumber}</dd>";
+	echo "<dd>{$song->bmiNumber}</dd>";
 	echo "</div>";
 
 	echo "</dl>";

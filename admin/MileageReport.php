@@ -9,6 +9,7 @@ Date        Change
 2015-12-03  Created
 2017-04-12	Made Responsive
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer Mileage repository
 *******************************************************************
 */	
 
@@ -28,6 +29,17 @@ include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Mileage.php");
+include_once(DATALAYER_DIR . "/MileageRepository.php");
+
+//include Form Class		
+include (CLASS_DIR . "/class_Form.php");
+
+//Require the Class for the calendar picker
+require_once (CLASS_DIR . "/tc_calendar.php");
+
 $sActiveMenuItem = REPORTS_ACTIVE;	
 $sPageName = "Mileage Report Report";
 ?>
@@ -42,15 +54,6 @@ $sPageName = "Mileage Report Report";
 <body>
 	<?php
 	
-	//include Mileage Class		
- 	include_once (CLASS_DIR . "/class_Mileage.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
-
-	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
-	
 	//If a Year is passed, pre-select that Year
 	if (isset($_REQUEST['YEAR']) && $_REQUEST['YEAR'] != "")
 	{
@@ -64,8 +67,7 @@ $sPageName = "Mileage Report Report";
 
 	//Instantiate needed objects
 	$form = new Form();
-	$aMileageData = array();
-	$oThisMileage = new Mileage();
+	$mileageRepo = new \Datalayer\MileageRepository();
 
 ?>	
 
@@ -133,29 +135,28 @@ $sPageName = "Mileage Report Report";
 			for ($nYear = $nStartYear; $nYear <= $nEndYear; $nYear++)
 			{
 				$nYearlyMileage = 0;
-				$oMileages = new Mileage();
-				$oMileages->nMileageYear = $nYear;
+				$aMileageRecords = $mileageRepo->find(['mileageYear' => $nYear]);
 	
-				if ($oMileages->getMileage())
+				if (!empty($aMileageRecords))
 				{
 				
-					foreach ($oMileages->aMileageRecords as $oMileage)
+					foreach ($aMileageRecords as $mileage)
 					{
-						$nYearlyMileage += $oMileage->nMileage;
+						$nYearlyMileage += $mileage->mileage;
 	
 						if($nStartYear == $nEndYear)
 						{
-							$sQueryString = "?MILEAGE_ID={$oMileage->nMileageID}"; 
+							$sQueryString = "?MILEAGE_ID={$mileage->id}"; 
 						
 							//Alternate the report style
 							setReportStyleClass($sReportStyleClass);
 							
 							echo "<div class='row {$sReportStyleClass}'>";
-							echo "<div class='col-xs-12 col-sm-2 {$sReportStyleClass}'>{$oMileage->dtMileageDate}</div>";
-							echo "<div class='col-xs-12 col-sm-3 {$sReportStyleClass}'>{$oMileage->sReason}</div>";
+							echo "<div class='col-xs-12 col-sm-2 {$sReportStyleClass}'>{$mileage->mileageDate}</div>";
+							echo "<div class='col-xs-12 col-sm-3 {$sReportStyleClass}'>{$mileage->reason}</div>";
 							echo "<div class='col-xs-12 col-sm-7 {$sReportStyleClass}'>";
 							echo "<a href='" . ADMIN_DIR . "/MileageMaintenance.php{$sQueryString}'>";  
-							echo $oMileage->nMileage;
+							echo $mileage->mileage;
 							echo "</a>";
 							echo "</div>";
 							echo "</div>";
@@ -177,10 +178,6 @@ $sPageName = "Mileage Report Report";
 					echo "</div>";
 					echo "</div>";
 				}
-				else
-				{
-					//ERROR: Failed to retrieve Mileages
-				}
 			}
 	
 			?>
@@ -188,7 +185,6 @@ $sPageName = "Mileage Report Report";
 	</div>
 	
 </form>
-</body>
 </body>
 <script type="text/javascript">
 <!--
@@ -208,72 +204,3 @@ function validate_form ( )
 //-->
 </script>
 </html>
-
-<?php
-/*
- ********************************************************************************
- * buildMileageData()
- * 
- * This function builds a table pf Mileage Data
- ********************************************************************************
-*/
-function buildMileageData(&$oMileage)
-{
-
-	if ($oMileage->nCDID > 0)
-	{
-		$oCD = new CD();
-		$oCD->nCDID = $oMileage->nCDID;
-		if ($oCD->getCD())
-		{
-			$sCDName = $oCD->aCDRecords[0]->sCDName;
-			
-			if (empty($oMileage->sUPC))
-			{
-				$sUPC = $oCD->aCDRecords[0]->sUPC; 
-			}
-			else
-			{
-				$sUPC = $oMileage->sUPC; 
-			}
-			
-		} 
-		else
-		{
-			//ERROR RETRIEVING CD
-		}
-	}
-	else
-	{
-		$sUPC = $oMileage->sUPC; 
-	}
-	
-
-	echo "<table border='1' width='750px'>";	
-	echo "<tr>";
-	echo "<th width='250px'>Mileage Name</td>";
-	echo "<td width='500px'>{$oMileage->sMileageName}</td>";
-	echo "</tr>";
-	echo "<tr>";
-	echo "<th>CD</td>";
-	echo "<td>{$oCD->aCDRecords[0]->sCDName}</td>";
-	echo "</tr>";
-	echo "<tr>";
-	echo "<th>UPC</td>";
-	echo "<td>{$sUPC}</td>";
-	echo "</tr>";
-	echo "<tr>";
-	echo "<th>Run Time</td>";
-	echo "<td>{$oMileage->sRunTime}</td>";
-	echo "</tr>";
-	echo "<tr>";
-	echo "<th>ISRC</td>";
-	echo "<td>{$oMileage->sISRC}</td>";
-	echo "</tr>";
-	echo "<tr>";
-	echo "<th>Catalog #</td>";
-	echo "<td>{$oMileage->sCatalogNumber}</td>";
-	echo "</tr>";
-	echo "</table>";
-}
-?>

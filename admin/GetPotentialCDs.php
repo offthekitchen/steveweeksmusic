@@ -6,7 +6,7 @@
 <?php
 	//This include defines the relative path to the root directory from this sub-directory
  	include_once ("root.inc.php");
-	
+
 	//inlcude web site settings
 	include_once ($ROOT . "/includes/websiteSettings.php");
 
@@ -15,36 +15,30 @@
 
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	
-	//include Tour Class		
- 	include_once (CLASS_DIR . "/class_CD.php");
-	
-	$nArtistID = $_GET['Artist_ID'];
 
-	$oPotentialCDs = new CD();
-	
-	$oPotentialCDs->nArtistID = $nArtistID;
-	
-	if($oPotentialCDs->getCD())
-	{
-		if(sizeof($oPotentialCDs->aCDRecords) > 0) 
-		{
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/CD.php");
+	include_once(DATALAYER_DIR . "/CDRepository.php");
+
+	$nArtistID = (int) ($_GET['Artist_ID'] ?? 0);
+
+	try {
+		$cdRepo = new \Datalayer\CDRepository();
+		$aCDRecords = $nArtistID > 0
+			? $cdRepo->find(['artistId' => $nArtistID, 'includeSingles' => false, 'orderBy' => 'name'])
+			: [];
+
+		if (sizeof($aCDRecords) > 0) {
 			echo "<OPTION VALUE=''>ALL</OPTION>";
 			echo "<OPTION VALUE='0'>SINGLES</OPTION>";
-			foreach($oPotentialCDs->aCDRecords as $oPotentialCD)
-			{
-				echo "<OPTION VALUE=". $oPotentialCD->nCDID . ">" . $oPotentialCD->sCDName . "</OPTION>"; 
+			foreach ($aCDRecords as $oPotentialCD) {
+				echo "<OPTION VALUE=" . $oPotentialCD->id . ">" . $oPotentialCD->name . "</OPTION>";
 			}
-		}
-		else
-		{
+		} else {
 			echo "<OPTION VALUE='0'>SINGLES</OPTION>";
 		}
-	
-	}
-	else
-	{
-		echo "<OPTION>ERROR RETRIEVING CD" . $oPotentialCDs->sErrorMessage . "</OPTION>";
+	} catch (\Throwable $e) {
+		echo "<OPTION>ERROR RETRIEVING CD" . $e->getMessage() . "</OPTION>";
 	}
 
 ?>

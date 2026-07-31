@@ -9,6 +9,7 @@ Date        Change
 2020-04-27	Created
 2020-11-07	Added Popular Flag
 2023-11-24	Added Original flag
+2026-07-30	Migrated to new Datalayer PerformanceSongs repository
 *******************************************************************
 */	
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -28,6 +29,20 @@ include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 //inlcude Common Functions
 include_once (ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
 
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/PerformanceSongs.php");
+include_once(DATALAYER_DIR . "/PerformanceSongsRepository.php");
+
+//Require the Class for the calendar picker
+require_once (CLASS_DIR . "/tc_calendar.php");
+
+//include Form Class		
+include (CLASS_DIR . "/class_Form.php");
+
+//Array of PerformanceSongs records from the DB
+$aPerformanceSongsRecords = [];
+
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName = "Performance Songs Maiintenance";
 ?>
@@ -42,73 +57,37 @@ $sPageName = "Performance Songs Maiintenance";
 	<!-- DIV used for Image Preview Popup -->
 	<div style="display: none; position: absolute; z-index: 110; left: 400; top: 100; width: 15; height: 15" id="preview_div"></div>
 
-	<?php
-	
-	//include PerformanceSongs Class		
- 	include_once (CLASS_DIR . "/class_PerformanceSongs.php");
-
-	
-	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
-
- 	//include Form Class		
- 	include (CLASS_DIR . "/class_Form.php");
-
-	//Array of PerformanceSongs records from the DB
-	global $aPerformanceSongsRecords;
-	
-	?>
-	
 <div class="container-fluid">		
 <form name="PerformanceSongsMaint" action="PerformanceSongsMaintenance.php" method="post">
 
 	<?php
 
 		//Instantiate needed objects
-		$thisPerformanceSongs = new PerformanceSongs();
+		$performanceSongsRepo = new \Datalayer\PerformanceSongsRepository();
+		$thisPerformanceSongs = new \Datalayer\PerformanceSongs();
 		$form = new Form();
 
 		//Get the ID query string parameter
-		$nThisPerformanceSongsID = $_REQUEST['PERFORMANCE_SONGS_ID'];
-		
+		$nThisPerformanceSongsID = $_REQUEST['PERFORMANCE_SONGS_ID'] ?? null;
+
+		try {
 		//If an ID was passed to the page, retrieve that record for update		
-		if (!is_null($nThisPerformanceSongsID))
+		if (!is_null($nThisPerformanceSongsID) && $nThisPerformanceSongsID !== '')
 		{
-						
-			$thisPerformanceSongs->nPerformanceSongID = $nThisPerformanceSongsID;
+			$entity = $performanceSongsRepo->findById((int) $nThisPerformanceSongsID);
 
-			//Search the Database for records matching the search criteria			
-			if ($thisPerformanceSongs->getPerformanceSongs())
-			{
-			
-				//Records found
-				if (sizeof($thisPerformanceSongs->aPerformanceSongsRecords) > 0)
-				{
-									
-					//Only One Record should be returned.  Add this to the form field array
-					//so that it displays in the form fields and to the values in the
-					//current Object.
-					loadPerformanceSongs($thisPerformanceSongs->aPerformanceSongsRecords[0], $form);
+			if ($entity) {
+				$thisPerformanceSongs = $entity;
+				$aPerformanceSongsRecords = [$entity];
+				loadPerformanceSongs($thisPerformanceSongs, $form);
 
-					$form->sMessage = "Update record.";
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->nFormMode = FORM_MODE_EDIT;			
-					
-				}
-				else
-				{
-					//The record was not found
-					$form->sMessage = "PerformanceSongs record not found.";
-					$form->nMessageType = MESSAGE_TYPE_WARNING;
-					$form->nFormMode = FORM_MODE_NEW;			
-				}
-			}
-			else
-			{
-				//Error
-				$form->sMessage = $thisPerformanceSongs->sErrorMessage;
-				$form->nMessageType = MESSAGE_TYPE_ERROR;
-				$form->nFormMode = FORM_MODE_NEW;			
+				$form->sMessage = "Update record.";
+				$form->nMessageType = MESSAGE_TYPE_INFO;
+				$form->nFormMode = FORM_MODE_EDIT;
+			} else {
+				$form->sMessage = "PerformanceSongs record not found.";
+				$form->nMessageType = MESSAGE_TYPE_WARNING;
+				$form->nFormMode = FORM_MODE_NEW;
 			}
 		}
 		else
@@ -120,28 +99,23 @@ $sPageName = "Performance Songs Maiintenance";
 			// **************
 		 	if (isset($_POST["btnAdd"])) 
 			{
-				//Load values into DB array
 				buildPerformanceSongsObject($thisPerformanceSongs);
 				
-				//Insert record
-				if ($thisPerformanceSongs->insertPerformanceSongs())			
+				if ($performanceSongsRepo->insert($thisPerformanceSongs))
 				{
-					//Load the form fields with the newly populated object
+					$thisPerformanceSongs = $performanceSongsRepo->findById((int) $thisPerformanceSongs->id) ?? $thisPerformanceSongs;
+					$aPerformanceSongsRecords = [$thisPerformanceSongs];
 					loadPerformanceSongs($thisPerformanceSongs, $form);
 					
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "PerformanceSongs Added";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-				
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED: {$thisPerformanceSongs->sErrorMessage}";
+					$form->sMessage = "ADD RECORD FAILED";
 					$form->nFormMode = FORM_MODE_EDIT;			
-					
 				}
 					
 			}					
@@ -150,30 +124,22 @@ $sPageName = "Performance Songs Maiintenance";
 			// **************
 			else if (isset($_POST["btnUpdate"])) 
 			{
-			
-				//Load values from form field array into DB object
 				buildPerformanceSongsObject($thisPerformanceSongs);
 				
-				//Update record
-				if ($thisPerformanceSongs->updatePerformanceSongs())			
+				if ($performanceSongsRepo->update($thisPerformanceSongs))
 				{
+					$thisPerformanceSongs = $performanceSongsRepo->findById((int) $thisPerformanceSongs->id) ?? $thisPerformanceSongs;
+					$aPerformanceSongsRecords = [$thisPerformanceSongs];
+					loadPerformanceSongs($thisPerformanceSongs, $form);
 				
-					//reload PerformanceSongs
-					$thisPerformanceSongs->getPerformanceSongs();
-				
-					//Load the form fields with the newly populated DB object						
-					loadPerformanceSongs($thisPerformanceSongs->aPerformanceSongsRecords[0], $form);
-				
-					//Success
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->sMessage = "PerformanceSongs Updated";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 				else
 				{
-					//Failure
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ERROR: Update Failed - {$thisPerformanceSongs->sErrorMessage}";
+					$form->sMessage = "ERROR: Update Failed";
 					$form->nFormMode = FORM_MODE_EDIT;			
 				}
 			}
@@ -182,24 +148,19 @@ $sPageName = "Performance Songs Maiintenance";
 			// **************
 			else if (isset($_POST["btnDelete"])) 
 			{
-			
-				//Load DB record
-				buildPerformanceSongsObject($thisPerformanceSongs);				
+				buildPerformanceSongsObject($thisPerformanceSongs);
 
-				//Delete record
-				if ($thisPerformanceSongs->deletePerformanceSongs())
+				if (!empty($thisPerformanceSongs->id) && $performanceSongsRepo->delete((int) $thisPerformanceSongs->id))
 				{
-					//Clear the form fields
 					clearFormFields($form);
 					
-					//Success
 					$form->sMessage = "PerformanceSongs Deleted";
 					$form->nMessageType = MESSAGE_TYPE_INFO;
 					$form->nFormMode = FORM_MODE_NEW;					
 				}
 				else
 				{
-					$form->sMessage = "DELETE FAILED: {$thisPerformanceSongs->sErrorMessage}";
+					$form->sMessage = "DELETE FAILED";
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
 					$form->nFormMode = FORM_MODE_EDIT;					
 				}
@@ -210,46 +171,64 @@ $sPageName = "Performance Songs Maiintenance";
 			// **************
 			else if (isset($_POST["btnSearch"])) 
 			{
-				//Load Array of Search Values
 				buildPerformanceSongsObject($thisPerformanceSongs);
 
-				//Search the Database for records matching the search criteria			
-				if ($thisPerformanceSongs->getPerformanceSongs())
-				{
-					//No records found
-					if(sizeof($thisPerformanceSongs->aPerformanceSongsRecords) < 1)
-					{
-						$form->sMessage = "No PerformanceSongs records found matching search criteria";
-						$form->nMessageType = MESSAGE_TYPE_WARNING;
-						$form->nFormMode = FORM_MODE_NEW;			
-					}			
-					else if (sizeof($thisPerformanceSongs->aPerformanceSongsRecords) == 1)
-					{
-						//Only One Record returned.  Add this to the form field array
-						//so that it displays in the form fields
-						loadPerformanceSongs($thisPerformanceSongs->aPerformanceSongsRecords[0], $form);			
+				$criteria = [
+					'id' => $thisPerformanceSongs->id,
+					'title' => $thisPerformanceSongs->title,
+					'fuzzyTitle' => true,
+					'artist' => $thisPerformanceSongs->artist,
+					'tuning' => $thisPerformanceSongs->tuning,
+					'capo' => $thisPerformanceSongs->capo,
+					'effect' => $thisPerformanceSongs->effect,
+					'notes' => $thisPerformanceSongs->notes,
+					'estimatedTime' => $thisPerformanceSongs->estimatedTime,
+				];
 
-						$form->sMessage = "One PerformanceSongs record found.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_EDIT;			
-						
-					}
-					//If Multiple records found, the array of search reults will be populated
-					else 
-					{
-						//Multiiple records returned
-						$form->sMessage = "Select PerformanceSongs record to edit from results list below.";
-						$form->nMessageType = MESSAGE_TYPE_INFO;
-						$form->nFormMode = FORM_MODE_SELECT;			
-					}
-
+				if ($thisPerformanceSongs->rating !== null && $thisPerformanceSongs->rating !== '') {
+					$criteria['rating'] = $thisPerformanceSongs->rating;
 				}
-				else
+				if (!empty($thisPerformanceSongs->tabs)) {
+					$criteria['tabs'] = $thisPerformanceSongs->tabs;
+				}
+				if (!empty($thisPerformanceSongs->demo)) {
+					$criteria['demo'] = $thisPerformanceSongs->demo;
+				}
+				if ($thisPerformanceSongs->learned) {
+					$criteria['learned'] = true;
+				}
+				if ($thisPerformanceSongs->clean) {
+					$criteria['clean'] = true;
+				}
+				if ($thisPerformanceSongs->popular) {
+					$criteria['popular'] = true;
+				}
+				if ($thisPerformanceSongs->original) {
+					$criteria['original'] = true;
+				}
+
+				$aPerformanceSongsRecords = $performanceSongsRepo->find($criteria);
+
+				if (sizeof($aPerformanceSongsRecords) < 1)
 				{
-					//Attempt to get records failed
-					$form->sMessage = $thisPerformanceSongs->sErrorMessage;
-					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->nFormMode = FORM_MODE_NEW;
+					$form->sMessage = "No PerformanceSongs records found matching search criteria";
+					$form->nMessageType = MESSAGE_TYPE_WARNING;
+					$form->nFormMode = FORM_MODE_NEW;			
+				}			
+				else if (sizeof($aPerformanceSongsRecords) == 1)
+				{
+					$thisPerformanceSongs = $aPerformanceSongsRecords[0];
+					loadPerformanceSongs($thisPerformanceSongs, $form);			
+
+					$form->sMessage = "One PerformanceSongs record found.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_EDIT;			
+				}
+				else 
+				{
+					$form->sMessage = "Select PerformanceSongs record to edit from results list below.";
+					$form->nMessageType = MESSAGE_TYPE_INFO;
+					$form->nFormMode = FORM_MODE_SELECT;			
 				}
 			}
 			// *************
@@ -257,7 +236,6 @@ $sPageName = "Performance Songs Maiintenance";
 			// *************
 			else if (isset($_POST["btnClear"])) 
 			{	
-
 				clearFormFields($form);
 				
 				$form->sMessage = "Search for records or Add new record";
@@ -296,11 +274,16 @@ $sPageName = "Performance Songs Maiintenance";
 				$form->nFormMode = FORM_MODE_NEW;			
 			}	
 
-		}	
+		}
+		} catch (\Throwable $e) {
+			$form->sMessage = $e->getMessage();
+			$form->nMessageType = MESSAGE_TYPE_ERROR;
+			$form->nFormMode = FORM_MODE_NEW;
+		}
 
 	?>
 	<!-- Hidden Fields -->
-	<input type="hidden" name="hdnPerformanceSongID" value="<?php echo $_POST['hdnPerformanceSongID']?>" />	
+	<input type="hidden" name="hdnPerformanceSongID" value="<?php echo $_POST['hdnPerformanceSongID'] ?? ''?>" />	
 	<div class="row">
 <?php
  	include (ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
@@ -340,7 +323,7 @@ $sPageName = "Performance Songs Maiintenance";
 
 		<?php
 
-		$totalEstimatedTimeFormated = calculateSongTimeTotal($thisPerformanceSongs->aPerformanceSongsRecords); 
+		$totalEstimatedTimeFormated = calculateSongTimeTotal($aPerformanceSongsRecords); 
 		
 		$sResultStyleClass = RESULT_STYLE_CLASS_ALT;
 
@@ -356,10 +339,10 @@ $sPageName = "Performance Songs Maiintenance";
 		echo "</div>";
 
 				
-		foreach($thisPerformanceSongs->aPerformanceSongsRecords as $oPerformanceSongsRecord)
+		foreach($aPerformanceSongsRecords as $oPerformanceSongsRecord)
 		{
 			$sTimeClass='';
-			if($oPerformanceSongsRecord->tEstimatedTime == '00:00:00'){
+			if(($oPerformanceSongsRecord->estimatedTime ?? '') == '00:00:00'){
 				$sTimeClass = 'missing-time';
 			}
 
@@ -373,12 +356,12 @@ $sPageName = "Performance Songs Maiintenance";
 				$sResultStyleClass = RESULT_STYLE_CLASS;
 			}
 			echo "<div class='row {$sResultStyleClass}'>";	
-			echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTitle}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sArtist}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sTuning}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->sCapo}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->nRating}</A></div>";
-			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass} {$sTimeClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->nPerformanceSongID}'>{$oPerformanceSongsRecord->tEstimatedTime}</A></div>";			
+			echo "	<div class='col-xs-12 col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->title}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->artist}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->tuning}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->capo}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->rating}</A></div>";
+			echo "	<div class='hidden-xs col-sm-2 {$sResultStyleClass} {$sTimeClass}'><A HREF='./PerformanceSongsMaintenance.php?PERFORMANCE_SONGS_ID={$oPerformanceSongsRecord->id}'>{$oPerformanceSongsRecord->estimatedTime}</A></div>";			
 			echo "</div>";
 		}
 
@@ -410,32 +393,32 @@ $sPageName = "Performance Songs Maiintenance";
 				<div class="col-xs-12 FieldGroup">
 					<div class="row">
 						<div class="col-xs-12 col-md-4">
-								TITLE: <input type="text" name="txtTitle" value="<?php echo $_POST['txtTitle']; ?>" size="40" />
+								TITLE: <input type="text" name="txtTitle" value="<?php echo $_POST['txtTitle'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-4">
-								ARTIST: <input type="text" name="txtArtist" value="<?php echo $_POST['txtArtist']; ?>" size="40" />
+								ARTIST: <input type="text" name="txtArtist" value="<?php echo $_POST['txtArtist'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-4">
-								TUNING: <input type="text" name="txtTuning" value="<?php echo $_POST['txtTuning']; ?>" size="40" />
+								TUNING: <input type="text" name="txtTuning" value="<?php echo $_POST['txtTuning'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-3">
-								CAPO: <input type="text" name="txtCapo" value="<?php echo $_POST['txtCapo']; ?>" size="40" />
+								CAPO: <input type="text" name="txtCapo" value="<?php echo $_POST['txtCapo'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-3">
-								ESTIMATED TIME <i>(hh:mm:ss)</i>: <input type="text" name="txtEstimatedTime" value="<?php echo $_POST['txtEstimatedTime']; ?>" size="40" />
+								ESTIMATED TIME <i>(hh:mm:ss)</i>: <input type="text" name="txtEstimatedTime" value="<?php echo $_POST['txtEstimatedTime'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-3">
-								EFFECT: <input type="text" name="txtEffect" value="<?php echo $_POST['txtEffect']; ?>" size="40" />
+								EFFECT: <input type="text" name="txtEffect" value="<?php echo $_POST['txtEffect'] ?? ''; ?>" size="40" />
 						</div>
 						<div class="col-xs-12 col-md-3">
 							RATING:
 							<SELECT ID ="selRating" NAME ="selRating">
-								<OPTION <?php if(is_null($_POST['selRating']) ){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >All</OPTION>
-								<OPTION <?php if($_POST['selRating'] == "1"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="1">1</OPTION>
-								<OPTION <?php if($_POST['selRating'] == "2"){ echo " SELECTED='SELECTED' "; } ?> VALUE="2">2</OPTION>
-								<OPTION <?php if($_POST['selRating'] == "3"){ echo " SELECTED='SELECTED' "; } ?> VALUE="3">3</OPTION>
-								<OPTION <?php if($_POST['selRating'] == "4"){ echo " SELECTED='SELECTED' "; } ?> VALUE="4">4</OPTION>
-								<OPTION <?php if($_POST['selRating'] == "5"){ echo " SELECTED='SELECTED' "; } ?> VALUE="5">5</OPTION>						
+								<OPTION <?php if(is_null($_POST['selRating'] ?? null) ){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >All</OPTION>
+								<OPTION <?php if(($_POST['selRating'] ?? '') == "1"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="1">1</OPTION>
+								<OPTION <?php if(($_POST['selRating'] ?? '') == "2"){ echo " SELECTED='SELECTED' "; } ?> VALUE="2">2</OPTION>
+								<OPTION <?php if(($_POST['selRating'] ?? '') == "3"){ echo " SELECTED='SELECTED' "; } ?> VALUE="3">3</OPTION>
+								<OPTION <?php if(($_POST['selRating'] ?? '') == "4"){ echo " SELECTED='SELECTED' "; } ?> VALUE="4">4</OPTION>
+								<OPTION <?php if(($_POST['selRating'] ?? '') == "5"){ echo " SELECTED='SELECTED' "; } ?> VALUE="5">5</OPTION>						
 							</SELECT>
 						</div>
 						<div class="col-xs-12">
@@ -443,7 +426,7 @@ $sPageName = "Performance Songs Maiintenance";
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									<div class="row">
 										<div class="col-xs-3 col-sm-2">
-											<input type="checkbox" name="chkLearned" class="result-checkbox" value="LEARNED"<?php if( $_POST['chkLearned']) {echo " checked ";}; ?> />
+											<input type="checkbox" name="chkLearned" class="result-checkbox" value="LEARNED"<?php if( !empty($_POST['chkLearned'])) {echo " checked ";}; ?> />
 										</div>
 										<div class="col-xs-9 col-sm-10 result-checkbox-text">
 											LEARNED
@@ -453,7 +436,7 @@ $sPageName = "Performance Songs Maiintenance";
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									<div class="row">
 										<div class="col-xs-3 col-sm-2">
-											<input type="checkbox" name="chkClean" class="result-checkbox" value="CLEAN"<?php if( $_POST['chkClean']) {echo " checked ";}; ?> />
+											<input type="checkbox" name="chkClean" class="result-checkbox" value="CLEAN"<?php if( !empty($_POST['chkClean'])) {echo " checked ";}; ?> />
 										</div>
 										<div class="col-xs-9 col-sm-10 result-checkbox-text">
 											CLEAN
@@ -463,7 +446,7 @@ $sPageName = "Performance Songs Maiintenance";
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									<div class="row">
 										<div class="col-xs-3 col-sm-2">
-											<input type="checkbox" name="chkPopular" class="result-checkbox" value="POPULAR"<?php if( $_POST['chkPopular']) {echo " checked ";}; ?> />
+											<input type="checkbox" name="chkPopular" class="result-checkbox" value="POPULAR"<?php if( !empty($_POST['chkPopular'])) {echo " checked ";}; ?> />
 										</div>
 										<div class="col-xs-9 col-sm-10 result-checkbox-text">
 											POPULAR
@@ -473,7 +456,7 @@ $sPageName = "Performance Songs Maiintenance";
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									<div class="row">
 										<div class="col-xs-3 col-sm-2">
-											<input type="checkbox" name="chkOriginal" class="result-checkbox" value="ORIGINAL"<?php if( $_POST['chkOriginal']) {echo " checked ";}; ?> />
+											<input type="checkbox" name="chkOriginal" class="result-checkbox" value="ORIGINAL"<?php if( !empty($_POST['chkOriginal'])) {echo " checked ";}; ?> />
 										</div>
 										<div class="col-xs-9 col-sm-10 result-checkbox-text">
 											ORIGINAL
@@ -483,17 +466,17 @@ $sPageName = "Performance Songs Maiintenance";
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									TABS:
 									<SELECT ID ="selTabs" NAME ="selTabs">
-										<OPTION <?php if(is_null($_POST['selTabs'])){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
-										<OPTION <?php if($_POST['selTabs'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
-										<OPTION <?php if($_POST['selTabs'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										<OPTION <?php if(is_null($_POST['selTabs'] ?? null)){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+										<OPTION <?php if(($_POST['selTabs'] ?? '') == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+										<OPTION <?php if(($_POST['selTabs'] ?? '') == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
 									</SELECT>
 								</div>
 								<div class="col-xs-12 col-sm-6 col-md-3">
 									DEMO:
 									<SELECT ID ="selDemo" NAME ="selDemo">
-										<OPTION <?php if(is_null($_POST['selDemo'])){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
-										<OPTION <?php if($_POST['selDemo'] == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
-										<OPTION <?php if($_POST['selDemo'] == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
+										<OPTION <?php if(is_null($_POST['selDemo'] ?? null)){ echo " SELECTED='SELECTED' "; } ?> VALUE="" >N/A</OPTION>
+										<OPTION <?php if(($_POST['selDemo'] ?? '') == "Y"){ echo " SELECTED='SELECTED' ";  } ?> VALUE="Y">YES</OPTION>
+										<OPTION <?php if(($_POST['selDemo'] ?? '') == "N"){ echo " SELECTED='SELECTED' "; } ?> VALUE="N">NO</OPTION>
 									</SELECT>
 								</div>
 								</div>
@@ -501,7 +484,7 @@ $sPageName = "Performance Songs Maiintenance";
 						</div>
 						<div class="col-xs-12">
 							NOTES:
-							<textarea name="txtNotes" cols=60 rows=5 ><?php echo $_POST['txtNotes']; ?></textarea>
+							<textarea name="txtNotes" cols=60 rows=5 ><?php echo $_POST['txtNotes'] ?? ''; ?></textarea>
 						</div>
 					</div>	
 				</div>
@@ -509,10 +492,10 @@ $sPageName = "Performance Songs Maiintenance";
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3">
-						ID: <?php echo $_POST['hdnPerformanceSongID']; ?>						
+						ID: <?php echo $_POST['hdnPerformanceSongID'] ?? ''; ?>						
 					</div>
 					<div class ="col-xs-9 FormFieldNoEdit">
-						LAST UPDATED: <?php echo $_POST['txtLastUpdate']; ?>
+						LAST UPDATED: <?php echo $_POST['txtLastUpdate'] ?? ''; ?>
 					</div>
 				</div>
 				<div class="row">
@@ -549,42 +532,32 @@ $sPageName = "Performance Songs Maiintenance";
  * form fields.
  ********************************************************************************
 */
-function buildPerformanceSongsObject($PerformanceSongs)
+function buildPerformanceSongsObject(\Datalayer\PerformanceSongs $PerformanceSongs)
 {
-	//Load the Array used to populate the form fields based on the newly loaded object
-	$PerformanceSongs->nPerformanceSongID = $_POST['hdnPerformanceSongID'];
+	$id = $_POST['hdnPerformanceSongID'] ?? null;
+	$PerformanceSongs->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
-	$PerformanceSongs->sTitle = html_entity_decode($_POST['txtTitle'], ENT_QUOTES);
-	$PerformanceSongs->sArtist = html_entity_decode($_POST['txtArtist'], ENT_QUOTES);
-	$PerformanceSongs->sTuning = html_entity_decode($_POST['txtTuning'], ENT_QUOTES);
-	$PerformanceSongs->sCapo = html_entity_decode($_POST['txtCapo'], ENT_QUOTES);
-	$PerformanceSongs->tEstimatedTime = html_entity_decode($_POST['txtEstimatedTime'], ENT_QUOTES);
-	$PerformanceSongs->sEffect = html_entity_decode($_POST['txtEffect'], ENT_QUOTES);
-	$PerformanceSongs->sNotes = html_entity_decode($_POST['txtNotes'], ENT_QUOTES);
+	$PerformanceSongs->title = html_entity_decode($_POST['txtTitle'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->artist = html_entity_decode($_POST['txtArtist'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->tuning = html_entity_decode($_POST['txtTuning'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->capo = html_entity_decode($_POST['txtCapo'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->estimatedTime = html_entity_decode($_POST['txtEstimatedTime'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->effect = html_entity_decode($_POST['txtEffect'] ?? '', ENT_QUOTES);
+	$PerformanceSongs->notes = html_entity_decode($_POST['txtNotes'] ?? '', ENT_QUOTES);
 
-	if($_POST['chkLearned'] == "LEARNED")
-	{
-		$PerformanceSongs->bLearned = TRUE;
-	}
+	$PerformanceSongs->learned = (($_POST['chkLearned'] ?? '') == "LEARNED");
+	$PerformanceSongs->clean = (($_POST['chkClean'] ?? '') == "CLEAN");
+	$PerformanceSongs->popular = (($_POST['chkPopular'] ?? '') == "POPULAR");
+	$PerformanceSongs->original = (($_POST['chkOriginal'] ?? '') == "ORIGINAL");
 
-	if($_POST['chkClean'] == "CLEAN")
-	{
-		$PerformanceSongs->bClean = TRUE;
-	}
-	if($_POST['chkPopular'] == "POPULAR")
-	{
-		$PerformanceSongs->bPopular = TRUE;
-	}
-	if($_POST['chkOriginal'] == "ORIGINAL")
-	{
-		$PerformanceSongs->bOriginal = TRUE;
-	}
+	$rating = $_POST['selRating'] ?? '';
+	$PerformanceSongs->rating = ($rating !== '' && is_numeric($rating)) ? (int) $rating : null;
 
-	$PerformanceSongs->nRating = $_POST['selRating'];
-	$PerformanceSongs->bTabs = $_POST['selTabs'];
-	$PerformanceSongs->bDemo = $_POST['selDemo'];
+	$tabs = $_POST['selTabs'] ?? '';
+	$PerformanceSongs->tabs = ($tabs !== '') ? $tabs : null;
 
-	$PerformanceSongs->bFuzzyTitleSearch = TRUE;
+	$demo = $_POST['selDemo'] ?? '';
+	$PerformanceSongs->demo = ($demo !== '') ? $demo : null;
 }
 
 
@@ -596,46 +569,37 @@ function buildPerformanceSongsObject($PerformanceSongs)
  * so that it will be displayed in the form fields
  ********************************************************************************
 */
-function loadPerformanceSongs(&$PerformanceSongs, $form)
+function loadPerformanceSongs(\Datalayer\PerformanceSongs $PerformanceSongs, $form)
 {
 
-	if (!is_null($PerformanceSongs->nPerformanceSongID))
+	if (!is_null($PerformanceSongs->id))
 	{
+		$_POST['hdnPerformanceSongID'] = $PerformanceSongs->id;
 
-		//Load Hidden Fields
-		$_POST['hdnPerformanceSongID'] = $PerformanceSongs->nPerformanceSongID;
+		$_POST['txtTitle'] = htmlentities($PerformanceSongs->title ?? '', ENT_QUOTES);
+		$_POST['txtArtist'] = htmlentities($PerformanceSongs->artist ?? '', ENT_QUOTES);
+		$_POST['txtTuning'] = htmlentities($PerformanceSongs->tuning ?? '', ENT_QUOTES);
+		$_POST['txtCapo'] = htmlentities($PerformanceSongs->capo ?? '', ENT_QUOTES);
+		$_POST['txtEstimatedTime'] = htmlentities($PerformanceSongs->estimatedTime ?? '', ENT_QUOTES);
+		$_POST['txtEffect'] = htmlentities($PerformanceSongs->effect ?? '', ENT_QUOTES);
+		$_POST['txtNotes'] = htmlentities($PerformanceSongs->notes ?? '', ENT_QUOTES);
+		$_POST['txtLastUpdate'] = htmlentities($PerformanceSongs->lastUpdate ?? '', ENT_QUOTES);
 
-		$_POST['txtTitle'] = htmlentities($PerformanceSongs->sTitle, ENT_QUOTES);
-		$_POST['txtArtist'] = htmlentities($PerformanceSongs->sArtist, ENT_QUOTES);
-		$_POST['txtTuning'] = htmlentities($PerformanceSongs->sTuning, ENT_QUOTES);
-		$_POST['txtCapo'] = htmlentities($PerformanceSongs->sCapo, ENT_QUOTES);
-		$_POST['txtEstimatedTime'] = htmlentities($PerformanceSongs->tEstimatedTime, ENT_QUOTES);
-		$_POST['txtEffect'] = htmlentities($PerformanceSongs->sEffect, ENT_QUOTES);
-		$_POST['txtNotes'] = htmlentities($PerformanceSongs->sNotes, ENT_QUOTES);
-		$_POST['txtLastUpdate'] = htmlentities($PerformanceSongs->dtLastUpdate, ENT_QUOTES);
+		$_POST['chkLearned'] = $PerformanceSongs->learned;
+		$_POST['chkClean'] = $PerformanceSongs->clean;
+		$_POST['chkPopular'] = $PerformanceSongs->popular;
+		$_POST['chkOriginal'] = $PerformanceSongs->original;
 
-		$_POST['chkLearned'] = $PerformanceSongs->bLearned;
-		$_POST['chkClean'] = $PerformanceSongs->bClean;
-		$_POST['chkPopular'] = $PerformanceSongs->bPopular;
-		$_POST['chkOriginal'] = $PerformanceSongs->bOriginal;
-
-		$_POST['selTabs'] = $PerformanceSongs->bTabs;
-		$_POST['selDemo'] = $PerformanceSongs->bDemo;
-		$_POST['selRating'] = $PerformanceSongs->nRating;
-
-		
+		$_POST['selTabs'] = $PerformanceSongs->tabs;
+		$_POST['selDemo'] = $PerformanceSongs->demo;
+		$_POST['selRating'] = $PerformanceSongs->rating;
 	}
 	else
 	{
-		//Load Form field values into array 
 		foreach($_POST as $fieldName=>$fieldValue) {
-	
 			$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));
-	
 		}
-
 	}
-
 }
 
 
@@ -660,8 +624,6 @@ function clearFormFields($form)
 */
 function copyFormFields($form)
 {
-
-	//Load Form field values into array 
 	foreach($_POST as $fieldName=>$fieldValue) 
 	{
 		$_POST[$fieldName]= htmlentities(stripslashes($fieldValue));

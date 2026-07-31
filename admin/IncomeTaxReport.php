@@ -8,6 +8,7 @@ Date        Change
 -------------------------------------------------------------
 2015-10-20  Changed to use Report Filters include
 2021-08-30	Updated for PHP 8
+2026-07-30	Migrated to new Datalayer repositories
 *******************************************************************
 */	
 
@@ -25,20 +26,19 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //inlcude admin settings
  include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 
- //include TaxCategory Class		
- include_once (CLASS_DIR . "/class_TaxCategory.php");
+//include new datalayer
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/TaxCategory.php");
+include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
+include_once(DATALAYER_DIR . "/Expense.php");
+include_once(DATALAYER_DIR . "/ExpenseRepository.php");
+include_once(DATALAYER_DIR . "/Revenue.php");
+include_once(DATALAYER_DIR . "/RevenueRepository.php");
+include_once(DATALAYER_DIR . "/RevenueType.php");
+include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
- //include Expense Class		
-  include_once (CLASS_DIR . "/class_Expense.php");
-
- //include Revenue Class		
-  include_once (CLASS_DIR . "/class_Revenue.php");
-
- //include Revenue_Type Class		
-  include_once (CLASS_DIR . "/class_RevenueType.php");
-
-  //include Form Class		
-  include (CLASS_DIR . "/class_Form.php");
+//include Form Class
+include(CLASS_DIR . "/class_Form.php");
 
  $sActiveMenuItem = REPORTS_ACTIVE;	
  $sPageName = "Income Tax Report";
@@ -85,11 +85,16 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 		$_POST['EndDate'] = "{$nCurrentYear}-12-31";
 		$_POST['btnGenerate'] = "GenerateReport"; */
 	}
-	else
 
 	//Instantiate needed objects
-	$oExpenseTaxCategories = new TaxCategory();
+	$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	$revenueRepo = new \Datalayer\RevenueRepository();
+	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
 	$form = new Form();
+
+	$nTotalRevenueAmount = 0;
+	$nTotalExpenseAmount = 0;
 
 ?>	
 	<div class="row">
@@ -147,82 +152,66 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 								if (isset($_POST["btnGenerate"])) 
 								{
 									$nTotalRevenueAmount = 0;
-									$oRevenueTypes = new RevenueType();
-									if ($oRevenueTypes->getRevenueType())
+									$aRevenueTypes = $revenueTypeRepo->find();
+									foreach ($aRevenueTypes as $oRevenueType)
 									{
-										foreach($oRevenueTypes->aRevenueTypeRecords as $oRevenueType)
+										//Alternate the report style
+										if ($sReportStyleClass == REPORT_STYLE_CLASS)
 										{
-										
-											//Alternate the report style
-											if ($sReportStyleClass == REPORT_STYLE_CLASS)
-											{
-												$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
-											}
-											else
-											{
-												$sReportStyleClass = REPORT_STYLE_CLASS;
-											}
-											
-											$oRevenue = new Revenue();
-											$oRevenue->nRevenueTypeID = $oRevenueType->nRevenueTypeID;
-											$oRevenue->dtStartDate = isset($_POST["StartDate"]) ? $_POST["StartDate"] : "";
-											$oRevenue->dtEndDate = isset($_POST["EndDate"]) ? $_POST["EndDate"] : "";
-											$nTotalRevenueTypeAmount = $oRevenue->getRevenueAmountTotal();
-											if($nTotalRevenueTypeAmount == -1)
-											{
-												echo "FAILED TO GET REVENUES: " . $oRevenue->sErrorMessage . "<BR>";
-											}
-											else
-											{
-												if(empty($nTotalRevenueTypeAmount))
-												{	
-													$nTotalRevenueTypeAmount = 0.00;
-												}
-												$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
-												
-												echo "<div class='row'>";
-												echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oRevenueType->sRevenueTypeName . "</div>";
-												echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
-												if ($nTotalRevenueTypeAmount > 0)
-												{
-													echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
-													echo "&END_DATE=" . $_POST['EndDate'];
-													echo "&REVENUE_TYPE_ID=" . $oRevenue->nRevenueTypeID . "'>";  
-													echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
-													echo "</a>";
-												}
-												else
-												{
-													echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
-												}
-												echo"</div>";
-												echo "</div>";
-											}
-											
-										}			
-			
-										echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+											$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
+										}
+										else
+										{
+											$sReportStyleClass = REPORT_STYLE_CLASS;
+										}
+
+										$aRevenues = $revenueRepo->find([
+											'revenueTypeId' => $oRevenueType->id,
+											'startDate' => $_POST['StartDate'] ?? '',
+											'endDate' => $_POST['EndDate'] ?? '',
+										]);
+										$nTotalRevenueTypeAmount = 0.0;
+										foreach ($aRevenues as $oRevenue) {
+											$nTotalRevenueTypeAmount += $oRevenue->amount ?? 0;
+										}
+										$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
+
 										echo "<div class='row'>";
-										echo "<div class='col-xs-6'>Total</div>";
-										echo "<div class='col-xs-6'> $";
-										if ($nTotalRevenueAmount > 0)
+										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oRevenueType->name . "</div>";
+										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
+										if ($nTotalRevenueTypeAmount > 0)
 										{
 											echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
-											echo "&END_DATE=" . $_POST['EndDate'] . "'>";
-											echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+											echo "&END_DATE=" . $_POST['EndDate'];
+											echo "&REVENUE_TYPE_ID=" . $oRevenueType->id . "'>";
+											echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
 											echo "</a>";
 										}
 										else
 										{
-											echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+											echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
 										}
+										echo"</div>";
 										echo "</div>";
-										echo "</div>";
+									}
+
+									echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+									echo "<div class='row'>";
+									echo "<div class='col-xs-6'>Total</div>";
+									echo "<div class='col-xs-6'> $";
+									if ($nTotalRevenueAmount > 0)
+									{
+										echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
+										echo "&END_DATE=" . $_POST['EndDate'] . "'>";
+										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+										echo "</a>";
 									}
 									else
 									{
-										//ERROR
+										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
 									}
+									echo "</div>";
+									echo "</div>";
 								}
 								?>
 							</div>
@@ -245,83 +234,65 @@ include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 								<?php
 								if (isset($_POST["btnGenerate"])) 
 								{
-									$oExpenseTaxCategories = new TaxCategory();
-									$oExpenseTaxCategories->bExpenseRelated = TRUE;
-									if($oExpenseTaxCategories->getTaxCategory())
+									$nTotalExpenseAmount = 0;
+									foreach ($taxCategoryRepo->find() as $oExpenseTaxCategory)
 									{
-										$nExpenseTotal = 0;
-										foreach($oExpenseTaxCategories->aTaxCategoryRecords as $oExpenseTaxCategory)
+										//Alternate the report style
+										if ($sReportStyleClass == REPORT_STYLE_CLASS)
 										{
-
-											//Alternate the report style
-											if ($sReportStyleClass == REPORT_STYLE_CLASS)
-											{
-												$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
-											}
-											else
-											{
-												$sReportStyleClass = REPORT_STYLE_CLASS;
-											}
-
-											$oTaxCategoryExpenses = new Expense();
-											$oTaxCategoryExpenses->nTaxCategoryID = $oExpenseTaxCategory->nTaxCategoryID;
-											$oTaxCategoryExpenses->dtStartDate = isset($_POST["StartDate"]) ? $_POST["StartDate"] : "";
-											$oTaxCategoryExpenses->dtEndDate = isset($_POST["EndDate"]) ? $_POST["EndDate"] : "";
-
-											$nTotalTaxCategoryAmount = $oTaxCategoryExpenses->getExpenseAmountTotal();
-											if($nTotalTaxCategoryAmount == -1)
-											{
-												echo "FAILED TO GET EXPENSES: " . $oTaxCategoryExpenses->sErrorMessage . "<BR>";
-											}
-											else
-											{
-												if(empty($nTotalTaxCategoryAmount))
-												{	
-													$nTotalTaxCategoryAmount = 0.00;
-												}
-												$nTotalExpenseAmount += $nTotalTaxCategoryAmount;
-												
-												echo "<div class='row'>";
-												echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oExpenseTaxCategory->sTaxCategoryName . "</div>";
-												echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
-												if ($nTotalTaxCategoryAmount > 0)
-												{
-													echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
-													echo "&END_DATE=" . $_POST['EndDate'];
-													echo "&TAX_CATEGORY_ID=" . $oExpenseTaxCategory->nTaxCategoryID . "'>";  
-													echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
-													echo "</a>";
-												}
-												else
-												{
-													echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
-												}
-												echo"</div>";
-												echo "</div>";
-											}
+											$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
 										}
-										echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+										else
+										{
+											$sReportStyleClass = REPORT_STYLE_CLASS;
+										}
+
+										$aTaxCategoryExpenses = $expenseRepo->find([
+											'taxCategoryId' => $oExpenseTaxCategory->id,
+											'startDate' => $_POST['StartDate'] ?? '',
+											'endDate' => $_POST['EndDate'] ?? '',
+										]);
+										$nTotalTaxCategoryAmount = 0.0;
+										foreach ($aTaxCategoryExpenses as $oExpense) {
+											$nTotalTaxCategoryAmount += $oExpense->expenseAmount ?? 0;
+										}
+										$nTotalExpenseAmount += $nTotalTaxCategoryAmount;
+
 										echo "<div class='row'>";
-										echo "<div class='col-xs-6'>Total</div>";
-										echo "<div class='col-xs-6'> $";
-										if ($nTotalExpenseAmount > 0)
+										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oExpenseTaxCategory->name . "</div>";
+										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
+										if ($nTotalTaxCategoryAmount > 0)
 										{
 											echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
-											echo "&END_DATE=" . $_POST['EndDate'] . "'>";
-											echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
+											echo "&END_DATE=" . $_POST['EndDate'];
+											echo "&TAX_CATEGORY_ID=" . $oExpenseTaxCategory->id . "'>";
+											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
 											echo "</a>";
 										}
 										else
 										{
-											echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
+											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
 										}
+										echo"</div>";
 										echo "</div>";
-										echo "</div>";
+									}
+									echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+									echo "<div class='row'>";
+									echo "<div class='col-xs-6'>Total</div>";
+									echo "<div class='col-xs-6'> $";
+									if ($nTotalExpenseAmount > 0)
+									{
+										echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
+										echo "&END_DATE=" . $_POST['EndDate'] . "'>";
+										echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
+										echo "</a>";
 									}
 									else
 									{
-										echo "FAILED TO GET EXPENSE TAX CATEGORIES: " . $oExpenseTaxCategories->sErrorMessage;
+										echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
 									}
+									echo "</div>";
+									echo "</div>";
 								}
 								?>
 							</div>
