@@ -127,6 +127,54 @@ $users = $repo->findAll();
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <?php include(ADMIN_INCLUDE_DIR . '/HTMLHead.php'); ?>
+<style type="text/css">
+	.password-field {
+		position: relative;
+		display: inline-block;
+		width: 100%;
+		max-width: 100%;
+	}
+	.password-field.password-field-inline {
+		width: auto;
+		vertical-align: middle;
+		margin-right: 4px;
+		margin-bottom: 4px;
+	}
+	.password-field input[type="password"],
+	.password-field input[type="text"] {
+		padding-right: 2.25rem;
+	}
+	.password-field.password-field-inline input {
+		width: 9.5rem;
+		display: inline-block;
+		height: 28px;
+		padding: 2px 2rem 2px 6px;
+		box-sizing: border-box;
+	}
+	.password-toggle {
+		position: absolute;
+		right: 4px;
+		top: 50%;
+		transform: translateY(-50%);
+		border: 0;
+		background: transparent;
+		padding: 2px;
+		line-height: 1;
+		cursor: pointer;
+		color: #555;
+	}
+	.password-toggle:hover,
+	.password-toggle:focus {
+		color: #222;
+		outline: none;
+	}
+	.password-toggle svg {
+		width: 16px;
+		height: 16px;
+		display: block;
+		pointer-events: none;
+	}
+</style>
 <body>
 <div class="container-fluid">
 	<?php include(ADMIN_INCLUDE_DIR . '/AdminHeader-Responsive.php'); ?>
@@ -152,11 +200,17 @@ $users = $repo->findAll();
 				</div>
 				<div class="form-group">
 					<label for="password">Password</label>
-					<input class="form-control" id="password" name="password" type="password" required minlength="8">
+					<div class="password-field">
+						<input class="form-control" id="password" name="password" type="password" required minlength="8">
+						<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
+					</div>
 				</div>
 				<div class="form-group">
 					<label for="confirm">Confirm password</label>
-					<input class="form-control" id="confirm" name="confirm" type="password" required minlength="8">
+					<div class="password-field">
+						<input class="form-control" id="confirm" name="confirm" type="password" required minlength="8">
+						<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
+					</div>
 				</div>
 				<button type="submit" class="btn btn-primary">Add user</button>
 			</form>
@@ -183,8 +237,14 @@ $users = $repo->findAll();
 							<form method="post" action="AdminUserMaintenance.php" style="display:inline-block; margin-bottom:6px;" autocomplete="off">
 								<input type="hidden" name="action" value="password">
 								<input type="hidden" name="id" value="<?php echo (int) $user->id; ?>">
-								<input type="password" name="password" placeholder="New password" required minlength="8">
-								<input type="password" name="confirm" placeholder="Confirm" required minlength="8">
+								<span class="password-field password-field-inline">
+									<input type="password" name="password" placeholder="New password" required minlength="8">
+									<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
+								</span>
+								<span class="password-field password-field-inline">
+									<input type="password" name="confirm" placeholder="Confirm" required minlength="8">
+									<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
+								</span>
 								<button type="submit" class="btn btn-default btn-xs">Set password</button>
 							</form>
 							<form method="post" action="AdminUserMaintenance.php" style="display:inline-block;">
@@ -207,5 +267,27 @@ $users = $repo->findAll();
 		</div>
 	</div>
 </div>
+<script type="text/javascript">
+(function () {
+	var eyeOpen = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>';
+	var eyeOff = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.1 3.5 3.5 2.1l18.4 18.4-1.4 1.4-3.1-3.1C15.7 19.6 13.9 20 12 20 5 20 2 13 2 13s1.3-3.1 4.2-5.3L2.1 3.5zM12 7a5 5 0 0 1 5 5c0 .7-.1 1.3-.4 1.9l-1.6-1.6A3 3 0 0 0 12 9c-.3 0-.5 0-.8.1L9.5 7.4C10.3 7.1 11.1 7 12 7zm-7.4 6S7.1 17 12 17c1.1 0 2.1-.2 3-.6l-2.1-2.1A5 5 0 0 1 7.7 9.1L4.6 13z"/></svg>';
+
+	document.querySelectorAll('.password-field').forEach(function (wrap) {
+		var input = wrap.querySelector('input');
+		var button = wrap.querySelector('.password-toggle');
+		if (!input || !button) {
+			return;
+		}
+		button.innerHTML = eyeOpen;
+		button.addEventListener('click', function () {
+			var show = input.type === 'password';
+			input.type = show ? 'text' : 'password';
+			button.innerHTML = show ? eyeOff : eyeOpen;
+			button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+			button.setAttribute('title', show ? 'Hide password' : 'Show password');
+		});
+	});
+})();
+</script>
 </body>
 </html>
