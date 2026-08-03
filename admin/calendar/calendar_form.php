@@ -1,4 +1,11 @@
 <?php
+// Protect calendar popup under /admin with the same session gate.
+// This script lives in admin/calendar/, so site root is two levels up.
+$ROOT = '../..';
+include_once($ROOT . '/includes/websiteSettings.php');
+include_once(SETTINGS_DIR . '/SteveWeeksMusicSettings.php');
+include_once(ADMIN_DIR . '/includes/AdminSettings.php');
+
 require_once('classes/tc_calendar.php');
 
 $thispage = $_SERVER['PHP_SELF'];

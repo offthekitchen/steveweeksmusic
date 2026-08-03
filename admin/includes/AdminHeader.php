@@ -42,11 +42,13 @@ Date        Change
 		    <div class="menustyle" id="catalogmenu">
 			<ul>
 			<li><a href="<?php echo ADMIN_DIR; ?>/AdminMain.php">Admin Home</a></li>
+			<li><a href="<?php echo ADMIN_DIR; ?>/AdminUserMaintenance.php">Admin Users</a></li>
 			<li><a href="<?php echo ADMIN_DIR; ?>/ProductAdmin.php" rel="prodmenu">Products</a></li>
 			<li><a href="<?php echo ADMIN_DIR; ?>/PerformanceAdmin.php" rel="perfmenu">Performances</a></li>
 			<li><a href="<?php echo ADMIN_DIR; ?>/FinancesAdmin.php" rel="financemenu">Finances</a></li>
 			<li><a href="<?php echo ADMIN_DIR; ?>/DiscographyAdmin.php" rel="discographymenu">Discography</a></li>
 			<li><a href="<?php echo ADMIN_DIR; ?>/ReportsAdmin.php" rel="reportsmenu">Reports</a></li>
+			<li><a href="<?php echo ADMIN_DIR; ?>/logout.php">Log out</a></li>
 			</ul>
 			</div>
 

@@ -134,10 +134,17 @@ Date        Change
 								Misc <span class="caret"></span>
 							</a>
 							<ul class="dropdown-menu">
+								<li><a href="<?php echo ADMIN_DIR; ?>/AdminUserMaintenance.php">Admin Users</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/SearchTermsMaintenance.php">Search Term Maintenance</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/ThurdyCommentMaintenance.php">Thurdy Comment Maintenance</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/ThurdyDropMaintenance.php">Thurdy Drop Maintenance</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/ThurdySongDataMaintenance.php">Thurdy Song Data Maintenance</a></li>
+								<li role="separator" class="divider"></li>
+								<li><a href="<?php echo ADMIN_DIR; ?>/logout.php">Log out<?php
+									if (!empty($_SESSION['adminUsername'])) {
+										echo ' (' . htmlspecialchars($_SESSION['adminUsername'], ENT_QUOTES, 'UTF-8') . ')';
+									}
+								?></a></li>
 							</ul>
 						</li>
 					</ul>
