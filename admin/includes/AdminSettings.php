@@ -66,4 +66,10 @@ define("MISC_ACTIVE","misc");
  define("MESSAGE_TYPE_WARNING",1);
  define("MESSAGE_TYPE_ERROR",2);
 
+// Require admin login for every page that includes AdminSettings,
+// unless the page opts out with define('ADMIN_AUTH_SKIP', true).
+if (!defined('ADMIN_AUTH_SKIP') || !ADMIN_AUTH_SKIP) {
+	include_once(ADMIN_INCLUDE_DIR . '/requireAuth.php');
+}
+
 ?>

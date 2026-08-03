@@ -11,6 +11,9 @@
 	//inlcude web site settings
  	include_once (SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 
+	//inlcude admin settings (also enforces admin login)
+ 	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
+
 	//include new datalayer
 	include_once(DATALAYER_DIR . "/Connection.php");
 	include_once(DATALAYER_DIR . "/ProductType.php");

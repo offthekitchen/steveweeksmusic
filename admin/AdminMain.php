@@ -274,7 +274,10 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						<div class="Subtitle">
 						Misc
 					</div>	
-					<div class="admin-link">						
+					<div class="admin-link">
+							<A HREF="<?php echo ADMIN_DIR; ?>/AdminUserMaintenance.php">Admin Users</A>
+						</div>
+						<div class="admin-link">						
 							<A HREF="<?php echo ADMIN_DIR; ?>/SearchTermsMaintenance.php">Search Terms Maintenance</A>					
 						</div>
 						<div class="admin-link">						
