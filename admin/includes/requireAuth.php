@@ -19,6 +19,11 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 	session_start();
 }
 
+if (defined('ADMIN_INCLUDE_DIR')) {
+	include_once ADMIN_INCLUDE_DIR . '/adminRememberMe.php';
+	adminRememberRestore();
+}
+
 if (!empty($_SESSION['adminUserId'])) {
 	return;
 }

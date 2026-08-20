@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				$message = 'Passwords do not match.';
 				$messageType = MESSAGE_TYPE_ERROR;
 			} elseif ($repo->updatePassword($id, password_hash($password, PASSWORD_DEFAULT))) {
+				adminRememberRevokeUser($id);
 				$message = "Password updated for {$user->username}.";
 			} else {
 				$message = 'Failed to update password.';
@@ -90,6 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			} else {
 				$newActive = !$user->isActive;
 				if ($repo->setActive($id, $newActive)) {
+					if (!$newActive) {
+						adminRememberRevokeUser($id);
+					}
 					$message = ($newActive ? 'Activated' : 'Deactivated') . " {$user->username}.";
 				} else {
 					$message = 'Failed to update active status.';
@@ -108,11 +112,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			} elseif ($repo->countAll() <= 1) {
 				$message = 'Cannot delete the last admin account.';
 				$messageType = MESSAGE_TYPE_WARNING;
-			} elseif ($repo->delete($id)) {
-				$message = "Deleted {$user->username}.";
 			} else {
-				$message = 'Failed to delete user.';
-				$messageType = MESSAGE_TYPE_ERROR;
+				adminRememberRevokeUser($id);
+				if ($repo->delete($id)) {
+					$message = "Deleted {$user->username}.";
+				} else {
+					$message = 'Failed to delete user.';
+					$messageType = MESSAGE_TYPE_ERROR;
+				}
 			}
 		}
 	} catch (\Throwable $e) {
@@ -195,20 +202,20 @@ $users = $repo->findAll();
 			<form method="post" action="AdminUserMaintenance.php" autocomplete="off">
 				<input type="hidden" name="action" value="add">
 				<div class="form-group">
-					<label for="username">Username</label>
-					<input class="form-control" id="username" name="username" type="text" required maxlength="64" pattern="[A-Za-z0-9._-]{3,64}">
+					<label for="new-username">Username</label>
+					<input class="form-control" id="new-username" name="username" type="text" required maxlength="64" pattern="[A-Za-z0-9._-]{3,64}" autocomplete="off">
 				</div>
 				<div class="form-group">
-					<label for="password">Password</label>
+					<label for="new-password">Password</label>
 					<div class="password-field">
-						<input class="form-control" id="password" name="password" type="password" required minlength="8">
+						<input class="form-control" id="new-password" name="password" type="password" required minlength="8" autocomplete="new-password">
 						<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
 					</div>
 				</div>
 				<div class="form-group">
-					<label for="confirm">Confirm password</label>
+					<label for="new-password-confirm">Confirm password</label>
 					<div class="password-field">
-						<input class="form-control" id="confirm" name="confirm" type="password" required minlength="8">
+						<input class="form-control" id="new-password-confirm" name="confirm" type="password" required minlength="8" autocomplete="new-password">
 						<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
 					</div>
 				</div>
@@ -238,11 +245,11 @@ $users = $repo->findAll();
 								<input type="hidden" name="action" value="password">
 								<input type="hidden" name="id" value="<?php echo (int) $user->id; ?>">
 								<span class="password-field password-field-inline">
-									<input type="password" name="password" placeholder="New password" required minlength="8">
+									<input type="password" name="password" placeholder="New password" required minlength="8" autocomplete="new-password">
 									<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
 								</span>
 								<span class="password-field password-field-inline">
-									<input type="password" name="confirm" placeholder="Confirm" required minlength="8">
+									<input type="password" name="confirm" placeholder="Confirm" required minlength="8" autocomplete="new-password">
 									<button type="button" class="password-toggle" aria-label="Show password" title="Show password"></button>
 								</span>
 								<button type="submit" class="btn btn-default btn-xs">Set password</button>

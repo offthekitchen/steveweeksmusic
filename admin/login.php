@@ -27,8 +27,15 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 		'httponly' => true,
 		'samesite' => 'Lax',
 	]);
+	// PHP's default session Cache-Control includes no-store, which stops Chrome
+	// from offering to save or autofill the username and password.
+	session_cache_limiter('');
 	session_start();
+	header('Cache-Control: private, no-cache, must-revalidate');
 }
+
+include_once ADMIN_INCLUDE_DIR . '/adminRememberMe.php';
+adminRememberRestore();
 
 if (!empty($_SESSION['adminUserId'])) {
 	$dest = $_GET['return'] ?? (ADMIN_DIR . '/AdminMain.php');
@@ -38,6 +45,7 @@ if (!empty($_SESSION['adminUserId'])) {
 
 $error = '';
 $username = '';
+$remember = false;
 $returnUrl = $_POST['return'] ?? ($_GET['return'] ?? (ADMIN_DIR . '/AdminMain.php'));
 
 // Only allow relative return paths within this site.
@@ -48,6 +56,7 @@ if (!is_string($returnUrl) || $returnUrl === '' || preg_match('#^(https?:)?//#i'
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$username = trim((string) ($_POST['username'] ?? ''));
 	$password = (string) ($_POST['password'] ?? '');
+	$remember = !empty($_POST['remember']);
 
 	try {
 		$repo = new \Datalayer\AdminUserRepository();
@@ -58,7 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			$_SESSION['adminUserId'] = $user->id;
 			$_SESSION['adminUsername'] = $user->username;
 			$repo->recordLogin((int) $user->id);
-			header('Location: ' . $returnUrl);
+			adminRememberClear();
+			if ($remember) {
+				adminRememberIssue((int) $user->id);
+			}
+			header('Location: ' . $returnUrl, true, 303);
 			exit;
 		}
 
@@ -88,6 +101,9 @@ $sPageName = 'Admin Login';
 		.login-wrap input[type="text"],
 		.login-wrap input[type="password"] { width: 100%; padding: .5rem; margin-bottom: 1rem; box-sizing: border-box; }
 		.login-wrap button { padding: .5rem 1.25rem; }
+		.remember-me { display: flex; align-items: center; gap: .5rem; margin: 0 0 1rem; }
+		.remember-me input[type="checkbox"] { width: auto; margin: 0; }
+		.remember-me label { display: inline; margin: 0; font-weight: normal; }
 		.setup-link { margin-top: 1.25rem; font-size: .9rem; }
 	</style>
 </head>
@@ -97,14 +113,21 @@ $sPageName = 'Admin Login';
 		<?php if ($error !== '') { ?>
 			<div class="login-error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
 		<?php } ?>
-		<form method="post" action="login.php">
-			<input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl, ENT_QUOTES, 'UTF-8'); ?>">
+		<form id="login" method="post" action="login.php" autocomplete="on">
 			<label for="username">Username</label>
-			<input id="username" name="username" type="text" required autofocus autocomplete="username"
-				value="<?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?>">
-			<label for="password">Password</label>
-			<input id="password" name="password" type="password" required autocomplete="current-password">
-			<button type="submit">Log in</button>
+			<input id="username" name="username" type="text" required autocomplete="username"
+				autocapitalize="none" autocorrect="off" spellcheck="false"
+				<?php if ($username !== '') { ?>
+				value="<?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?>"
+				<?php } ?>>
+			<label for="current-password">Password</label>
+			<input id="current-password" name="password" type="password" required autocomplete="current-password">
+			<div class="remember-me">
+				<input id="remember" name="remember" type="checkbox" value="1"<?php echo $remember ? ' checked' : ''; ?>>
+				<label for="remember">Stay logged in on this computer</label>
+			</div>
+			<input type="hidden" name="return" value="<?php echo htmlspecialchars($returnUrl, ENT_QUOTES, 'UTF-8'); ?>">
+			<button type="submit" name="login" value="1">Log in</button>
 		</form>
 		<?php
 		try {

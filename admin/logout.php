@@ -17,6 +17,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 	session_start();
 }
 
+include_once ADMIN_INCLUDE_DIR . '/adminRememberMe.php';
+adminRememberClear();
+
 $_SESSION = [];
 if (ini_get('session.use_cookies')) {
 	$params = session_get_cookie_params();
