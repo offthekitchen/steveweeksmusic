@@ -14,11 +14,9 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
-
-//include Award Class
-include_once(CLASS_DIR . "/class_Award.php");
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Review.php");
+include_once(DATALAYER_DIR . "/ReviewRepository.php");
 
 //Page Name 
 $sPageName = "Home";
@@ -121,12 +119,13 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 							<div class="col-xs-12">
 								<aside class=" frame-box green-frame in-front-of-theme-image review-slideshow">
 									<?php
-									$oReview = new Review();
-									$oReview->bGeneral = TRUE;
-									if (!$oReview->getReview()) {
-										//TODO: Error
-									} else {
-										renderReviewSlideshow($oReview->aReviewRecords);
+									$reviewRepo = new \Datalayer\ReviewRepository();
+									$aGeneralReviews = $reviewRepo->find([
+										'general' => true,
+										'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+									]);
+									if (sizeof($aGeneralReviews) > 0) {
+										renderReviewSlideshow($aGeneralReviews);
 									}
 									?>
 								</aside>
@@ -143,13 +142,13 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					<div class="col-xs-12 col-sm-6 col-sm-pull-6">
 						<aside class=" frame-box in-front-of-theme-image yellow-box">
 							<?php
-							$oReview = new Review();
-							$oReview->bPerformanceRelated = TRUE;
-							$oReview->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-							if (!$oReview->getReview()) {
-								//TODO: Error
-							} else {
-								renderReview($oReview->aReviewRecords[0]);
+							$reviewRepo = new \Datalayer\ReviewRepository();
+							$aPerformanceReviews = $reviewRepo->find([
+								'performanceRelated' => true,
+								'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+							]);
+							if (sizeof($aPerformanceReviews) > 0) {
+								renderReview($aPerformanceReviews[0]);
 							}
 							?>
 						</aside>

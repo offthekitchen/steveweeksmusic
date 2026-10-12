@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+cd.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 //Don't Display Notice messages from PHP Server
 error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,63 +23,56 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include CD Class
-include_once(CLASS_DIR . "/class_CD.php");
-
-//include Song Class
-include_once(CLASS_DIR . "/class_Song.php");
-
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
-
-//include Award Class
-include_once(CLASS_DIR . "/class_Award.php");
-
-//include Error Log Class
-include_once(CLASS_DIR . "/class_ErrorLog.php");
-
-$oCD = new CD();
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
+include_once(DATALAYER_DIR . "/Review.php");
+include_once(DATALAYER_DIR . "/ReviewRepository.php");
 
 //If a CD ID is passed, display information for that CD
 if (isset($_REQUEST['cd-id']) && $_REQUEST['cd-id'] != "") {
-	$oCD->nCDID = preg_replace("/[^0-9]/", "", $_REQUEST['cd-id']);
+	$nCDID = (int) preg_replace("/[^0-9]/", "", $_REQUEST['cd-id']);
 } else {
-	$oCD->nCDID = DEFAULT_CD_ID;
+	$nCDID = DEFAULT_CD_ID;
 }
 
-$oCD->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
+$cdRepo = new \Datalayer\CDRepository();
+$oThisCD = $cdRepo->findById($nCDID);
 
-if (!$oCD->getCD()) {
-	$error = new ErrorLog('cd.php', 'getCD()', 'Error getting CD', $oCD->nCDID, 'CD');
-	$error->writeErrorLog();
+$aSongs = [];
+if ($oThisCD !== null) {
+	$songRepo = new \Datalayer\SongRepository();
+	$aSongs = $songRepo->find(['cdId' => $oThisCD->id]);
 } else {
-	$oSongs = new Song();
-	$oSongs->nCDID = $oCD->nCDID;
-	if (!$oSongs->getSong()) {
-		$error = new ErrorLog('cd.php', 'getSong()', 'Error getting Songs', $oCD->nCDID, 'Song');
-		$error->writeErrorLog();
-	}
+	error_log('cd.php: Error getting CD id ' . $nCDID);
 }
 
-if (sizeof($oCD->aCDRecords) > 0) {
+if ($oThisCD !== null) {
 
-
-	$oThisCD = $oCD->aCDRecords[0];
 
 	//Page Name 
-	$sPageName = "{$oThisCD->sCDName}";
+	$sPageName = "{$oThisCD->name}";
 	//Page Name 
-	$sPageSubTitle = "{$oThisCD->sCDShortName}";
+	$sPageSubTitle = "{$oThisCD->shortName}";
 	//Custom FB Image
 	$sFBImage = "FB_Performing.png";
 
 	$aBreadcrumb = array(
 		0 => array('Home', 'index.php'),
 		1 => array('Music', 'music.php'),
-		2 => array($oThisCD->sCDName, 'cd.php?cd-id=' . $oThisCD->nCDID)
+		2 => array($oThisCD->name, 'cd.php?cd-id=' . $oThisCD->id)
 	);
 
 	$sActiveMenuItem = MUSIC_ACTIVE;
+
+	$reviewRepo = new \Datalayer\ReviewRepository();
+	$aCDReviews = $reviewRepo->find(['cdId' => $oThisCD->id]);
+	if (sizeof($aCDReviews) < 1) {
+		$oDefaultReview = $reviewRepo->findById(DEFAULT_REVIEW_ID);
+		$aCDReviews = $oDefaultReview ? [$oDefaultReview] : [];
+	}
 
 	?>
 	<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
@@ -94,11 +96,11 @@ if (sizeof($oCD->aCDRecords) > 0) {
 						<div class="col-xs-12 col-sm-6 col-sm-push-3 col-md-5 col-md-push-0">
 							<div class="cd-cover">
 								<figure class="dynamic-width in-front-of-theme-image">
-									<img src="<?php echo IMG_DIR . "/{$oThisCD->sCDImage}"; ?>">
+									<img src="<?php echo IMG_DIR . "/{$oThisCD->image}"; ?>">
 								</figure>
 								<?php
-								renderPurchaseButton($oThisCD->sPurchaseLink);
-								renderLyricsButton(LYRICS_TYPE_CD, $oThisCD->nCDID);
+								renderPurchaseButton($oThisCD->purchaseLink);
+								renderLyricsButton(LYRICS_TYPE_CD, $oThisCD->id);
 								?>
 							</div>
 						</div>
@@ -106,9 +108,9 @@ if (sizeof($oCD->aCDRecords) > 0) {
 							<section class="behind-theme-image avoid-theme basic-box">
 								<?php
 								echo "<div>";
-								echo $oThisCD->sCDDescription;
+								echo $oThisCD->description;
 								echo "</div>";
-								renderAwards(AWARD_TYPE_CD, $oThisCD->nCDID, AWARD_SIZE_SMALL);
+								renderAwards(AWARD_TYPE_CD, $oThisCD->id, AWARD_SIZE_SMALL);
 								?>
 							</section>
 						</div>
@@ -117,11 +119,10 @@ if (sizeof($oCD->aCDRecords) > 0) {
 						<div class="col-xs-12 col-md-7 col-md-push-5">
 							<section class="in-front-of-theme-image frame-box purple-frame">
 								<?php
-								$oCDReviews = $oThisCD->getReviews();
-								if (sizeof($oCDReviews->aReviewRecords) > 1) {
-									renderReviewSlideshow($oCDReviews->aReviewRecords);
-								} else {
-									renderReview($oCDReviews->aReviewRecords[0]);
+								if (sizeof($aCDReviews) > 1) {
+									renderReviewSlideshow($aCDReviews);
+								} else if (sizeof($aCDReviews) > 0) {
+									renderReview($aCDReviews[0]);
 								}
 								?>
 							</section>
@@ -131,13 +132,13 @@ if (sizeof($oCD->aCDRecords) > 0) {
 								<h4>Tracks</h4>
 								<ol>
 									<?php
-									foreach ($oSongs->aSongRecords as $oSong) {
-										if (!is_numeric($oSong->nSongID)) {
-											error_log('cd.php: INVALID Song ID: ' . $oSong->nSongID);
+									foreach ($aSongs as $oSong) {
+										if (!is_numeric($oSong->id)) {
+											error_log('cd.php: INVALID Song ID: ' . $oSong->id);
 										}
 										echo "<li>";
-										echo "<a href=\"{$ROOT}/song.php?song-id={$oSong->nSongID}\">";
-										echo "<div class=\"track-title\">{$oSong->sSongName}</div>";
+										echo "<a href=\"{$ROOT}/song.php?song-id={$oSong->id}\">";
+										echo "<div class=\"track-title\">{$oSong->name}</div>";
 										echo "</a>";
 										echo "</li>";
 									}

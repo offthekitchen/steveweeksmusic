@@ -14,9 +14,6 @@
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include Performance Class
-	include_once(CLASS_DIR . "/class_Tour.php");
-
 	//Page Name 
 	$sPageName = "The Steve Weeks Ring Road Tour";
 	$sPageTitle = "Ring Road Tour";
@@ -25,11 +22,6 @@
 
 
 	$sActiveMenuItem = HOME_ACTIVE;	
-
-	$oTour = new Tour();
-	$oTour->nTourID = 114;
-	$oTour->getTour();
-	$oTour->getTourPerformances();
 ?>
 
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
