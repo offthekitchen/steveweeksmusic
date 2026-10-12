@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+full-review.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 //Don't Display Notice messages from PHP Server
 error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,22 +23,21 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
-
-//include Error Log Class
-include_once(CLASS_DIR . "/class_ErrorLog.php");
-
-$oReviews = new Review();
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Review.php");
+include_once(DATALAYER_DIR . "/ReviewRepository.php");
 
 if ($_GET) {
 
 	//Get the reivew ID from the query string
 	if (isset($_REQUEST['REVIEW_ID']) && $_REQUEST['REVIEW_ID'] != "") {
-		$oReviews->nReviewID = preg_replace("/[^0-9]/", "", $_REQUEST['REVIEW_ID']);
+		$nReviewID = (int) preg_replace("/[^0-9]/", "", $_REQUEST['REVIEW_ID']);
 
-		if (!empty($oReviews->nReviewID)) {
-			if ($oReviews->getReview()) {
+		if (!empty($nReviewID)) {
+			$reviewRepo = new \Datalayer\ReviewRepository();
+			$oThisReview = $reviewRepo->findById($nReviewID);
+
+			if ($oThisReview !== null) {
 
 				//Custom FB Image
 				$sFBImage = "FB_Performing.png";
@@ -59,12 +67,10 @@ if ($_GET) {
 							?>
 						</div>
 						<?php
-						if (sizeof($oReviews->aReviewRecords) == 1) {
-							$oThisReview = $oReviews->aReviewRecords[0];
 							//Page Name 
-							$sPageName = "Review " . $oThisReview->sReviewSource;
+							$sPageName = "Review " . $oThisReview->source;
 							//Page Name 
-							$sPageSubTitle = $oThisReview->sReviewSource . " Review";
+							$sPageSubTitle = $oThisReview->source . " Review";
 							?>
 							<div class="row">
 								<main id="main-content" class="col-xs-12">
@@ -73,10 +79,10 @@ if ($_GET) {
 											<aside class="review-listing listing-1 purple-frame frame-box behind-theme-image avoid-theme">
 												<blockquote>
 													<span>
-														<?php include(REVIEWS_DIR . "/" . $oThisReview->sReviewURL) ?>
+														<?php include(REVIEWS_DIR . "/" . $oThisReview->url) ?>
 													</span>
 													<cite>
-														<?php echo $oThisReview->sReviewAuthor . "(" . $oThisReview->sReviewSource . ", " . $oThisReview->dtReviewDate . ")"; ?>
+														<?php echo $oThisReview->author . "(" . $oThisReview->source . ", " . $oThisReview->reviewDate . ")"; ?>
 													</cite>
 												</blockquote>
 											</aside>
@@ -94,12 +100,9 @@ if ($_GET) {
 
 					</HTML>
 					<?php
-						} else {
-							echo "<h2>I'm Sorry.  I couldn't find that Review.<h2>";
-						}
 			} else {
-				$error = new ErrorLog('full-review.php', 'getReview()', 'Error getting Reviews', $oReviews->nReviewID, 'REVIEW');
-				$error->writeErrorLog();
+				error_log('full-review.php: Error getting Review id ' . $nReviewID);
+				echo "<h2>I'm Sorry.  I couldn't find that Review.<h2>";
 			}
 		}
 	}

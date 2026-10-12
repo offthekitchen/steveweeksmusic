@@ -9,6 +9,7 @@ Date        Change
 2016-09-02	Corrected date check for next performance
 2017-01-27	Added logic to open details for passed Performance ID
 2017-01-30	Added flag to only retrieve booked performances
+2026-10-12	Migrated to shared PDO datalayer
 *******************************************************************
 */
 //Don't Display Notice messages from PHP Server
@@ -26,18 +27,18 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include_once(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Performance Class
-include_once(CLASS_DIR . "/class_Performance.php");
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
 
-$oPerformances = new Performance();
 $nEventID = 0;
 $iYearIndex = 0;
 
 //If a Year is passed show performances for that year.  Otherwise default to the current year
 if (isset($_REQUEST['year']) && $_REQUEST['year'] != "" && is_numeric($_REQUEST['year']) ) {
-	$oPerformances->nPerformanceYear = $_REQUEST['year'];
+	$nPerformanceYear = (int) $_REQUEST['year'];
 } else {
-	$oPerformances->nPerformanceYear = date("Y");
+	$nPerformanceYear = (int) date("Y");
 }
 
 //If a performance ID is passed get the ID because it's details will be opened
@@ -55,7 +56,7 @@ if (isset($_REQUEST['shows']) && $_REQUEST['shows'] != "") {
 //Page Name 
 $sPageName = "Schedule";
 //Page Name 
-$sPageTitle = "Performance Schedule {$oPerformances->nPerformanceYear}";
+$sPageTitle = "Performance Schedule {$nPerformanceYear}";
 //Custom FB Image
 $sFBImage = "FB_Performing.png";
 
@@ -72,17 +73,20 @@ $sActiveMenuItem = SCHEDULE_ACTIVE;
 $sCurrentDate = date("Y-mm-dd");
 $bNextPerformanceRendered = FALSE;
 
-$oPerformances->bBooked = TRUE;
+$criteria = [
+	'performanceYear' => $nPerformanceYear,
+	'booked' => true,
+];
 
 if ($sShows == 'FAMILY') {
-	$oPerformances->bAdultShow = 'FALSE';
+	$criteria['adultShow'] = false;
 } elseif ($sShows == 'ADULT') {
-	$oPerformances->bAdultShow = 'TRUE';
+	$criteria['adultShow'] = true;
 }
 
-if (!$oPerformances->getPerformance()) {
-	error_log(`schedule.php - ERROR RETRIEVING PERFORMANCES FOR YEAR {$oPerformances->nPerformanceYear}:  ERROR {$oPerformances->sErrorMessage}`);
-}
+$performanceRepo = new \Datalayer\PerformanceRepository();
+$aPerformances = $performanceRepo->find($criteria);
+$aPerformanceYears = $performanceRepo->findDistinctYears();
 
 ?>
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
@@ -112,23 +116,20 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 							renderNextPerformanceDescription();
 							?>
 							<BR><BR>
-							<?php
-								$oPerformances->getDistinctPerformanceYears();
-							?>
 							If you'd like to see all my shows including ones that aren't just family music
-							<a href="<?php echo "{$ROOT}/schedule.php?year={$oPerformances->nPerformanceYear}&shows=ALL";?>">CLICK HERE</a>
+							<a href="<?php echo "{$ROOT}/schedule.php?year={$nPerformanceYear}&shows=ALL";?>">CLICK HERE</a>
 							<a href="<?php echo "{$ROOT}/performance.php"; ?>" class="button link-button booking-information">Booking</a>
 							<div class="row">
 								<?php
-								$iYearIndex = sizeof($oPerformances->aPerformanceYears) - 6;
-								while ($iYearIndex < sizeof($oPerformances->aPerformanceYears)) {
-									if ($oPerformances->aPerformanceYears[$iYearIndex] != $oPerformances->nPerformanceYear) {
+								$iYearIndex = sizeof($aPerformanceYears) - 6;
+								while ($iYearIndex < sizeof($aPerformanceYears)) {
+									if ($aPerformanceYears[$iYearIndex] != $nPerformanceYear) {
 										echo "<div class=\"col-xs-4 col-sm-2 col-md-2 year-link\">";
-										echo "<a href=\"{$ROOT}/schedule.php?year={$oPerformances->aPerformanceYears[$iYearIndex]}&shows={$sShows}\">";
-										echo "{$oPerformances->aPerformanceYears[$iYearIndex]}</a></div>";
+										echo "<a href=\"{$ROOT}/schedule.php?year={$aPerformanceYears[$iYearIndex]}&shows={$sShows}\">";
+										echo "{$aPerformanceYears[$iYearIndex]}</a></div>";
 									} else {
 										echo "<div class=\"col-xs-4 col-sm-2 col-md-2 year-link\">";
-										echo "{$oPerformances->aPerformanceYears[$iYearIndex]}";
+										echo "{$aPerformanceYears[$iYearIndex]}";
 										echo "</div>";
 									}
 									$iYearIndex++;
@@ -142,12 +143,12 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 				<div class="row">
 					<section id="performance-listings" class="col-xs-12 col-sm-10 col-sm-push-1 col-md-8 col-md-push-2 full-width-xs">
 						<?php
-						foreach ($oPerformances->aPerformanceRecords as $oPerformance) {
-							echo "<aside id=\"performance-" . $oPerformance->nPerformanceID . "\" class=\"subtle-blue performance-listing\">";
-							if (!$bNextPerformanceRendered && $sCurrentDate <= date("Y-mm-dd", strtotime($oPerformance->dtPerformanceDate)) && !$oPerformance->bAdultShow) {
+						foreach ($aPerformances as $oPerformance) {
+							echo "<aside id=\"performance-" . $oPerformance->id . "\" class=\"subtle-blue performance-listing\">";
+							if (!$bNextPerformanceRendered && $sCurrentDate <= date("Y-mm-dd", strtotime($oPerformance->performanceDate)) && !$oPerformance->adultShow) {
 								renderNextPerformance(FALSE, FALSE);
 								$bNextPerformanceRendered = TRUE;
-							} else if ($oPerformance->nPerformanceID == $nEventID) {
+							} else if ($oPerformance->id == $nEventID) {
 								renderPerformanceListing($oPerformance, FALSE, FALSE);
 							} else {
 								renderPerformanceListing($oPerformance, FALSE, TRUE);

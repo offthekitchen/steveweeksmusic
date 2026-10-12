@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+music.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 //Don't Display Notice messages from PHP Server
 error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,30 +23,23 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include CD Class
-include_once(CLASS_DIR . "/class_CD.php");
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
 
-//include Song Class
-include_once(CLASS_DIR . "/class_Song.php");
+$cdRepo = new \Datalayer\CDRepository();
+$aCDs = $cdRepo->find(['artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID]);
 
-$oCDs = new CD();
-$oCDs->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-
-if (!$oCDs->getCD()) {
-	//TODO: What about an error?
-	echo "ERROR RETRIEVING CDs: {$oCDs->sErrorMessage}";
-}
-
-$oSingles = new Song();
-$oSingles->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-$oSingles->nCDID = SINGLES_CD_ID;
-$oSingles->sOrderBy = RELEASE_ORDER;
-$oSingles->bActive = TRUE;
-$oSingles->bDisplayOnSite = TRUE;
-
-if (!$oSingles->getSong()) {
-	error_log(`ERROR RETRIEVING SONGS IN music.php - Song ID: {$sSongId}`);
-}
+$songRepo = new \Datalayer\SongRepository();
+$aSingles = $songRepo->find([
+	'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+	'cdId' => SINGLES_CD_ID,
+	'active' => true,
+	'displayOnSite' => true,
+	'orderBy' => 'release',
+]);
 
 //Page Name 
 $sPageName = "Music";
@@ -90,9 +92,9 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					</div>
 					<?php
 					$nListingNumber = 1;
-					foreach ($oCDs->aCDRecords as $oCD) {
+					foreach ($aCDs as $oCD) {
 						echo "<div class=\"col-xs-12 col-md-4 full-width-xs\">";
-						echo "<a href=\"{$ROOT}/cd.php?cd-id={$oCD->nCDID}\">";
+						echo "<a href=\"{$ROOT}/cd.php?cd-id={$oCD->id}\">";
 						echo "<aside class=\"music-listing listing-{$nListingNumber}\">";
 						echo renderCDListing($oCD);
 						echo "</aside>";
@@ -110,9 +112,9 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					</div>
 					<?php
 					$nListingNumber = 1;
-					foreach ($oSingles->aSongRecords as $oSingle) {
+					foreach ($aSingles as $oSingle) {
 						echo "<div class=\"col-xs-12 col-md-4 full-width-xs\">";
-						echo "<a href=\"{$ROOT}/song.php?song-id={$oSingle->nSongID}\">";
+						echo "<a href=\"{$ROOT}/song.php?song-id={$oSingle->id}\">";
 						echo "<aside class=\"music-listing listing-{$nListingNumber}\">";
 						echo renderSongListing($oSingle);
 						echo "</aside>";

@@ -1,30 +1,29 @@
 <!--Carousel-->
 <?php 
+/*
+*******************************************************************
+main-carousel.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 //This include defines the relative path to the root directory from this sub-directory
 include_once("root.inc.php");
 //inlcude web site settings
 include_once($ROOT . "/includes/websiteSettings.php");
 //inlcude web site settings
 include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
-//include Performance Class
-include_once (CLASS_DIR . "/class_Performance.php");
 
-$oPerformance = new Performance();
-if(!$oPerformance->getNextPerformance())
-{
-	error_log('main_carousel.php: ERROR RETRIEVING PERFORMANCES FOR ' . $nScheduleYear . ':' . $oPerformances->sErrorMessage);
-}
-else
-{	
-	$oNextPerformance = NULL;
-	if(sizeof($oPerformance->aPerformanceRecords) > 0)
-	{
-		$oNextPerformance = $oPerformance->aPerformanceRecords[0];
-	}
-	else {
-		error_log('NO PERFORMANCES FOUND!');
-	}
-	
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Performance.php");
+include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+
+$performanceRepo = new \Datalayer\PerformanceRepository();
+$oNextPerformance = $performanceRepo->findNext(false);
+if ($oNextPerformance === null) {
+	error_log('main_carousel.php: NO PERFORMANCES FOUND!');
 }
 ?>
 <div id="myCarousel" class="carousel slide" data-ride="carousel">
@@ -108,16 +107,18 @@ else
 		<div class="item">
 			<div class="slide-container">
 				<a href="<?php echo "{$ROOT}/performance.php#next-performance";?>">
-					<div class="slide-title">NEXT SHOW - <?php echo "{$oNextPerformance->sPerformanceName}";?></div>
+					<div class="slide-title">NEXT SHOW - <?php echo $oNextPerformance ? htmlspecialchars($oNextPerformance->name) : '';?></div>
 					<img src="<?php echo IMG_DIR; ?>/slide_next_show.jpg" alt="Next Show"  style="width:100%; height: auto;">
 					<div class="slide-caption">
 						<span class="slide-overlay">
 							<?php 
-							if(!empty($oNextPerformance->sLocationCity) && !empty($oNextPerformance->sLocationState)) {
-								echo "{$oNextPerformance->sLocationCity}, {$oNextPerformance->sLocationState} - " . date("m-d-Y",strtotime($oNextPerformance->dtPerformanceDate));
-							}
-							else {
-								echo "{$oNextPerformance->sPerformanceName}, {$oNextPerformance->sLocation}";
+							if ($oNextPerformance) {
+								if(!empty($oNextPerformance->locationCity) && !empty($oNextPerformance->locationState)) {
+									echo "{$oNextPerformance->locationCity}, {$oNextPerformance->locationState} - " . date("m-d-Y",strtotime($oNextPerformance->performanceDate));
+								}
+								else {
+									echo "{$oNextPerformance->name}, {$oNextPerformance->location}";
+								}
 							}
 							?>
 						</span>

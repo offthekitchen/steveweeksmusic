@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+song.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 //Don't Display Notice messages from PHP Server
 error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,59 +23,60 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Song Class
-include_once(CLASS_DIR . "/class_Song.php");
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Song.php");
+include_once(DATALAYER_DIR . "/SongRepository.php");
+include_once(DATALAYER_DIR . "/CD.php");
+include_once(DATALAYER_DIR . "/CDRepository.php");
+include_once(DATALAYER_DIR . "/Review.php");
+include_once(DATALAYER_DIR . "/ReviewRepository.php");
 
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
+$songRepo = new \Datalayer\SongRepository();
+$cdRepo = new \Datalayer\CDRepository();
+$reviewRepo = new \Datalayer\ReviewRepository();
 
-//include Award Class
-include_once(CLASS_DIR . "/class_Award.php");
-
-//include CD Class
-include_once(CLASS_DIR . "/class_CD.php");
-
-//include Error Log Class
-include_once(CLASS_DIR . "/class_ErrorLog.php");
-
-$oSongs = new Song();
-$oThisSong = new Song();
-$oSongs->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
+$aSongs = [];
+$oThisSong = null;
+$oThisCD = null;
+$nSongID = 0;
+$nCDID = 0;
 
 $sPurchaseLink = '';
 $aBreadcrumb = [];
 $sSongBreadcrumbItem = [];
 $sCDBreadcrumbItem = [];
 
+$criteria = ['artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID];
+
 //If a Song ID is passed, display information for that Song
 if (isset($_REQUEST['song-id']) && $_REQUEST['song-id'] != "") {
-	$oSongs->nSongID = preg_replace("/[^0-9]/", "", $_REQUEST['song-id']);
+	$nSongID = (int) preg_replace("/[^0-9]/", "", $_REQUEST['song-id']);
+	$criteria['id'] = $nSongID;
 }
 
 //If a CD ID is passed, get songs for that CD
 if (isset($_REQUEST['cd-id']) && $_REQUEST['cd-id'] != "") {
-	$oSongs->nCDID = preg_replace("/[^0-9]/", "", $_REQUEST['cd-id']);
+	$nCDID = (int) preg_replace("/[^0-9]/", "", $_REQUEST['cd-id']);
+	$criteria['cdId'] = $nCDID;
 }
 
-if (!$oSongs->getSong()) {
-	$error = new ErrorLog('song.php', 'getSong()', 'Error getting Song', $oSongs->nSongID, 'SONG');
-	$error->writeErrorLog();
+$aSongs = $songRepo->find($criteria);
+if (sizeof($aSongs) < 1 && $nSongID > 0) {
+	error_log('song.php: Error getting Song id ' . $nSongID);
 }
 
-if (sizeof($oSongs->aSongRecords) > 0) {
-	$oThisSong = $oSongs->aSongRecords[0];
-	$sPageName = "{$oThisSong->sSongName}";
-	$sPageDescription = "{$oThisSong->sSongDescription}";
+if (sizeof($aSongs) > 0) {
+	$oThisSong = $aSongs[0];
+	$sPageName = "{$oThisSong->name}";
+	$sPageDescription = "{$oThisSong->description}";
 	$sPageTitle = "Award-winning Music";
-	$sPageSubTitle = "{$oThisSong->sSongName}";
-	$sSongBreadcrumbItem = array($oThisSong->sSongName, 'song.php?song-id=' . $oThisSong->nSongID);
+	$sPageSubTitle = "{$oThisSong->name}";
+	$sSongBreadcrumbItem = array($oThisSong->name, 'song.php?song-id=' . $oThisSong->id);
 
-	if ($oThisSong->nCDID <> SINGLES_CD_ID) {
-		$oCD = new CD();
-		$oCD->nCDID = $oThisSong->nCDID;
-		if ($oCD->getCD()) {
-			$oThisCD = $oCD->aCDRecords[0];
-			$sCDBreadcrumbItem = array($oThisCD->sCDName, 'cd.php?cd-id=' . $oThisCD->nCDID);
+	if ($oThisSong->cdId <> SINGLES_CD_ID && !empty($oThisSong->cdId)) {
+		$oThisCD = $cdRepo->findById((int) $oThisSong->cdId);
+		if ($oThisCD !== null) {
+			$sCDBreadcrumbItem = array($oThisCD->name, 'cd.php?cd-id=' . $oThisCD->id);
 		}
 	}
 }
@@ -78,7 +88,7 @@ $aBreadcrumb = array(
 	0 => array('Home', 'index.php'),
 	1 => array('Music', 'music.php'),
 );
-if ($oThisSong->nCDID <> SINGLES_CD_ID) {
+if ($oThisSong && $oThisSong->cdId <> SINGLES_CD_ID) {
 	array_push($aBreadcrumb, $sCDBreadcrumbItem);
 }
 array_push($aBreadcrumb, $sSongBreadcrumbItem);
@@ -102,7 +112,7 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 			include(INCLUDE_DIR . "/header.php");
 			?>
 		</div>
-		<?php if (sizeof($oSongs->aSongRecords) > 0) {
+		<?php if (sizeof($aSongs) > 0) {
 			?>
 			<div class="row">
 				<main id="main-content" class="col-xs-12">
@@ -111,14 +121,14 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 							<article class="frame-box green-frame in-front-of-theme-image song-information">
 								<?php
 								echo "<figure class=\"song-thumbnail float-left\">";
-								if (!empty($oThisSong->sSongThumbnail)) {
-									echo "<img src=\"" . IMG_DIR . "/{$oThisSong->sSongThumbnail}\">";
-								} else if (!empty($oThisCD->sCDThumbnail)) {
-									echo "<img src=\"" . IMG_DIR . "/{$oThisCD->sCDThumbnail}\">";
+								if (!empty($oThisSong->thumbnail)) {
+									echo "<img src=\"" . IMG_DIR . "/{$oThisSong->thumbnail}\">";
+								} else if (!empty($oThisCD) && !empty($oThisCD->thumbnail)) {
+									echo "<img src=\"" . IMG_DIR . "/{$oThisCD->thumbnail}\">";
 								}
 								echo "</figure>";
 								echo "<div>";
-								echo "<div class=\"song-description\">{$oThisSong->sSongDescription}</div>";
+								echo "<div class=\"song-description\">{$oThisSong->description}</div>";
 								echo "</div>";
 
 								?>
@@ -128,15 +138,15 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 						<div class="col-xs-12 col-md-6 col-md-5 behind-theme-image avoid-theme">
 							<section id="song-buttons">
 								<?php
-								if (!empty($oThisSong->sPurchaseLink)) {
-									$sPurchaseLink = $oThisSong->sPurchaseLink;
-								} else if (!empty($oThisCD->sPurchaseLink)) {
-									$sPurchaseLink = $oThisCD->sPurchaseLink;
+								if (!empty($oThisSong->purchaseLink)) {
+									$sPurchaseLink = $oThisSong->purchaseLink;
+								} else if (!empty($oThisCD) && !empty($oThisCD->purchaseLink)) {
+									$sPurchaseLink = $oThisCD->purchaseLink;
 								}
 
 								renderPurchaseButton($sPurchaseLink);
-								if (!empty($oThisSong->sLyricsHTML)) {
-									renderLyricsButton(LYRICS_TYPE_SONG, $oThisSong->nSongID);
+								if (!empty($oThisSong->lyricsHtml)) {
+									renderLyricsButton(LYRICS_TYPE_SONG, $oThisSong->id);
 								}
 								?>
 							</section>
@@ -147,7 +157,7 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					<div class="row">
 						<div class="col-xs-12 avoid-theme">
 							<?php
-							renderAwards(AWARD_TYPE_SONG, $oThisSong->nSongID, AWARD_SIZE_LARGE);
+							renderAwards(AWARD_TYPE_SONG, $oThisSong->id, AWARD_SIZE_LARGE);
 							?>
 						</div>
 					</div>
@@ -156,18 +166,24 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 						<div class="col-xs-12 col-sm-10 col-sm-push-1 col-md-8 col-md-push-2 in-front-of-theme-image ">
 							<section id="song-review" class="frame-box yellow-box">
 								<?php
-								$oSongReviews = $oThisSong->getReviews();
-								if (sizeof($oSongReviews->aReviewRecords) > 1) {
-									renderReviewSlideshow($oSongReviews->aReviewRecords);
-								} else if (sizeof($oSongReviews->aReviewRecords) > 0) {
-									renderReview($oSongReviews->aReviewRecords[0]);
-								} else {
-									$oReview = new Review();
-									$oReview->bGeneral = TRUE;
-									if (!$oReview->getReview()) {
-										//TODO: Error
+								$aSongReviews = $reviewRepo->find(['songId' => $oThisSong->id]);
+								if (sizeof($aSongReviews) < 1) {
+									if (!empty($oThisSong->cdId) && $oThisSong->cdId > 0) {
+										$aSongReviews = $reviewRepo->find(['cdId' => $oThisSong->cdId]);
 									} else {
-										renderReviewSlideshow($oReview->aReviewRecords);
+										$oDefaultReview = $reviewRepo->findById(DEFAULT_REVIEW_ID);
+										$aSongReviews = $oDefaultReview ? [$oDefaultReview] : [];
+									}
+								}
+
+								if (sizeof($aSongReviews) > 1) {
+									renderReviewSlideshow($aSongReviews);
+								} else if (sizeof($aSongReviews) > 0) {
+									renderReview($aSongReviews[0]);
+								} else {
+									$aGeneralReviews = $reviewRepo->find(['general' => true]);
+									if (sizeof($aGeneralReviews) > 0) {
+										renderReviewSlideshow($aGeneralReviews);
 									}
 								}
 								?>
@@ -182,10 +198,10 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 								echo "<section class=\"from-the-cd\">";
 								echo "<div>";
 								echo "<div><i>From the CD</i>";
-								echo "<div class=\"cd-title\"><a href=\"{$ROOT}/cd.php?cd-id={$oThisCD->nCDID}\">{$oThisCD->sCDName}</a></div>";
+								echo "<div class=\"cd-title\"><a href=\"{$ROOT}/cd.php?cd-id={$oThisCD->id}\">{$oThisCD->name}</a></div>";
 								echo "</div>";
 								echo "</div>";
-								renderAwards(AWARD_TYPE_CD, $oThisCD->nCDID, AWARD_SIZE_XSMALL);
+								renderAwards(AWARD_TYPE_CD, $oThisCD->id, AWARD_SIZE_XSMALL);
 								echo "</section>";
 							}
 							?>
@@ -194,7 +210,7 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					</div>
 
 					<?php
-					if (!empty($oThisSong->sSampleMP3)) {
+					if (!empty($oThisSong->sampleMp3)) {
 						?>
 						<div class="row">
 							<div class="col-xs-12">
@@ -202,9 +218,9 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 								<!--<div class="mp3-player-container">-->
 								<audio controls data-info-att="Music: Steve Weeks"
 									data-info-att-link="https://www.steveweeksmusic.com">
-									<source src="<?php echo MP3_DIR . "/{$oThisSong->sSampleMP3}"; ?>" type="audio/mpeg" />
+									<source src="<?php echo MP3_DIR . "/{$oThisSong->sampleMp3}"; ?>" type="audio/mpeg" />
 									<a
-										href="<?php echo MP3_DIR . "/{$oThisSong->sSampleMP3}"; ?>"><?php echo $oThisSong->sSongName; ?></a>
+										href="<?php echo MP3_DIR . "/{$oThisSong->sampleMp3}"; ?>"><?php echo $oThisSong->name; ?></a>
 									An html5-capable browser is required to play this audio.
 								</audio>
 								<!--</div>-->
@@ -218,7 +234,7 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 			</div>
 		<?php
 		} else {
-			echo "<div>NO SONG FOUND FOR ID {$oSongs->nSongID} </div>";
+			echo "<div>NO SONG FOUND FOR ID {$nSongID} </div>";
 		}
 		?>
 		<div class="row">

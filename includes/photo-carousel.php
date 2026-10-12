@@ -1,18 +1,4 @@
 <!--Carousel-->
-<?php 
-//include Performance Class
-include_once (CLASS_DIR . "/class_Performance.php");
-
-$oPerformance = new Performance();
-if(!$oPerformance->getNextPerformance())
-{
-	echo "ERROR RETRIEVING PERFORMANCES FOR " . $nScheduleYear . ":" . $oPerformances->sErrorMessage;	
-}
-else
-{	
-	$oNextPerformance = $oPerformance->aPerformanceRecords[0];
-}
-?>
 <div id="photoCarousel" class="carousel slide" data-ride="carousel">
   <!-- Indicators -->
   <ol class="carousel-indicators">
