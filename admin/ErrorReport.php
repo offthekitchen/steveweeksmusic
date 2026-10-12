@@ -8,6 +8,7 @@ Date        Change
 -------------------------------------------------------------
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Payment/Revenue repositories
+2026-10-12	Moved error-report SQL into Payment/Revenue repositories
 *******************************************************************
 */
 
@@ -34,7 +35,7 @@ include_once(DATALAYER_DIR . "/Revenue.php");
 include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 $sActiveMenuItem = REPORTS_ACTIVE;
 $sPageName = "Error Report";
@@ -56,8 +57,10 @@ $sPageName = "Error Report";
 			$form = new Form();
 
 			try {
-				$aPaymentErrors = findPaymentErrors();
-				$aRevenueErrors = findRevenueErrors();
+				$paymentRepo = new \Datalayer\PaymentRepository();
+				$revenueRepo = new \Datalayer\RevenueRepository();
+				$aPaymentErrors = $paymentRepo->findPaymentErrors();
+				$aRevenueErrors = $revenueRepo->findRevenueErrors();
 			} catch (\Throwable $e) {
 				echo "ERROR RETRIEVING DATA ERRORS";
 				$form->sMessage = "Error retrieving data errors: " . $e->getMessage();
@@ -168,89 +171,3 @@ $sPageName = "Error Report";
 </body>
 
 </html>
-
-<?php
-/**
- * Payment validation errors (legacy getPaymentErrors logic).
- * TODO: Move to PaymentRepository when error-report queries are added to datalayer.
- *
- * @return array<int, array{recordId: int, recordDesc: string, errorDesc: string, severity: int}>
- */
-function findPaymentErrors(): array
-{
-	$db = \Datalayer\Connection::getPdo();
-	$errors = [];
-
-	$sql = 'SELECT * FROM PAYMENT
-	         WHERE PAYMENT.PAYMENT_AMOUNT <> (
-	               SELECT SUM(REVENUE.REVENUE_AMOUNT) FROM REVENUE
-	                WHERE REVENUE.PAYMENT_ID = PAYMENT.PAYMENT_ID
-	         )';
-	$stmt = $db->query($sql);
-	while ($row = $stmt->fetch()) {
-		$errors[] = [
-			'recordId' => (int) $row['PAYMENT_ID'],
-			'recordDesc' => 'Payment: ' . $row['PAYMENT_DESCRIPTION'] . ': $' . $row['PAYMENT_AMOUNT'],
-			'errorDesc' => 'Payment Amount does not match revenues',
-			'severity' => 3,
-		];
-	}
-
-	$sql = 'SELECT * FROM PAYMENT
-	         WHERE NOT EXISTS (
-	               SELECT * FROM REVENUE WHERE REVENUE.PAYMENT_ID = PAYMENT.PAYMENT_ID
-	         )';
-	$stmt = $db->query($sql);
-	while ($row = $stmt->fetch()) {
-		$errors[] = [
-			'recordId' => (int) $row['PAYMENT_ID'],
-			'recordDesc' => 'Payment: ' . $row['PAYMENT_DESCRIPTION'] . ': $' . $row['PAYMENT_AMOUNT'],
-			'errorDesc' => 'Payment has no revenues',
-			'severity' => 3,
-		];
-	}
-
-	return $errors;
-}
-
-/**
- * Revenue validation errors (legacy getRevenueErrors logic).
- * TODO: Move to RevenueRepository when error-report queries are added to datalayer.
- *
- * @return array<int, array{recordId: int, recordDesc: string, errorDesc: string, severity: int}>
- */
-function findRevenueErrors(): array
-{
-	$db = \Datalayer\Connection::getPdo();
-	$errors = [];
-
-	$sql = "SELECT * FROM REVENUE
-	         WHERE REVENUE.PAID_DATE = '0000-00-00'
-	            OR REVENUE.REVENUE_DATE = '0000-00-00'";
-	$stmt = $db->query($sql);
-	while ($row = $stmt->fetch()) {
-		$errors[] = [
-			'recordId' => (int) $row['REVENUE_ID'],
-			'recordDesc' => 'Revenue: ' . $row['REVENUE_DESCRIPTION'] . ': $' . $row['REVENUE_AMOUNT'],
-			'errorDesc' => 'Revenue date and/or paid date is 0000-00-00',
-			'severity' => 3,
-		];
-	}
-
-	$sql = 'SELECT * FROM REVENUE
-	         WHERE NOT EXISTS (
-	               SELECT * FROM PAYMENT WHERE PAYMENT.PAYMENT_ID = REVENUE.PAYMENT_ID
-	         )';
-	$stmt = $db->query($sql);
-	while ($row = $stmt->fetch()) {
-		$errors[] = [
-			'recordId' => (int) $row['REVENUE_ID'],
-			'recordDesc' => 'Revenue: ' . $row['REVENUE_DESCRIPTION'] . ': $' . $row['REVENUE_AMOUNT'],
-			'errorDesc' => 'Revenue has no matching payment',
-			'severity' => 3,
-		];
-	}
-
-	return $errors;
-}
-?>

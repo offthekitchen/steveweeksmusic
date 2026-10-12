@@ -19,6 +19,7 @@ Date        Change
 2024-02-01 Corrected error in tour dropdown
 2026-07-30	Migrated dropdown helpers to Datalayer repositories
 2026-07-30	Fixed renderDatePicker to show picker for empty add-mode dates
+2026-10-12	Load local Form helper and calendar (no shared CLASS_DIR)
 *******************************************************************
 */	
 ?>
@@ -47,7 +48,9 @@ include_once(DATALAYER_DIR . "/ArtistRepository.php");
 include_once(DATALAYER_DIR . "/Tour.php");
 include_once(DATALAYER_DIR . "/TourRepository.php");
 
-require_once(CLASS_DIR . "/tc_calendar.php");
+// Admin UI helpers (site-local — not shared offthekitchen/classes)
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 /*
  ********************************************************************************
