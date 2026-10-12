@@ -14,12 +14,6 @@
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include Review Class
-	include_once (CLASS_DIR . "/class_Review.php");
-
-	//include Award Class
-	include_once (CLASS_DIR . "/class_Award.php");
-
 	//Page Name 
 	$sPageName = "My Family";
 	$sPageTitle = "Steve Weeks - My Family";

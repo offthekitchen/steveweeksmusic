@@ -7,7 +7,7 @@ managing Songs.
 NOTES
 Date        Change
 -------------------------------------------------------------
-
+2026-10-12	Migrated to shared PDO datalayer
 *******************************************************************
 */	//Don't Display Notice messages from PHP Server
 	error_reporting(E_ALL ^ E_NOTICE);
@@ -24,11 +24,15 @@ Date        Change
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include Song Class		
-	include_once (CLASS_DIR . "/class_Performance.php");
-	include_once (CLASS_DIR . "/class_Song.php");
-	include_once (CLASS_DIR . "/class_CD.php");
-	include_once (CLASS_DIR . "/class_SearchTerms.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Song.php");
+	include_once(DATALAYER_DIR . "/SongRepository.php");
+	include_once(DATALAYER_DIR . "/CD.php");
+	include_once(DATALAYER_DIR . "/CDRepository.php");
+	include_once(DATALAYER_DIR . "/Performance.php");
+	include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+	include_once(DATALAYER_DIR . "/SearchTerms.php");
+	include_once(DATALAYER_DIR . "/SearchTermsRepository.php");
 	
 	$sSearchText = '';
 
@@ -61,51 +65,31 @@ Date        Change
 	$quotes_to_remove = array('"', "'");
 	$sSearchText = preg_replace('/[^a-zA-Z0-9\s]/', '', $sSearchText);
 	  
-	//Search for any songs matching the search text
-	$oSongs = new Song();
-	$oSongs->sSongName = $sSearchText;
-	$oSongs->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-	$oSongs->bFuzzyNameSearch = TRUE;
+	$songRepo = new \Datalayer\SongRepository();
+	$aSongs = $songRepo->find([
+		'name' => $sSearchText,
+		'fuzzyName' => true,
+		'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+	]);
 	
-	if (!$oSongs->getSong())
-	{
-		//TODO: Error
+	$cdRepo = new \Datalayer\CDRepository();
+	$aCDs = $cdRepo->findByNameFuzzy($sSearchText, STEVE_WEEKS_FAMILY_ARTIST_ID);
+	
+	$performanceRepo = new \Datalayer\PerformanceRepository();
+	$aPerformancesById = [];
+	foreach ($performanceRepo->find(['name' => $sSearchText, 'fuzzyName' => true]) as $perf) {
+		$aPerformancesById[$perf->id] = $perf;
 	}
+	foreach ($performanceRepo->find(['location' => $sSearchText, 'fuzzyLocation' => true]) as $perf) {
+		$aPerformancesById[$perf->id] = $perf;
+	}
+	foreach ($performanceRepo->find(['locationCity' => $sSearchText, 'fuzzyCity' => true]) as $perf) {
+		$aPerformancesById[$perf->id] = $perf;
+	}
+	$aPerformances = array_values($aPerformancesById);
 	
-	//Search for any songs matching the search text
-	$oCDs = new CD();
-	$oCDs->sCDName = $sSearchText;
-	$oCDs->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-	$oCDs->bFuzzyNameSearch = TRUE;
-	
-	if (!$oCDs->getCD())
-	{
-		//TODO: Error
-	}   
-	
-	//Search for any performance matching the search text
-	$oPerformances = new Performance();
-	$oPerformances->sPerformanceName = $sSearchText;
-	$oPerformances->sLocation = $sSearchText;
-	$oPerformances->sLocationCity = $sSearchText;
-	$oPerformances->bOrSearch = TRUE;
-	$oPerformances->bFuzzyLocationSearch = TRUE;
-	$oPerformances->bFuzzyCitySearch = TRUE;
-	
-	if (!$oPerformances->getPerformance())
-	{
-		//TODO: Error
-	}   
-	
-	//Search for any performance matching the search text
-	$oSearchTerms = new SearchTerms();
-	$oSearchTerms->sSearchTerms = $sSearchText;
-	$oSearchTerms->nWebsite = 1;
-	
-	if (!$oSearchTerms->getSearchTerms())
-	{
-		//TODO: Error
-	}  	
+	$searchTermsRepo = new \Datalayer\SearchTermsRepository();
+	$aSearchTerms = $searchTermsRepo->findByWebsiteAndTerms(1, $sSearchText);
 	
 ?>
 
@@ -124,7 +108,7 @@ Date        Change
 						<div class="frame-box green-frame in-front-of-theme-image">
 							<div class="search-results-header">
 								<?php
-									if(sizeof($oSongs->aSongRecords) > 0  || sizeof($oCDs->aCDRecords) > 0  || sizeof($oPerformances->aPerformanceRecords) > 0 || sizeof($oSearchTerms->aSearchTermsRecords) > 0)
+									if(sizeof($aSongs) > 0  || sizeof($aCDs) > 0  || sizeof($aPerformances) > 0 || sizeof($aSearchTerms) > 0)
 									{
 										$bResultsFound = TRUE;
 										echo "<h4>Search Results For</h4>";
@@ -146,14 +130,14 @@ Date        Change
 					<?php
 					echo "<section class=\"search-results-section behind-theme-image avoid-theme\">";
 
-					if(sizeof($oSearchTerms->aSearchTermsRecords) > 0)
+					if(sizeof($aSearchTerms) > 0)
 					{
 						echo "<h3>Pages</h3>";
 						echo "<ul class=\"search-results-list\">";					
-						foreach ($oSearchTerms->aSearchTermsRecords as $oSearchTerms)
+						foreach ($aSearchTerms as $oSearchTerm)
 						{
 							echo "<li class=\"search-results-item\">";
-							echo "<a href=\"{$ROOT}/{$oSearchTerms->sPageURL}\">{$oSearchTerms->sPageName}</a>";
+							echo "<a href=\"{$ROOT}/{$oSearchTerm->pageUrl}\">{$oSearchTerm->pageName}</a>";
 							echo "</li>";
 						}
 						echo "</ul>";
@@ -161,18 +145,18 @@ Date        Change
 					
 					$bLyricsFound = FALSE;
 
-					if(sizeof($oSongs->aSongRecords) > 0)
+					if(sizeof($aSongs) > 0)
 					{
 						echo "<h3>Songs</h3>";
 						echo "<ul class=\"search-results-list\">";					
-						foreach ($oSongs->aSongRecords as $oSong)
+						foreach ($aSongs as $oSong)
 						{
 							echo "<li class=\"search-results-item\">";
-							echo "<a href=\"{$ROOT}/song.php?song-id={$oSong->nSongID}\">{$oSong->sSongName}</a>";
+							echo "<a href=\"{$ROOT}/song.php?song-id={$oSong->id}\">{$oSong->name}</a>";
 							echo "</li>";
 							
 							//while looping through songs, check for the existence of lyrics
-							if (!empty($oSong->sLyricsHTML))
+							if (!empty($oSong->lyricsHtml))
 							{
 								$bLyricsFound = TRUE;
 							}
@@ -184,41 +168,41 @@ Date        Change
 					{
 						echo "<h3>Lyrics</h3>";
 						echo "<ul class=\"search-results-list\">";					
-						foreach ($oSongs->aSongRecords as $oSong)
+						foreach ($aSongs as $oSong)
 						{
-							if (!empty($oSong->sLyricsHTML))
+							if (!empty($oSong->lyricsHtml))
 							{
 							echo "<li class=\"search-results-item\">";
-							echo "<a href=\"{$ROOT}/lyrics.php?song-id={$oSong->nSongID}\">{$oSong->sSongName}</a>";
+							echo "<a href=\"{$ROOT}/lyrics.php?song-id={$oSong->id}\">{$oSong->name}</a>";
 							echo "</li>";
 							}
 						}
 						echo "</ul>";
 					}
 					
-					if(sizeof($oCDs->aCDRecords) > 0)
+					if(sizeof($aCDs) > 0)
 					{
 
 						echo "<h3>CDs</h3>";
 						echo "<ul class=\"search-results-list\">";					
-						foreach ($oCDs->aCDRecords as $oCD)
+						foreach ($aCDs as $oCD)
 						{
 							echo "<li class=\"search-results-item\">";
-							echo "<a href=\"{$ROOT}/cd.php?cd-id={$oCD->nCDID}\">{$oCD->sCDName}</a>";
+							echo "<a href=\"{$ROOT}/cd.php?cd-id={$oCD->id}\">{$oCD->name}</a>";
 							echo "</li>";
 						}
 						echo "</ul>";
 					}
 
-					if(sizeof($oPerformances->aPerformanceRecords) > 0)
+					if(sizeof($aPerformances) > 0)
 					{
 						echo "<h3>Performances</h3>";
 						echo "<ul class=\"search-results-list\">";					
-						foreach ($oPerformances->aPerformanceRecords as $oPerformance)
+						foreach ($aPerformances as $oPerformance)
 						{
 							echo "<li class=\"search-results-item\">";
-							echo "<a href=\"{$ROOT}/schedule.php?year={$oPerformance->nPerformanceYear}#performance-{$oPerformance->nPerformanceID}\">{$oPerformance->sPerformanceName}";
-							echo " - {$oPerformance->sLocation}, {$oPerformance->sLocationCity}, {$oPerformance->sLocationState}</a>";
+							echo "<a href=\"{$ROOT}/schedule.php?year={$oPerformance->performanceYear}#performance-{$oPerformance->id}\">{$oPerformance->name}";
+							echo " - {$oPerformance->location}, {$oPerformance->locationCity}, {$oPerformance->locationState}</a>";
 							echo "</li>";
 						}
 						echo "</ul>";

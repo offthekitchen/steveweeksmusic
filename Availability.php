@@ -1,4 +1,13 @@
 <?php
+	/*
+	*******************************************************************
+	Availability.php
+	NOTES
+	Date        Change
+	-------------------------------------------------------------
+	2026-10-12	Migrated to shared PDO datalayer
+	*******************************************************************
+	*/
 	//Don't Display Notice messages from PHP Server
 	error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,8 +23,11 @@
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include CD Class
-	include_once (CLASS_DIR . "/class_UnavailableDate.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Performance.php");
+	include_once(DATALAYER_DIR . "/PerformanceRepository.php");
+	include_once(DATALAYER_DIR . "/UnavailableDate.php");
+	include_once(DATALAYER_DIR . "/UnavailableDateRepository.php");
 
 	//Page Name 
 	$sPageName = "Availability";
@@ -70,25 +82,11 @@
    	}
 	$day = date('d', $date) ; 
 	
-	//Get Performances for given year
-	$oPerformances = new Performance();
-	$oPerformances->dtPerformanceDate = $year;
+	$performanceRepo = new \Datalayer\PerformanceRepository();
+	$aPerformances = $performanceRepo->find(['performanceYear' => (int) $year]);
 
-	//Get Unavailable Dates for the given year
-	if(!$oPerformances->getPerformance())
-	{
-		echo "ERROR RETRIEVING PERFORMANCES FOR YEAR " . $oPerformances->dtPerformanceDate . ": " . $oPerformances->sErrorMessage;
-	}
-
-	//Get Unavailable Dates ft given year
-	$oUnavailableDates = new UnavailableDate();
-	$oUnavailableDates->nYear = $year;
-	
-	//Get Unavailable Dates for the given year
-	if(!$oUnavailableDates->getUnavailableDate())
-	{
-		echo "ERROR RETRIEVING UNAVAILABLE DATES FOR YEAR " . $oUnavailableDates->nYear . ": " . $oUnavailableDates->sErrorMessage;
-	}
+	$unavailableRepo = new \Datalayer\UnavailableDateRepository();
+	$aUnavailableDates = $unavailableRepo->find(['year' => (int) $year]);
 
 	
 ?>
@@ -207,22 +205,22 @@
 			$bAvailable = TRUE;
 
 			//See if I'm Performing
-			foreach ($oPerformances->aPerformanceRecords as $oPerformance)
+			foreach ($aPerformances as $oPerformance)
 			{
 				$sPerformanceLocation = null;
 
-				if ($oPerformance->dtPerformanceDate == $year . "-" . $sCalendarMonth . "-" . $sPerformanceDay )
+				if ($oPerformance->performanceDate == $year . "-" . $sCalendarMonth . "-" . $sPerformanceDay )
 				{
-					if($oPerformance->sLocationCity || $oPerformance->sLocationState){
-						$sPerformanceLocation .= $oPerformance->sLocationCity . ", " . $oPerformance->sLocationState ;
+					if($oPerformance->locationCity || $oPerformance->locationState){
+						$sPerformanceLocation .= $oPerformance->locationCity . ", " . $oPerformance->locationState ;
 					}
-					if($oPerformance->bPreRecorded) {
+					if($oPerformance->preRecorded) {
 						$sReason = "Pre-recorded show";
 					}
 					else {
 						$bAvailable = FALSE; 
 						
-						if($oPerformance->bBooked)
+						if($oPerformance->booked)
 						{
 							$sReason = "BOOKED";
 						}
@@ -240,12 +238,12 @@
 			
 			if($bAvailable)
 			{
-				foreach ($oUnavailableDates->aUnavailableDateRecords as $oUnavailableDate)
+				foreach ($aUnavailableDates as $oUnavailableDate)
 				{
-					if($oUnavailableDate->dtUnavailableDate == $year . "-" . $sCalendarMonth . "-" . $sPerformanceDay )
+					if($oUnavailableDate->unavailableDate == $year . "-" . $sCalendarMonth . "-" . $sPerformanceDay )
 					{
 						$bAvailable = FALSE; 
-						$sReason = $oUnavailableDate->sReason;
+						$sReason = $oUnavailableDate->reason;
 						break;
 					}
 				}

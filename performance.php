@@ -7,6 +7,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2017-06-05	Added 50 States
+2026-10-12	Migrated to shared PDO datalayer
 *******************************************************************
 */
 //Don't Display Notice messages from PHP Server
@@ -24,11 +25,9 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
-
-//include Error Log Class
-include_once(CLASS_DIR . "/class_ErrorLog.php");
+include_once(DATALAYER_DIR . "/Connection.php");
+include_once(DATALAYER_DIR . "/Review.php");
+include_once(DATALAYER_DIR . "/ReviewRepository.php");
 
 //Page Name 
 $sPageName = "Performance";
@@ -93,14 +92,15 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 					<div class="col-xs-12">
 						<aside class=" frame-box green-frame in-front-of-theme-image">
 							<?php
-							$oReviews = new Review();
-							$oReviews->bPerformanceRelated = TRUE;
-							$oReviews->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-							if (!$oReviews->getReview()) {
-								$error = new ErrorLog('performance.php', 'getReview()', 'Error Retrieving Reviews', $oReviews->nArtistID, 'ARTIST');
-								$error->writeErrorLog();
+							$reviewRepo = new \Datalayer\ReviewRepository();
+							$aReviews = $reviewRepo->find([
+								'performanceRelated' => true,
+								'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+							]);
+							if (sizeof($aReviews) > 0) {
+								renderReviewSlideshow($aReviews);
 							} else {
-								renderReviewSlideshow($oReviews->aReviewRecords);
+								error_log('performance.php: Error Retrieving Reviews for artist ' . STEVE_WEEKS_FAMILY_ARTIST_ID);
 							}
 							?>
 						</aside>

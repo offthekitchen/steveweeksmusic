@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+wish/index.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 	//Don't Display Notice messages from PHP Server
 	error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,41 +23,23 @@
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include CD Class
-	include_once (CLASS_DIR . "/class_CD.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/CD.php");
+	include_once(DATALAYER_DIR . "/CDRepository.php");
+	include_once(DATALAYER_DIR . "/Song.php");
+	include_once(DATALAYER_DIR . "/SongRepository.php");
 
-	//include Song Class
-	include_once (CLASS_DIR . "/class_Song.php");
+	$cdRepo = new \Datalayer\CDRepository();
+	$oThisCD = $cdRepo->findById(7);
 
-	//include Review Class
-	include_once (CLASS_DIR . "/class_Review.php");
-
-	//include Award Class
-	include_once (CLASS_DIR . "/class_Award.php");
-
-	$oCD = new CD();
-	
-	$oCD->nCDID = 7;
-		
-	$oCD->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-	
-	if(!$oCD->getCD())
-	{
-		//TODO: What about an error?
-		echo "ERROR RETRIEVING CD: {$oCD->sErrorMessage}";	
+	$aSongs = [];
+	if ($oThisCD !== null) {
+		$songRepo = new \Datalayer\SongRepository();
+		$aSongs = $songRepo->find(['cdId' => $oThisCD->id]);
+	} else {
+		error_log('wish/index.php: ERROR RETRIEVING CD 7');
+		echo "ERROR RETRIEVING CD";
 	}
-	else
-	{
-		$oSongs = new Song();
-		$oSongs->nCDID = $oCD->nCDID;
-		if(!$oSongs->getSong())
-		{
-			//TODO: What about an error?
-			echo "ERROR RETRIEVING SONGS: {$oSongs->sErrorMessage}";	
-		}
-	}
-	
-	$oThisCD = $oCD->aCDRecords[0];
 
 	//Page Name 
 	$sPageName = "For your consideration for...";
@@ -60,7 +51,7 @@
 	$aBreadcrumb = array(
 		0=> array('Home','index.php'),
 		1=> array('Music','music.php'),
-		2=> array($oThisCD->sCDName,'cd.php?cd-id=' . $oThisCD->nCDID)
+		2=> array($oThisCD ? $oThisCD->name : 'CD','cd.php?cd-id=' . ($oThisCD ? $oThisCD->id : 7))
 		); 
 		
 	$sActiveMenuItem = MUSIC_ACTIVE;	
@@ -87,25 +78,25 @@
 					<div class="col-xs-12 col-sm-6 col-sm-push-3 col-md-5 col-md-push-0">
 						<div class="cd-cover">
 							<figure class="dynamic-width in-front-of-theme-image">
-								<img src="<?php echo IMG_DIR . "/{$oThisCD->sCDImage}";?>">
+								<img src="<?php echo IMG_DIR . "/" . ($oThisCD ? $oThisCD->image : '');?>">
 							</figure>
                             <section class="behind-theme-image avoid-theme">
 							<h4>LISTEN</h4>
 							<ol>
 								<?php
-								foreach($oSongs->aSongRecords as $oSong)
+								foreach($aSongs as $oSong)
 								{
 								
                                 ?> 
                                     <div class="row">
                                     <div class="col-xs-12">
-                                    <h2 class="listen"><?php echo $oSong->sSongName ?></h2>
+                                    <h2 class="listen"><?php echo $oSong->name ?></h2>
                                     <!--<div class="mp3-player-container">-->
                                     <audio controls
                                           data-info-att="Music: Steve Weeks"
                                           data-info-att-link="https://www.steveweeksmusic.com">
-                                          <source src="<?php echo MP3_DIR . "/WishYouWereHere/{$oSong->nTrackNumber}.mp3";?>" type="audio/mpeg" />
-                                          <a href="<?php echo MP3_DIR . "/WishYouWereHere/{$oSong->nTrackNumber}.mp3";?>"><?php echo $oSong->sSongName;?></a>
+                                          <source src="<?php echo MP3_DIR . "/WishYouWereHere/{$oSong->trackNumber}.mp3";?>" type="audio/mpeg" />
+                                          <a href="<?php echo MP3_DIR . "/WishYouWereHere/{$oSong->trackNumber}.mp3";?>"><?php echo $oSong->name;?></a>
                                           An html5-capable browser is required to play this audio. 
                                         </audio>		
                                     <!--</div>-->
@@ -128,7 +119,7 @@
                             ?>
 
                             <?php
-                            echo $oThisCD->sCDDescription;?>
+                            echo $oThisCD ? $oThisCD->description : '';?>
                         
                             <?php
 							echo "</div>";

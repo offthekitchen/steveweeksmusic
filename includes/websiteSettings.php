@@ -32,6 +32,7 @@ date_default_timezone_set('America/Denver');
  define("ADMIN_DIR",$ROOT . "/admin");
  define("LYRICS_DIR",$ROOT . "/lyrics");
  define("NEWS_DIR",$ROOT . "/news");
+ define("REVIEWS_DIR",$ROOT . "/reviews");
  define("SETTINGS_DIR",$ROOT . "/../settings");
  define("DROP_IMG_DIR","http://thurdy.com/images");
 

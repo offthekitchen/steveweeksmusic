@@ -14,12 +14,6 @@ include_once(SETTINGS_DIR . "/SteveWeeksMusicSettings.php");
 //Common Functions
 include(INCLUDE_DIR . "/commonFunctions.php");
 
-//include Review Class
-include_once(CLASS_DIR . "/class_Review.php");
-
-//include Award Class
-include_once(CLASS_DIR . "/class_Award.php");
-
 //Page Name 
 $sPageName = "Songbird Birdsong";
 $sPageTitle = "Songbird / Birdsong 45 RPM Single";

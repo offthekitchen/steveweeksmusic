@@ -1,4 +1,13 @@
 <?php
+/*
+*******************************************************************
+awards.php
+NOTES
+Date        Change
+-------------------------------------------------------------
+2026-10-12	Migrated to shared PDO datalayer
+*******************************************************************
+*/
 	//Don't Display Notice messages from PHP Server
 	error_reporting(E_ALL ^ E_NOTICE);
 
@@ -14,30 +23,26 @@
 	//Common Functions
    	include (INCLUDE_DIR . "/commonFunctions.php");
 
-	//include Award Class
-	include_once (CLASS_DIR . "/class_Award.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
+	include_once(DATALAYER_DIR . "/Award.php");
+	include_once(DATALAYER_DIR . "/AwardRepository.php");
 
-	$oAwards = new Award();
+	$criteria = ['artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID];
 	
 	//If a CD ID is passed, display awards for that CD
 	if (isset($_REQUEST['cd-id']) && $_REQUEST['cd-id'] != "")
 	{
-		$oAwards->nCDID = $_REQUEST['cd-id'];		
+		$criteria['cdId'] = (int) $_REQUEST['cd-id'];
 	}
 
 	//If a Performance indicator is passed, display awards for performances
 	if (isset($_REQUEST['performance-related']) && $_REQUEST['performance-related'] != "")
 	{
-		$oAwards->bPerformanceRelated = TRUE;		
+		$criteria['performanceRelated'] = true;
 	}
 
-	$oAwards->nArtistID = STEVE_WEEKS_FAMILY_ARTIST_ID;
-	
-	if(!$oAwards->getAward())
-	{
-		//TODO: What about an error?
-		echo "ERROR RETRIEVING Awards: {$oAwards->sErrorMessage}";	
-	}
+	$awardRepo = new \Datalayer\AwardRepository();
+	$aAwards = $awardRepo->find($criteria);
 
 	//Page Name 
 	$sPageName = "Awards";
@@ -75,7 +80,7 @@
 				<section id="award-list" class="row">
 					<?php
 					$nListingNumber = 1;
-					foreach ($oAwards->aAwardRecords as $oAward)
+					foreach ($aAwards as $oAward)
 					{
 						echo "<div class=\"col-xs-12 col-lg-10 col-lg-push-1\">";
 						echo "<aside class=\"award-listing listing-{$nListingNumber}\">";
