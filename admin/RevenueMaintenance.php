@@ -53,10 +53,10 @@ include_once(DATALAYER_DIR . "/RevenueType.php");
 include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //Array of Revenue records from the DB
 $aRevenueRecords = [];
@@ -864,10 +864,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 */
 	function getRevenueCategoryIds(int $revenueId): array
 	{
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('SELECT CATEGORY_ID FROM REVENUE_CATEGORY_XREF WHERE REVENUE_ID = :revenueId');
-		$stmt->execute([':revenueId' => $revenueId]);
-		return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		return $revenueRepo->findCategoryIds($revenueId);
 	}
 
 
@@ -886,16 +884,12 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			return false;
 		}
 
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('INSERT INTO REVENUE_CATEGORY_XREF (REVENUE_ID, CATEGORY_ID) VALUES (:revenueId, :categoryId)');
+		$revenueRepo = new \Datalayer\RevenueRepository();
 
 		foreach ($revenueCategories as $revenueCategory) {
 			$checkboxName = "chkCategory{$revenueCategory->id}";
 			if (isset($_POST[$checkboxName]) && $_POST[$checkboxName] == 'CategoryAssociated') {
-				if (!$stmt->execute([
-					':revenueId' => $revenueId,
-					':categoryId' => (int) $revenueCategory->id,
-				])) {
+				if (!$revenueRepo->insertCategoryXref($revenueId, (int) $revenueCategory->id)) {
 					return false;
 				}
 			}
@@ -916,9 +910,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			return false;
 		}
 
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('DELETE FROM REVENUE_CATEGORY_XREF WHERE REVENUE_ID = :revenueId');
-		return $stmt->execute([':revenueId' => $revenueId]);
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		return $revenueRepo->deleteCategoryXrefs($revenueId);
 	}
 
 	?>

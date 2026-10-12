@@ -35,10 +35,10 @@ include_once(DATALAYER_DIR . "/PerformanceSongs.php");
 include_once(DATALAYER_DIR . "/PerformanceSongsRepository.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of PerformanceSongs records from the DB
 $aPerformanceSongsRecords = [];

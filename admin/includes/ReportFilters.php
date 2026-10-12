@@ -19,7 +19,7 @@ Date        Change
 if($bCalendarFilter == TRUE)
 {
 	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
+ 	require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-6'>";

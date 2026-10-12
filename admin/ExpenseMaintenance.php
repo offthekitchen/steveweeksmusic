@@ -45,10 +45,10 @@ include_once(DATALAYER_DIR . "/Category.php");
 include_once(DATALAYER_DIR . "/CategoryRepository.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of Expense records from the DB
 $aExpenseRecords = [];
@@ -682,10 +682,8 @@ function copyFormFields($form): void
 */
 function getExpenseCategoryIds(int $expenseId): array
 {
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('SELECT CATEGORY_ID FROM EXPENSE_CATEGORY_XREF WHERE EXPENSE_ID = :expenseId');
-	$stmt->execute([':expenseId' => $expenseId]);
-	return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	return $expenseRepo->findCategoryIds($expenseId);
 }
 
 
@@ -706,16 +704,12 @@ function updateExpenseCategories(int $expenseId, array $expenseCategories): bool
 		return false;
 	}
 
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('INSERT INTO EXPENSE_CATEGORY_XREF (EXPENSE_ID, CATEGORY_ID) VALUES (:expenseId, :categoryId)');
+	$expenseRepo = new \Datalayer\ExpenseRepository();
 
 	foreach ($expenseCategories as $expenseCategory) {
 		$checkboxName = "chkCategory{$expenseCategory->id}";
 		if (isset($_POST[$checkboxName]) && $_POST[$checkboxName] == 'CategoryAssociated') {
-			if (!$stmt->execute([
-				':expenseId' => $expenseId,
-				':categoryId' => (int) $expenseCategory->id,
-			])) {
+			if (!$expenseRepo->insertCategoryXref($expenseId, (int) $expenseCategory->id)) {
 				return false;
 			}
 		}
@@ -736,9 +730,8 @@ function removeExpenseCategories(int $expenseId): bool
 		return false;
 	}
 
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('DELETE FROM EXPENSE_CATEGORY_XREF WHERE EXPENSE_ID = :expenseId');
-	return $stmt->execute([':expenseId' => $expenseId]);
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	return $expenseRepo->deleteCategoryXrefs($expenseId);
 }
 
 ?>

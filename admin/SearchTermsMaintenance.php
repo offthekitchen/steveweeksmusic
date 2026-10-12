@@ -35,7 +35,7 @@ include_once(DATALAYER_DIR . "/SearchTerms.php");
 include_once(DATALAYER_DIR . "/SearchTermsRepository.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of SearchTerms records from the DB
 $aSearchTermsRecords = [];

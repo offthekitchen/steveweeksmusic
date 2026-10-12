@@ -38,7 +38,7 @@ include_once(DATALAYER_DIR . "/RevenueType.php");
 include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
  $sActiveMenuItem = REPORTS_ACTIVE;	
  $sPageName = "Income Tax Report";

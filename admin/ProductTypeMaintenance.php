@@ -60,7 +60,7 @@ include_once(DATALAYER_DIR . "/ProductTypeRepository.php");
 
 //include Form Class		
 
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 
 

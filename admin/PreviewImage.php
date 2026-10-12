@@ -14,7 +14,7 @@
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
 	?>
 <?php
- 	include_once (CLASS_DIR . "/class_Form.php");
+ 	include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 	//Get Image Name from query string
 	$sImageFullPath = $_REQUEST['image'];
