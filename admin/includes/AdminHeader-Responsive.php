@@ -10,6 +10,7 @@ Date        Change
 2011-23-16	Created Responsive version
 2012-04-16	Corrected "Reports" menu
 2019-08-15  Added Artist Report
+2026-10-14  Added Vendor Report
 *******************************************************************
 */
 ?>
@@ -124,6 +125,7 @@ Date        Change
 								<li><a href="<?php echo ADMIN_DIR; ?>/RevenueTypeReport.php">Revenue Type Report</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/SalesTaxReport.php">Sales Tax Report</a></li>
 								<li><a href="<?php echo ADMIN_DIR; ?>/SongReport.php">Song Report</a></li>
+								<li><a href="<?php echo ADMIN_DIR; ?>/VendorReport.php">Vendor Report</a></li>
 							</ul>
 						</li>
 

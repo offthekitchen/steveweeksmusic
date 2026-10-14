@@ -85,7 +85,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 	//If a Vendor ID is passed, go ahead and search payments for that vendor
 	if (isset($_REQUEST['VENDOR_ID']) && $_REQUEST['VENDOR_ID'] != "") {
-		$_POST['selVendorType'] = $_REQUEST['VENDOR_ID'];
+		$_POST['selVendor'] = $_REQUEST['VENDOR_ID'];
 		$_POST['btnSearch'] = "Search";
 	}
 

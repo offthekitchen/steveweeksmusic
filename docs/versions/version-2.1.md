@@ -19,8 +19,15 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
     - Shared `Connection.php` uses `charset=latin1` to preserve legacy UTF-8-in-latin1 text (Icelandic venues, etc.).
   - Why: Clear the path to decommission shared `classes` for this site, keep one data-access style, and fix garbled characters without waiting on a separate change.
 
+- **vendor-report** (version2.1-feature-vendor-report): Admin Vendor Report for payments and expenses by vendor and by year.
+  - What changed:
+    - New `admin/VendorReport.php` with year + vendor filters; Vendor Data table (Payment / Expense / Net); Payments and Expenses by Year when Year = ALL.
+    - ReportFilters vendor dropdown (ALL) and Reports menu links (responsive header, legacy header, Admin Main).
+    - PaymentMaintenance `VENDOR_ID` query param now sets `selVendor` so vendor drill-down links work.
+  - Why: Review vendor-related payments and expenses without the product matrix from Artist Report.
+
 ### Bugfixes
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts
 - Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense repositories) with this release. Shared `classes` folder is left in place for Thurdy.

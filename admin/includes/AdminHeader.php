@@ -101,6 +101,7 @@ Date        Change
 			<a href="<?php echo ADMIN_DIR; ?>/MileageReport.php">Mileage Report</a>
 			<a href="<?php echo ADMIN_DIR; ?>/ProductReport.php">Product Report</a>
 			<a href="<?php echo ADMIN_DIR; ?>/RevenueTypeReport.php">Revenue Type Report</a>
+			<a href="<?php echo ADMIN_DIR; ?>/VendorReport.php">Vendor Report</a>
 			</div>
 
 			<script type="text/javascript">
