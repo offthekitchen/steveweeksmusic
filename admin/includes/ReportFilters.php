@@ -13,6 +13,7 @@ Date        Change
 2024-05-09	Added Colorado Sessions Filter
 2026-07-30	Migrated Category/RevenueType/Product/Song/CD filters to Datalayer
 2026-10-14	Added Vendor filter (ALL) for reports
+2026-10-14	Vendor filter uses renderVendorDropDown (report mode)
 **********************************************************************
 */
 
@@ -156,35 +157,10 @@ if($bArtistFilter == TRUE )
 	renderArtistDropDown($_POST['selArtist']);
 }
 
-// VENDOR FILTER (report-style ALL option; not maintenance renderVendorDropDown)
+// VENDOR FILTER (shared renderVendorDropDown in report mode)
 if($bVendorFilter == TRUE)
 {
-	include_once(DATALAYER_DIR . "/Connection.php");
-	include_once(DATALAYER_DIR . "/Vendor.php");
-	include_once(DATALAYER_DIR . "/VendorRepository.php");
-
-	echo "<div class='row'>";
-	echo "<div class='col-xs-12 col-sm-2'>";
-	echo "VENDOR:";
-	echo "</div>";
-	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selVendor\" ID=\"selVendor\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-
-	$vendorRepo = new \Datalayer\VendorRepository();
-	foreach ($vendorRepo->find() as $oVendor)
-	{
-		echo "<OPTION VALUE=\"{$oVendor->id}\" ";
-		if ($oVendor->id == ($_POST['selVendor'] ?? null))
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$oVendor->name}</OPTION>";
-	}
-
-	echo "</SELECT>";
-	echo "</div>";
-	echo "</div>";
+	renderVendorDropDown($_POST['selVendor'] ?? -1, 'report');
 }
 
  //CATEGORY FILTER

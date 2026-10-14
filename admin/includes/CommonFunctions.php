@@ -20,6 +20,7 @@ Date        Change
 2026-07-30	Migrated dropdown helpers to Datalayer repositories
 2026-07-30	Fixed renderDatePicker to show picker for empty add-mode dates
 2026-10-12	Load local Form helper and calendar (no shared CLASS_DIR)
+2026-10-14	renderVendorDropDown modes: entry, edit, report (ACTIVE filter)
 *******************************************************************
 */	
 ?>
@@ -133,31 +134,59 @@ function renderProductDropDown($nProductID)
 /*
  ********************************************************************************
  * renderVendorDropDown
- * 
- * This function renders a drop-down list of Vendors
+ *
+ * Renders a vendor drop-down. $mode:
+ *   entry  — add/search: active vendors + NONE (0) + ALL (-1); default ALL
+ *   edit   — edit record: active vendors + NONE; include current inactive
+ *   report — Vendor Report: all vendors + ALL (-1); no NONE; no Edit link
  ********************************************************************************
 */
-function renderVendorDropDown($nVendorID)
+function renderVendorDropDown($nVendorID, $mode = 'entry')
 {
- 	echo "VENDOR:\n"; 
-	echo "<SELECT NAME=\"selVendor\" ID=\"selVendor\">\n";
-	echo "<OPTION VALUE=\"0\">NONE</OPTION>\n";
+	$selected = (int) $nVendorID;
 	$vendorRepo = new \Datalayer\VendorRepository();
-	foreach ($vendorRepo->find() as $vendor)
-	{
-		echo "<OPTION VALUE=\"{$vendor->id}\" ";
-		if ($vendor->id == ($_POST['selVendor'] ?? null))
-		{
+
+	if ($mode === 'report') {
+		$vendors = $vendorRepo->find();
+	} else {
+		$criteria = ['active' => 1];
+		if ($selected > 0) {
+			$criteria['includeId'] = $selected;
+		}
+		$vendors = $vendorRepo->find($criteria);
+	}
+
+	echo "VENDOR:\n";
+	echo "<SELECT NAME=\"selVendor\" ID=\"selVendor\">\n";
+
+	if ($mode === 'entry' || $mode === 'report') {
+		echo "<OPTION VALUE=\"-1\"";
+		if ($selected === -1) {
 			echo " SELECTED ";
 		}
-		echo ">{$vendor->name}</OPTION>";
+		echo ">ALL</OPTION>\n";
 	}
-	
+
+	if ($mode === 'entry' || $mode === 'edit') {
+		echo "<OPTION VALUE=\"0\"";
+		if ($selected === 0) {
+			echo " SELECTED ";
+		}
+		echo ">NONE</OPTION>\n";
+	}
+
+	foreach ($vendors as $vendor) {
+		echo "<OPTION VALUE=\"{$vendor->id}\" ";
+		if ((int) $vendor->id === $selected) {
+			echo " SELECTED ";
+		}
+		echo ">" . htmlspecialchars($vendor->name ?? '', ENT_QUOTES) . "</OPTION>";
+	}
+
 	echo "</SELECT>";
 
-	if ($nVendorID > 0 )
-	{
-		echo "<A HREF='" . ADMIN_DIR . "/VendorMaintenance.php?ID={$nVendorID}' class='secondaryLinkButton'>Edit Vendor</A>";
+	if ($mode !== 'report' && $selected > 0) {
+		echo "<A HREF='" . ADMIN_DIR . "/VendorMaintenance.php?ID={$selected}' class='secondaryLinkButton'>Edit Vendor</A>";
 	}
 }
 

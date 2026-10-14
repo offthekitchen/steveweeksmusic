@@ -26,8 +26,17 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
     - PaymentMaintenance `VENDOR_ID` query param now sets `selVendor` so vendor drill-down links work.
   - Why: Review vendor-related payments and expenses without the product matrix from Artist Report.
 
+- **vendor-active** (version2.1-feature-vendor-active): Active/inactive flag for vendors, with Payment, Expense, and Vendor Report dropdown behavior.
+  - What changed:
+    - Vendor Maintenance ACTIVE checkbox (unchecked by default on new vendors).
+    - `renderVendorDropDown` modes: entry (active + NONE + ALL), edit (active + NONE, keep current inactive), report (all vendors + ALL).
+    - Payment/Expense search: NONE = no vendor; ALL = any vendor; add rejects ALL.
+    - Vendor Report filter uses the shared dropdown method.
+    - Companion offthekitchen branch `version1.0-feature-vendor-active`: `VENDOR.ACTIVE` on entity/repository; payment/expense `vendorUnassigned` search.
+  - Why: Retire vendors without deleting history; keep new entry limited to active vendors while old records can keep an inactive assignment.
+
 ### Bugfixes
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts
-- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense repositories) with this release. Shared `classes` folder is left in place for Thurdy.
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes
+- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor repositories) with this release. `VENDOR.ACTIVE` column must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.0-feature-vendor-active` with this feature.

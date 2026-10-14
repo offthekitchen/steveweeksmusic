@@ -11,6 +11,7 @@ Date        Change
 2016-12-29	Improved Responsivity for phone
 2021-08-21 	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Vendor repository
+2026-10-14	Added ACTIVE checkbox for vendor active/inactive
 *******************************************************************
 */	
 
@@ -354,6 +355,18 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 			<div class="col-xs-12  FieldGroup">
 				NAME: <input type="text" name="txtVendorName" value="<?php echo $_POST['txtVendorName'] ?? ''; ?>" size="60" />
 			</div>
+			<div class="col-xs-12 FieldGroup">
+				<div class="row">
+					<div class="col-xs-3 col-sm-2">
+						<input type="checkbox" name="chkActive" class="result-checkbox" value="ACTIVE" <?php if (!empty($_POST['chkActive'])) {
+							echo " checked ";
+						} ?> />
+					</div>
+					<div class="col-xs-9 col-sm-10 result-checkbox-text">
+						ACTIVE
+					</div>
+				</div>
+			</div>
 			<div class="col-xs-12">		
 				<div class="row FormFieldNoEdit">
 					<div class ="col-xs-3 FormFieldNoEdit">
@@ -403,6 +416,7 @@ function buildVendorObject(\Datalayer\Vendor $vendor)
 	$vendor->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
 	$vendor->name = html_entity_decode($_POST['txtVendorName'] ?? '', ENT_QUOTES);
+	$vendor->active = (($_POST['chkActive'] ?? '') === 'ACTIVE') ? 1 : 0;
 }
 
 
@@ -421,6 +435,7 @@ function loadVendor(\Datalayer\Vendor $vendor, $form)
 		$_POST['hdnVendorID'] = $vendor->id;
 
 		$_POST['txtVendorName'] = htmlentities($vendor->name ?? '', ENT_QUOTES);
+		$_POST['chkActive'] = (!empty($vendor->active)) ? 'ACTIVE' : '';
 		$_POST['txtLastUpdate'] = htmlentities($vendor->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else

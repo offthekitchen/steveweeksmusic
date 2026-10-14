@@ -18,6 +18,7 @@ Date        Change
 2022-01-25	Added ability for no product search
 2024-05-17	Added Colorado Sessions Flag
 2026-07-30	Migrated to new Datalayer Expense repository
+2026-10-14	Vendor ACTIVE dropdown modes; ALL/NONE search and add rules
 *******************************************************************
 */
 
@@ -187,26 +188,32 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 					// *   ADD      *
 					// **************
 					if (isset($_POST["btnAdd"])) {
-						buildExpenseObject($thisExpense);
+						if ((int) ($_POST['selVendor'] ?? -1) === -1) {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "Vendor choice is required";
+							$form->nFormMode = FORM_MODE_NEW;
+						} else {
+							buildExpenseObject($thisExpense);
 
-						if ($expenseRepo->insert($thisExpense)) {
-							if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
-								$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
-								$aExpenseRecords = [$thisExpense];
-								loadExpense($thisExpense, $form, $aExpenseCategories);
+							if ($expenseRepo->insert($thisExpense)) {
+								if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
+									$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
+									$aExpenseRecords = [$thisExpense];
+									loadExpense($thisExpense, $form, $aExpenseCategories);
 
-								$form->nMessageType = MESSAGE_TYPE_INFO;
-								$form->sMessage = "Expense Added";
-								$form->nFormMode = FORM_MODE_EDIT;
+									$form->nMessageType = MESSAGE_TYPE_INFO;
+									$form->sMessage = "Expense Added";
+									$form->nFormMode = FORM_MODE_EDIT;
+								} else {
+									$form->nMessageType = MESSAGE_TYPE_ERROR;
+									$form->sMessage = "ERROR: Failed to update expense category associations";
+									$form->nFormMode = FORM_MODE_EDIT;
+								}
 							} else {
 								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "ERROR: Failed to update expense category associations";
+								$form->sMessage = "ADD RECORD FAILED";
 								$form->nFormMode = FORM_MODE_EDIT;
 							}
-						} else {
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "ADD RECORD FAILED";
-							$form->nFormMode = FORM_MODE_EDIT;
 						}
 					}
 					// **************
@@ -434,7 +441,9 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 					</div>
 					<div class="col-xs-12">
 						<?php
-						renderVendorDropDown($_POST['selVendor'] ?? 0);
+						$vendorDropdownMode = ($form->nFormMode == FORM_MODE_EDIT) ? 'edit' : 'entry';
+						$vendorSelected = $_POST['selVendor'] ?? (($vendorDropdownMode === 'edit') ? 0 : -1);
+						renderVendorDropDown($vendorSelected, $vendorDropdownMode);
 						?>
 					</div>
 					<div class="col-xs-12">
@@ -592,8 +601,11 @@ function buildExpenseSearchCriteria(\Datalayer\Expense $expense, array $expenseC
 		$criteria['productId'] = $_POST['selProduct'];
 	}
 
-	if (!empty($expense->vendorId)) {
-		$criteria['vendorId'] = $expense->vendorId;
+	$selVendor = (int) ($_POST['selVendor'] ?? -1);
+	if ($selVendor === 0) {
+		$criteria['vendorUnassigned'] = true;
+	} elseif ($selVendor > 0) {
+		$criteria['vendorId'] = $selVendor;
 	}
 
 	if (!empty($expense->taxCategoryId)) {
@@ -756,6 +768,26 @@ function validate_form ( )
         sErrorMessage += "Expense Description Required\n";
         bValid = false;
     }
+
+	//Vendor ALL is not allowed when adding (entry dropdown includes ALL)
+	if ( document.ExpenseMaint.selVendor )
+	{
+		var selVendor = document.ExpenseMaint.selVendor;
+		var hasVendorAll = false;
+		for (var i = 0; i < selVendor.options.length; i++)
+		{
+			if (selVendor.options[i].value == "-1")
+			{
+				hasVendorAll = true;
+				break;
+			}
+		}
+		if (hasVendorAll && selVendor.value == "-1")
+		{
+			sErrorMessage += "Vendor choice is required\n";
+			bValid = false;
+		}
+	}
 
 	//Expense Date is a required Field
     if ( document.ExpenseMaint.ExpenseDate.value == "" || document.ExpenseMaint.ExpenseDate.value == "0000-00-00" )
