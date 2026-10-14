@@ -227,6 +227,9 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						<div class="admin-link">
 							<A HREF="<?php echo ADMIN_DIR; ?>/TourReport.php">Tour Report</A>					
 						</div>
+						<div class="admin-link">
+							<A HREF="<?php echo ADMIN_DIR; ?>/VendorReport.php">Vendor Report</A>
+						</div>
 					</div>
 				</div>
 			</div>
