@@ -322,14 +322,14 @@ $aMileageRecords = [];
 					<div class="row">
 						<div class="col-xs-12  FieldGroup">
 							<div class="row">
-								<div class="col-xs-12 col-sm-8">
-									MILEAGE: <input type="text" name="txtMileage" value="<?php echo $_POST['txtMileage'] ?? ''; ?>" size="60" />
-								</div>
 								<div class="col-xs-12 col-sm-4">
 									DATE: <BR />
 									<?php
 									renderDatePicker("MileageDate", $_POST['MileageDate'] ?? ($thisMileage->mileageDate ?? ''));
 									?>
+								</div>
+								<div class="col-xs-12 col-sm-8">
+									MILEAGE: <input type="text" name="txtMileage" value="<?php echo $_POST['txtMileage'] ?? ''; ?>" size="60" />
 								</div>
 								<div class="col-xs-12">
 									REASON: <input type="text" name="txtReason" value="<?php echo $_POST['txtReason'] ?? ''; ?>" size="60" />

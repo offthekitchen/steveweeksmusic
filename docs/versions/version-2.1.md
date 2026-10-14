@@ -36,7 +36,10 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
   - Why: Retire vendors without deleting history; keep new entry limited to active vendors while old records can keep an inactive assignment.
 
 ### Bugfixes
+- **mileage-field-order** (version2.1-bugfix-mileage-field-order): Put DATE before MILEAGE on Mileage Maintenance.
+  - What was wrong: MILEAGE appeared above DATE when the fields stacked (and before DATE in the form layout).
+  - What fixed it: Swapped the DATE and MILEAGE field blocks so DATE is first, then MILEAGE, then REASON.
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE)
 - Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor repositories) with this release. `VENDOR.ACTIVE` column must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.0-feature-vendor-active` with this feature.
