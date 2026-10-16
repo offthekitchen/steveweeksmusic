@@ -35,11 +35,20 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
     - Companion offthekitchen branch `version1.0-feature-vendor-active`: `VENDOR.ACTIVE` on entity/repository; payment/expense `vendorUnassigned` search.
   - Why: Retire vendors without deleting history; keep new entry limited to active vendors while old records can keep an inactive assignment.
 
+- **lookup-active-flags** (version2.1-feature-lookup-active-flags): Active flags for Category, Tax Category, and Revenue Type (same pattern as Vendor).
+  - What changed:
+    - ACTIVE checkbox on Category, Tax Category, and Revenue Type Maintenance (unchecked by default on new).
+    - Shared dropdown modes for Tax Category, Category, and Revenue Type (entry/edit/report); report filters use those helpers.
+    - Expense tax category and Revenue type: search ALL/NONE; add/update reject ALL and NONE (required).
+    - Expense/Revenue category checkboxes show active only, plus assigned inactive while editing; Clear reloads active-only.
+    - Companion offthekitchen branch `version1.1-feature-lookup-active-flags`: `ACTIVE` on Category/TaxCategory/RevenueType; expense `taxCategoryUnassigned`; revenue `revenueTypeUnassigned`.
+  - Why: Retire lookups without deleting history; keep new entry limited to active values.
+
 ### Bugfixes
 - **mileage-field-order** (version2.1-bugfix-mileage-field-order): Put DATE before MILEAGE on Mileage Maintenance.
   - What was wrong: MILEAGE appeared above DATE when the fields stacked (and before DATE in the form layout).
   - What fixed it: Swapped the DATE and MILEAGE field blocks so DATE is first, then MILEAGE, then REASON.
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE)
-- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor repositories) with this release. `VENDOR.ACTIVE` column must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.0-feature-vendor-active` with this feature.
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE), Category/Tax Category/Revenue Type ACTIVE, Expense tax category and Revenue type dropdowns, Expense/Revenue inactive category checkboxes + Clear
+- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor/Category/TaxCategory/RevenueType repositories) with this release. `ACTIVE` columns on `VENDOR`, `CATEGORY`, `TAX_CATEGORY`, and `REVENUE_TYPE` must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.1-feature-lookup-active-flags` (and earlier `version1.0` vendor-active on main) with this feature.

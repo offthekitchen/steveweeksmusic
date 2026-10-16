@@ -157,8 +157,8 @@ require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 <?php
 if (isset($_POST["btnGenerate"])) 
 {
-	//Only display this section if reporting on all revenute types 
-	if($_POST['selRevenueType'] == 0)
+	//Only display this section if reporting on all revenue types (ALL = -1)
+	if ((int) ($_POST['selRevenueType'] ?? -1) <= 0)
 	{
 ?>
 	<div class="row"> 		

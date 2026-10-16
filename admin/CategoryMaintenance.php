@@ -381,6 +381,10 @@ $sPageName = "Category Maintenance";
 					</div>
 					<div class="col-xs-10 result-checkbox-text">REVENUE RELATED
 				  	</div>
+					<div class="col-xs-2">
+						<input class="result-checkbox" type="checkbox" name="chkActive" value="ACTIVE"<?php if (!empty($_POST['chkActive'])) {echo " checked ";}; ?> />
+					</div>
+					<div class="col-xs-10 result-checkbox-text">ACTIVE</div>
 				</div>
 			</div>
 			<div class="col-xs-12">		
@@ -433,6 +437,7 @@ function buildCategoryObject(\Datalayer\Category $Category)
 	$Category->name = html_entity_decode($_POST['txtCategoryName'] ?? '', ENT_QUOTES);
 	$Category->expenseRelated = (($_POST['chkExpenseRelated'] ?? '') == "ExpenseRelated");
 	$Category->revenueRelated = (($_POST['chkRevenueRelated'] ?? '') == "RevenueRelated");
+	$Category->active = (($_POST['chkActive'] ?? '') === 'ACTIVE') ? 1 : 0;
 }
 
 
@@ -454,6 +459,7 @@ function loadCategory(\Datalayer\Category $Category, $form)
 		$_POST['txtCategoryName'] = htmlentities($Category->name ?? '', ENT_QUOTES);
 		$_POST['chkExpenseRelated'] = $Category->expenseRelated;
 		$_POST['chkRevenueRelated'] = $Category->revenueRelated;
+		$_POST['chkActive'] = (!empty($Category->active)) ? 'ACTIVE' : '';
 		$_POST['txtLastUpdate'] = htmlentities($Category->lastUpdate ?? '', ENT_QUOTES);
 		
 	}
