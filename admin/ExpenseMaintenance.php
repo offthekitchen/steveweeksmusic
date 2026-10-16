@@ -18,6 +18,8 @@ Date        Change
 2022-01-25	Added ability for no product search
 2024-05-17	Added Colorado Sessions Flag
 2026-07-30	Migrated to new Datalayer Expense repository
+2026-10-14	Vendor ACTIVE dropdown modes; ALL/NONE search and add rules
+2026-10-15	Tax category ACTIVE modes; category checkbox active filter
 *******************************************************************
 */
 
@@ -45,10 +47,10 @@ include_once(DATALAYER_DIR . "/Category.php");
 include_once(DATALAYER_DIR . "/CategoryRepository.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of Expense records from the DB
 $aExpenseRecords = [];
@@ -156,7 +158,20 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 		$nThisExpenseID = $_REQUEST['ID'] ?? null;
 
 		try {
-			$aExpenseCategories = $categoryRepo->find(['expenseRelated' => true]);
+			$categoryIncludeExpenseId = null;
+			// Clear/Cancel should not keep inactive categories from the previous record
+			if (!isset($_POST['btnClear']) && !isset($_POST['btnCancel'])) {
+				if (!is_null($nThisExpenseID) && $nThisExpenseID !== '') {
+					$categoryIncludeExpenseId = (int) $nThisExpenseID;
+				} elseif (!empty($_POST['hdnExpenseID']) && is_numeric($_POST['hdnExpenseID'])) {
+					$categoryIncludeExpenseId = (int) $_POST['hdnExpenseID'];
+				}
+			}
+			$categoryCriteria = ['expenseRelated' => true, 'active' => 1];
+			if ($categoryIncludeExpenseId) {
+				$categoryCriteria['includeIds'] = getExpenseCategoryIds($categoryIncludeExpenseId);
+			}
+			$aExpenseCategories = $categoryRepo->find($categoryCriteria);
 
 			if (empty($aExpenseCategories)) {
 				$form->sMessage = "Error Retrieving Expense Categories.";
@@ -169,6 +184,11 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 
 					if ($entity) {
 						$thisExpense = $entity;
+						$aExpenseCategories = $categoryRepo->find([
+							'expenseRelated' => true,
+							'active' => 1,
+							'includeIds' => getExpenseCategoryIds((int) $thisExpense->id),
+						]);
 						$aExpenseRecords = [$entity];
 						loadExpense($thisExpense, $form, $aExpenseCategories);
 
@@ -187,52 +207,80 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 					// *   ADD      *
 					// **************
 					if (isset($_POST["btnAdd"])) {
-						buildExpenseObject($thisExpense);
+						$selTaxCategory = (int) ($_POST['selTaxCategory'] ?? -1);
+						if ((int) ($_POST['selVendor'] ?? -1) === -1) {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "Vendor choice is required";
+							$form->nFormMode = FORM_MODE_NEW;
+						} elseif ($selTaxCategory <= 0) {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "Tax Category choice is required";
+							$form->nFormMode = FORM_MODE_NEW;
+						} else {
+							buildExpenseObject($thisExpense);
 
-						if ($expenseRepo->insert($thisExpense)) {
-							if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
-								$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
-								$aExpenseRecords = [$thisExpense];
-								loadExpense($thisExpense, $form, $aExpenseCategories);
+							if ($expenseRepo->insert($thisExpense)) {
+								if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
+									$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
+									$aExpenseCategories = $categoryRepo->find([
+										'expenseRelated' => true,
+										'active' => 1,
+										'includeIds' => getExpenseCategoryIds((int) $thisExpense->id),
+									]);
+									$aExpenseRecords = [$thisExpense];
+									loadExpense($thisExpense, $form, $aExpenseCategories);
 
-								$form->nMessageType = MESSAGE_TYPE_INFO;
-								$form->sMessage = "Expense Added";
-								$form->nFormMode = FORM_MODE_EDIT;
+									$form->nMessageType = MESSAGE_TYPE_INFO;
+									$form->sMessage = "Expense Added";
+									$form->nFormMode = FORM_MODE_EDIT;
+								} else {
+									$form->nMessageType = MESSAGE_TYPE_ERROR;
+									$form->sMessage = "ERROR: Failed to update expense category associations";
+									$form->nFormMode = FORM_MODE_EDIT;
+								}
 							} else {
 								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "ERROR: Failed to update expense category associations";
+								$form->sMessage = "ADD RECORD FAILED";
 								$form->nFormMode = FORM_MODE_EDIT;
 							}
-						} else {
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "ADD RECORD FAILED";
-							$form->nFormMode = FORM_MODE_EDIT;
 						}
 					}
 					// **************
 					// *   UPDATE   *
 					// **************
 					else if (isset($_POST["btnUpdate"])) {
-						buildExpenseObject($thisExpense);
+						$selTaxCategory = (int) ($_POST['selTaxCategory'] ?? -1);
+						if ($selTaxCategory <= 0) {
+							$form->nMessageType = MESSAGE_TYPE_ERROR;
+							$form->sMessage = "Tax Category choice is required";
+							$form->nFormMode = FORM_MODE_EDIT;
+						} else {
+							buildExpenseObject($thisExpense);
 
-						if ($expenseRepo->update($thisExpense)) {
-							if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
-								$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
-								$aExpenseRecords = [$thisExpense];
-								loadExpense($thisExpense, $form, $aExpenseCategories);
+							if ($expenseRepo->update($thisExpense)) {
+								if (updateExpenseCategories((int) $thisExpense->id, $aExpenseCategories)) {
+									$thisExpense = $expenseRepo->findById((int) $thisExpense->id) ?? $thisExpense;
+									$aExpenseCategories = $categoryRepo->find([
+										'expenseRelated' => true,
+										'active' => 1,
+										'includeIds' => getExpenseCategoryIds((int) $thisExpense->id),
+									]);
+									$aExpenseRecords = [$thisExpense];
+									loadExpense($thisExpense, $form, $aExpenseCategories);
 
-								$form->nMessageType = MESSAGE_TYPE_INFO;
-								$form->sMessage = "Expense Updated";
-								$form->nFormMode = FORM_MODE_EDIT;
+									$form->nMessageType = MESSAGE_TYPE_INFO;
+									$form->sMessage = "Expense Updated";
+									$form->nFormMode = FORM_MODE_EDIT;
+								} else {
+									$form->nMessageType = MESSAGE_TYPE_ERROR;
+									$form->sMessage = "ERROR: Failed to update expense category associations";
+									$form->nFormMode = FORM_MODE_EDIT;
+								}
 							} else {
 								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "ERROR: Failed to update expense category associations";
+								$form->sMessage = "ERROR: Update Failed";
 								$form->nFormMode = FORM_MODE_EDIT;
 							}
-						} else {
-							$form->nMessageType = MESSAGE_TYPE_ERROR;
-							$form->sMessage = "ERROR: Update Failed";
-							$form->nFormMode = FORM_MODE_EDIT;
 						}
 					}
 					// **************
@@ -244,6 +292,7 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 						if (!empty($thisExpense->id) && $expenseRepo->delete((int) $thisExpense->id)) {
 							if (removeExpenseCategories((int) $thisExpense->id)) {
 								clearFormFields($form);
+								$aExpenseCategories = $categoryRepo->find(['expenseRelated' => true, 'active' => 1]);
 
 								$form->sMessage = "Expense Deleted";
 								$form->nMessageType = MESSAGE_TYPE_INFO;
@@ -273,6 +322,11 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 							$form->nFormMode = FORM_MODE_NEW;
 						} else if (sizeof($aExpenseRecords) == 1) {
 							$thisExpense = $aExpenseRecords[0];
+							$aExpenseCategories = $categoryRepo->find([
+								'expenseRelated' => true,
+								'active' => 1,
+								'includeIds' => getExpenseCategoryIds((int) $thisExpense->id),
+							]);
 							loadExpense($thisExpense, $form, $aExpenseCategories);
 
 							$form->sMessage = "One Expense record found.";
@@ -289,6 +343,7 @@ include(ADMIN_INCLUDE_DIR . "/AdminHead-Responsive.php");
 					// *************
 					else if (isset($_POST["btnClear"]) || isset($_POST["btnCancel"])) {
 						clearFormFields($form);
+						$aExpenseCategories = $categoryRepo->find(['expenseRelated' => true, 'active' => 1]);
 
 						$form->sMessage = "Search for records or Add new record";
 						$form->nMessageType = MESSAGE_TYPE_INFO;
@@ -434,12 +489,16 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 					</div>
 					<div class="col-xs-12">
 						<?php
-						renderVendorDropDown($_POST['selVendor'] ?? 0);
+						$vendorDropdownMode = ($form->nFormMode == FORM_MODE_EDIT) ? 'edit' : 'entry';
+						$vendorSelected = $_POST['selVendor'] ?? (($vendorDropdownMode === 'edit') ? 0 : -1);
+						renderVendorDropDown($vendorSelected, $vendorDropdownMode);
 						?>
 					</div>
 					<div class="col-xs-12">
 						<?php
-						renderTaxCategoryDropDown($_POST['selTaxCategory'] ?? 0);
+						$taxCategoryDropdownMode = ($form->nFormMode == FORM_MODE_EDIT) ? 'edit' : 'entry';
+						$taxCategorySelected = $_POST['selTaxCategory'] ?? (($taxCategoryDropdownMode === 'edit') ? 0 : -1);
+						renderTaxCategoryDropDown($taxCategorySelected, $taxCategoryDropdownMode);
 						?>
 					</div>
 				</div>
@@ -592,12 +651,18 @@ function buildExpenseSearchCriteria(\Datalayer\Expense $expense, array $expenseC
 		$criteria['productId'] = $_POST['selProduct'];
 	}
 
-	if (!empty($expense->vendorId)) {
-		$criteria['vendorId'] = $expense->vendorId;
+	$selVendor = (int) ($_POST['selVendor'] ?? -1);
+	if ($selVendor === 0) {
+		$criteria['vendorUnassigned'] = true;
+	} elseif ($selVendor > 0) {
+		$criteria['vendorId'] = $selVendor;
 	}
 
-	if (!empty($expense->taxCategoryId)) {
-		$criteria['taxCategoryId'] = $expense->taxCategoryId;
+	$selTaxCategory = (int) ($_POST['selTaxCategory'] ?? -1);
+	if ($selTaxCategory === 0) {
+		$criteria['taxCategoryUnassigned'] = true;
+	} elseif ($selTaxCategory > 0) {
+		$criteria['taxCategoryId'] = $selTaxCategory;
 	}
 
 	$categoryIds = [];
@@ -682,10 +747,8 @@ function copyFormFields($form): void
 */
 function getExpenseCategoryIds(int $expenseId): array
 {
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('SELECT CATEGORY_ID FROM EXPENSE_CATEGORY_XREF WHERE EXPENSE_ID = :expenseId');
-	$stmt->execute([':expenseId' => $expenseId]);
-	return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	return $expenseRepo->findCategoryIds($expenseId);
 }
 
 
@@ -706,16 +769,12 @@ function updateExpenseCategories(int $expenseId, array $expenseCategories): bool
 		return false;
 	}
 
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('INSERT INTO EXPENSE_CATEGORY_XREF (EXPENSE_ID, CATEGORY_ID) VALUES (:expenseId, :categoryId)');
+	$expenseRepo = new \Datalayer\ExpenseRepository();
 
 	foreach ($expenseCategories as $expenseCategory) {
 		$checkboxName = "chkCategory{$expenseCategory->id}";
 		if (isset($_POST[$checkboxName]) && $_POST[$checkboxName] == 'CategoryAssociated') {
-			if (!$stmt->execute([
-				':expenseId' => $expenseId,
-				':categoryId' => (int) $expenseCategory->id,
-			])) {
+			if (!$expenseRepo->insertCategoryXref($expenseId, (int) $expenseCategory->id)) {
 				return false;
 			}
 		}
@@ -736,9 +795,8 @@ function removeExpenseCategories(int $expenseId): bool
 		return false;
 	}
 
-	$db = \Datalayer\Connection::getPdo();
-	$stmt = $db->prepare('DELETE FROM EXPENSE_CATEGORY_XREF WHERE EXPENSE_ID = :expenseId');
-	return $stmt->execute([':expenseId' => $expenseId]);
+	$expenseRepo = new \Datalayer\ExpenseRepository();
+	return $expenseRepo->deleteCategoryXrefs($expenseId);
 }
 
 ?>
@@ -764,6 +822,26 @@ function validate_form ( )
         bValid = false;
     }
 
+	//Vendor ALL is not allowed when adding (entry dropdown includes ALL)
+	if ( document.ExpenseMaint.selVendor )
+	{
+		var selVendor = document.ExpenseMaint.selVendor;
+		var hasVendorAll = false;
+		for (var i = 0; i < selVendor.options.length; i++)
+		{
+			if (selVendor.options[i].value == "-1")
+			{
+				hasVendorAll = true;
+				break;
+			}
+		}
+		if (hasVendorAll && selVendor.value == "-1")
+		{
+			sErrorMessage += "Vendor choice is required\n";
+			bValid = false;
+		}
+	}
+
 	//Expense Date is a required Field
     if ( document.ExpenseMaint.ExpenseDate.value == "" || document.ExpenseMaint.ExpenseDate.value == "0000-00-00" )
     {
@@ -771,11 +849,29 @@ function validate_form ( )
         bValid = false;
     }
 
-	//Tax Category is a required Field
-    if ( document.ExpenseMaint.selTaxCategory.value == "" || document.ExpenseMaint.selTaxCategory.value == 0 )
+	//Tax Category is required on add/update (ALL and NONE are not allowed)
+    if ( document.ExpenseMaint.selTaxCategory )
     {
-        sErrorMessage += "Tax Category Required\n";
-        bValid = false;
+		var selTaxCategory = document.ExpenseMaint.selTaxCategory;
+		var hasTaxCategoryAll = false;
+		for (var i = 0; i < selTaxCategory.options.length; i++)
+		{
+			if (selTaxCategory.options[i].value == "-1")
+			{
+				hasTaxCategoryAll = true;
+				break;
+			}
+		}
+		if (hasTaxCategoryAll && selTaxCategory.value == "-1")
+		{
+			sErrorMessage += "Tax Category choice is required\n";
+			bValid = false;
+		}
+		else if (selTaxCategory.value == "" || selTaxCategory.value == "0")
+		{
+			sErrorMessage += "Tax Category Required\n";
+			bValid = false;
+		}
     }
 
 	//Expense Amount is a required, numeric, positive Field

@@ -36,7 +36,7 @@ Date        Change
  	include (ADMIN_INCLUDE_DIR . "/AdminHead.php");
 	
 	//include DB Class		
-	include_once (CLASS_DIR . "/class_DB.php");
+	include_once(DATALAYER_DIR . "/Connection.php");
 
 ?>
 
@@ -45,9 +45,6 @@ Date        Change
 <body>
 <?php
  	include (ADMIN_INCLUDE_DIR . "/AdminHeader.php");
-	
-	//Instantiate DB
-	$DB = new Database();
 	
 ?>	
 <TABLE>
@@ -70,7 +67,7 @@ Date        Change
 				<tr>
 					<td>
 						<?php 
-						$sVersion = $DB->getVersion();
+						$sVersion = \Datalayer\Connection::getPdo()->getAttribute(\PDO::ATTR_SERVER_VERSION);
 						echo "Current mySQL version: {$sVersion}";
 						?>
 					</td>

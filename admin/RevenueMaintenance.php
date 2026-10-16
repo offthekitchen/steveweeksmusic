@@ -21,6 +21,7 @@ Date        Change
 2022-01-25	Added ability for no product search
 2024-05-09	Fixed error with Performance Dropdown
 2026-07-30	Migrated to new Datalayer Revenue repository
+2026-10-15	Revenue type ACTIVE modes; category checkbox active filter
 *******************************************************************
 */
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -53,10 +54,10 @@ include_once(DATALAYER_DIR . "/RevenueType.php");
 include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //Array of Revenue records from the DB
 $aRevenueRecords = [];
@@ -90,11 +91,9 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			$categoryRepo = new \Datalayer\CategoryRepository();
 			$paymentRepo = new \Datalayer\PaymentRepository();
 			$performanceRepo = new \Datalayer\PerformanceRepository();
-			$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
 			$thisRevenue = new \Datalayer\Revenue();
 			$form = new Form();
 			$aRevenueCategories = [];
-			$aRevenueTypes = [];
 
 			if (isset($_REQUEST['PRODUCT_ID']) && $_REQUEST['PRODUCT_ID'] != "") {
 				$_POST['selProduct'] = $_REQUEST['PRODUCT_ID'];
@@ -142,7 +141,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 				$_POST['selRevenueType'] = $_REQUEST['REVENUE_TYPE_ID'];
 				$_POST['btnSearch'] = "Search";
 			} else {
-				$_POST['selRevenueType'] = $_POST['selRevenueType'] ?? 0;
+				$_POST['selRevenueType'] = $_POST['selRevenueType'] ?? -1;
 			}
 
 			if (isset($_REQUEST['CATEGORY_ID']) && $_REQUEST['CATEGORY_ID'] != "") {
@@ -179,8 +178,20 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			$nThisRevenueID = $_REQUEST['ID'] ?? null;
 
 			try {
-				$aRevenueCategories = $categoryRepo->find(['revenueRelated' => true]);
-				$aRevenueTypes = $revenueTypeRepo->find();
+				$categoryIncludeRevenueId = null;
+				// Clear/Cancel should not keep inactive categories from the previous record
+				if (!isset($_POST['btnClear']) && !isset($_POST['btnCancel'])) {
+					if (!is_null($nThisRevenueID) && $nThisRevenueID !== '') {
+						$categoryIncludeRevenueId = (int) $nThisRevenueID;
+					} elseif (!empty($_POST['hdnRevenueID']) && is_numeric($_POST['hdnRevenueID'])) {
+						$categoryIncludeRevenueId = (int) $_POST['hdnRevenueID'];
+					}
+				}
+				$categoryCriteria = ['revenueRelated' => true, 'active' => 1];
+				if ($categoryIncludeRevenueId) {
+					$categoryCriteria['includeIds'] = getRevenueCategoryIds($categoryIncludeRevenueId);
+				}
+				$aRevenueCategories = $categoryRepo->find($categoryCriteria);
 
 				if (empty($aRevenueCategories)) {
 					$form->sMessage = "Error Retrieving Revenue Categories.";
@@ -192,6 +203,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 						if ($entity) {
 							$thisRevenue = $entity;
+							$aRevenueCategories = $categoryRepo->find([
+								'revenueRelated' => true,
+								'active' => 1,
+								'includeIds' => getRevenueCategoryIds((int) $thisRevenue->id),
+							]);
 							$aRevenueRecords = [$entity];
 							loadRevenue($thisRevenue, $form, $aRevenueCategories);
 
@@ -205,48 +221,72 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						}
 					} else {
 						if (isset($_POST["btnAdd"])) {
-							buildRevenueObject($thisRevenue);
+							$selRevenueType = (int) ($_POST['selRevenueType'] ?? -1);
+							if ($selRevenueType <= 0) {
+								$form->nMessageType = MESSAGE_TYPE_ERROR;
+								$form->sMessage = "Revenue Type choice is required";
+								$form->nFormMode = FORM_MODE_NEW;
+							} else {
+								buildRevenueObject($thisRevenue);
 
-							if ($revenueRepo->insert($thisRevenue)) {
-								if (updateRevenueCategories((int) $thisRevenue->id, $aRevenueCategories)) {
-									$thisRevenue = $revenueRepo->findById((int) $thisRevenue->id) ?? $thisRevenue;
-									$aRevenueRecords = [$thisRevenue];
-									loadRevenue($thisRevenue, $form, $aRevenueCategories);
+								if ($revenueRepo->insert($thisRevenue)) {
+									if (updateRevenueCategories((int) $thisRevenue->id, $aRevenueCategories)) {
+										$thisRevenue = $revenueRepo->findById((int) $thisRevenue->id) ?? $thisRevenue;
+										$aRevenueCategories = $categoryRepo->find([
+											'revenueRelated' => true,
+											'active' => 1,
+											'includeIds' => getRevenueCategoryIds((int) $thisRevenue->id),
+										]);
+										$aRevenueRecords = [$thisRevenue];
+										loadRevenue($thisRevenue, $form, $aRevenueCategories);
 
-									$form->nMessageType = MESSAGE_TYPE_INFO;
-									$form->sMessage = "Revenue Added";
-									$form->nFormMode = FORM_MODE_EDIT;
+										$form->nMessageType = MESSAGE_TYPE_INFO;
+										$form->sMessage = "Revenue Added";
+										$form->nFormMode = FORM_MODE_EDIT;
+									} else {
+										$form->nMessageType = MESSAGE_TYPE_ERROR;
+										$form->sMessage = "ERROR: Failed to update revenue category associations";
+										$form->nFormMode = FORM_MODE_EDIT;
+									}
 								} else {
 									$form->nMessageType = MESSAGE_TYPE_ERROR;
-									$form->sMessage = "ERROR: Failed to update revenue category associations";
+									$form->sMessage = "ADD RECORD FAILED";
 									$form->nFormMode = FORM_MODE_EDIT;
 								}
-							} else {
-								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "ADD RECORD FAILED";
-								$form->nFormMode = FORM_MODE_EDIT;
 							}
 						} else if (isset($_POST["btnUpdate"])) {
-							buildRevenueObject($thisRevenue);
+							$selRevenueType = (int) ($_POST['selRevenueType'] ?? -1);
+							if ($selRevenueType <= 0) {
+								$form->nMessageType = MESSAGE_TYPE_ERROR;
+								$form->sMessage = "Revenue Type choice is required";
+								$form->nFormMode = FORM_MODE_EDIT;
+							} else {
+								buildRevenueObject($thisRevenue);
 
-							if ($revenueRepo->update($thisRevenue)) {
-								if (updateRevenueCategories((int) $thisRevenue->id, $aRevenueCategories)) {
-									$thisRevenue = $revenueRepo->findById((int) $thisRevenue->id) ?? $thisRevenue;
-									$aRevenueRecords = [$thisRevenue];
-									loadRevenue($thisRevenue, $form, $aRevenueCategories);
+								if ($revenueRepo->update($thisRevenue)) {
+									if (updateRevenueCategories((int) $thisRevenue->id, $aRevenueCategories)) {
+										$thisRevenue = $revenueRepo->findById((int) $thisRevenue->id) ?? $thisRevenue;
+										$aRevenueCategories = $categoryRepo->find([
+											'revenueRelated' => true,
+											'active' => 1,
+											'includeIds' => getRevenueCategoryIds((int) $thisRevenue->id),
+										]);
+										$aRevenueRecords = [$thisRevenue];
+										loadRevenue($thisRevenue, $form, $aRevenueCategories);
 
-									$form->nMessageType = MESSAGE_TYPE_INFO;
-									$form->sMessage = "Revenue Updated";
-									$form->nFormMode = FORM_MODE_EDIT;
+										$form->nMessageType = MESSAGE_TYPE_INFO;
+										$form->sMessage = "Revenue Updated";
+										$form->nFormMode = FORM_MODE_EDIT;
+									} else {
+										$form->nMessageType = MESSAGE_TYPE_ERROR;
+										$form->sMessage = "ERROR: Failed to update revenue category associations";
+										$form->nFormMode = FORM_MODE_EDIT;
+									}
 								} else {
 									$form->nMessageType = MESSAGE_TYPE_ERROR;
-									$form->sMessage = "ERROR: Failed to update revenue category associations";
+									$form->sMessage = "ERROR: Update Failed";
 									$form->nFormMode = FORM_MODE_EDIT;
 								}
-							} else {
-								$form->nMessageType = MESSAGE_TYPE_ERROR;
-								$form->sMessage = "ERROR: Update Failed";
-								$form->nFormMode = FORM_MODE_EDIT;
 							}
 						} else if (isset($_POST["btnDelete"])) {
 							buildRevenueObject($thisRevenue);
@@ -254,6 +294,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							if (!empty($thisRevenue->id) && $revenueRepo->delete((int) $thisRevenue->id)) {
 								if (removeRevenueCategories((int) $thisRevenue->id)) {
 									clearFormFields($form);
+									$aRevenueCategories = $categoryRepo->find(['revenueRelated' => true, 'active' => 1]);
 
 									$form->sMessage = "Revenue Deleted";
 									$form->nMessageType = MESSAGE_TYPE_INFO;
@@ -281,6 +322,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 								$form->nFormMode = FORM_MODE_NEW;
 							} else if (sizeof($aRevenueRecords) == 1) {
 								$thisRevenue = $aRevenueRecords[0];
+								$aRevenueCategories = $categoryRepo->find([
+									'revenueRelated' => true,
+									'active' => 1,
+									'includeIds' => getRevenueCategoryIds((int) $thisRevenue->id),
+								]);
 								loadRevenue($thisRevenue, $form, $aRevenueCategories);
 
 								$form->sMessage = "One Revenue record found.";
@@ -293,6 +339,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							}
 						} else if (isset($_POST["btnClear"]) || isset($_POST["btnCancel"])) {
 							clearFormFields($form);
+							$aRevenueCategories = $categoryRepo->find(['revenueRelated' => true, 'active' => 1]);
 
 							$form->sMessage = "Search for records or Add new record";
 							$form->nMessageType = MESSAGE_TYPE_INFO;
@@ -444,19 +491,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 										value="<?php echo $_POST['txtRevenueAmount'] ?? ''; ?>" size="20" />
 								</div>
 								<div class="col-xs-12 col-sm-6">
-									REVENUE TYPE:
-									<SELECT NAME="selRevenueType" ID="selRevenueType">
-										<OPTION VALUE="0">NONE</OPTION>
-										<?php
-										foreach ($aRevenueTypes as $oRevenueType) {
-											echo "<OPTION VALUE=\"{$oRevenueType->id}\" ";
-											if ($oRevenueType->id == ($_POST['selRevenueType'] ?? 0)) {
-												echo " SELECTED ";
-											}
-											echo ">{$oRevenueType->name}</OPTION>";
-										}
-										?>
-									</SELECT>
+									<?php
+									$revenueTypeDropdownMode = ($form->nFormMode == FORM_MODE_EDIT) ? 'edit' : 'entry';
+									$revenueTypeSelected = $_POST['selRevenueType'] ?? (($revenueTypeDropdownMode === 'edit') ? 0 : -1);
+									renderRevenueTypeDropDown($revenueTypeSelected, $revenueTypeDropdownMode);
+									?>
 								</div>
 							</div>
 							<div class="row">
@@ -748,8 +787,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			$criteria['performanceId'] = $revenue->performanceId;
 		}
 
-		if (!empty($revenue->revenueTypeId)) {
-			$criteria['revenueTypeId'] = $revenue->revenueTypeId;
+		$selRevenueType = (int) ($_POST['selRevenueType'] ?? -1);
+		if ($selRevenueType === 0) {
+			$criteria['revenueTypeUnassigned'] = true;
+		} elseif ($selRevenueType > 0) {
+			$criteria['revenueTypeId'] = $selRevenueType;
 		}
 
 		if ($revenue->coloradoRevenue) {
@@ -864,10 +906,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	 */
 	function getRevenueCategoryIds(int $revenueId): array
 	{
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('SELECT CATEGORY_ID FROM REVENUE_CATEGORY_XREF WHERE REVENUE_ID = :revenueId');
-		$stmt->execute([':revenueId' => $revenueId]);
-		return array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		return $revenueRepo->findCategoryIds($revenueId);
 	}
 
 
@@ -886,16 +926,12 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			return false;
 		}
 
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('INSERT INTO REVENUE_CATEGORY_XREF (REVENUE_ID, CATEGORY_ID) VALUES (:revenueId, :categoryId)');
+		$revenueRepo = new \Datalayer\RevenueRepository();
 
 		foreach ($revenueCategories as $revenueCategory) {
 			$checkboxName = "chkCategory{$revenueCategory->id}";
 			if (isset($_POST[$checkboxName]) && $_POST[$checkboxName] == 'CategoryAssociated') {
-				if (!$stmt->execute([
-					':revenueId' => $revenueId,
-					':categoryId' => (int) $revenueCategory->id,
-				])) {
+				if (!$revenueRepo->insertCategoryXref($revenueId, (int) $revenueCategory->id)) {
 					return false;
 				}
 			}
@@ -916,9 +952,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			return false;
 		}
 
-		$db = \Datalayer\Connection::getPdo();
-		$stmt = $db->prepare('DELETE FROM REVENUE_CATEGORY_XREF WHERE REVENUE_ID = :revenueId');
-		return $stmt->execute([':revenueId' => $revenueId]);
+		$revenueRepo = new \Datalayer\RevenueRepository();
+		return $revenueRepo->deleteCategoryXrefs($revenueId);
 	}
 
 	?>
@@ -957,11 +992,29 @@ function validate_form ( )
 		bValid = false;
 	}
 
-	//Revenue Type is a required Field
-	if ( document.RevenueMaint.selRevenueType.value == "" || document.RevenueMaint.selRevenueType.value == 0 )
+	//Revenue Type is required on add/update (ALL and NONE are not allowed)
+	if ( document.RevenueMaint.selRevenueType )
 	{
-		sErrorMessage += "Revenue Type Required\n";
-		bValid = false;
+		var selRevenueType = document.RevenueMaint.selRevenueType;
+		var hasRevenueTypeAll = false;
+		for (var i = 0; i < selRevenueType.options.length; i++)
+		{
+			if (selRevenueType.options[i].value == "-1")
+			{
+				hasRevenueTypeAll = true;
+				break;
+			}
+		}
+		if (hasRevenueTypeAll && selRevenueType.value == "-1")
+		{
+			sErrorMessage += "Revenue Type choice is required\n";
+			bValid = false;
+		}
+		else if (selRevenueType.value == "" || selRevenueType.value == "0")
+		{
+			sErrorMessage += "Revenue Type Required\n";
+			bValid = false;
+		}
 	}
 
 	//Revenue Amount is a required, numeric, positive Field

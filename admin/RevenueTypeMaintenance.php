@@ -33,7 +33,7 @@ include_once(DATALAYER_DIR . "/RevenueType.php");
 include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of RevenueType records from the DB
 $aRevenueTypeRecords = [];
@@ -324,6 +324,18 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 			<div class="col-xs-12  FieldGroup">
 				NAME: <input type="text" name="txtRevenueTypeName" value="<?php echo $_POST['txtRevenueTypeName'] ?? ''; ?>" size="60" />
 			</div>
+			<div class="col-xs-12 FieldGroup">
+				<div class="row">
+					<div class="col-xs-3 col-sm-2">
+						<input type="checkbox" name="chkActive" class="result-checkbox" value="ACTIVE" <?php if (!empty($_POST['chkActive'])) {
+							echo " checked ";
+						} ?> />
+					</div>
+					<div class="col-xs-9 col-sm-10 result-checkbox-text">
+						ACTIVE
+					</div>
+				</div>
+			</div>
 			<div class="col-xs-12">		
 				<div class="row">
 					<div class ="col-xs-3 FormFieldNoEdit">
@@ -373,6 +385,7 @@ function buildRevenueTypeObject(\Datalayer\RevenueType $revenueType)
 	$revenueType->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
 	$revenueType->name = html_entity_decode($_POST['txtRevenueTypeName'] ?? '', ENT_QUOTES);
+	$revenueType->active = (($_POST['chkActive'] ?? '') === 'ACTIVE') ? 1 : 0;
 }
 
 
@@ -391,6 +404,7 @@ function loadRevenueType(\Datalayer\RevenueType $revenueType, $form)
 		$_POST['hdnRevenueTypeID'] = $revenueType->id;
 
 		$_POST['txtRevenueTypeName'] = htmlentities($revenueType->name ?? '', ENT_QUOTES);
+		$_POST['chkActive'] = (!empty($revenueType->active)) ? 'ACTIVE' : '';
 		$_POST['txtLastUpdate'] = htmlentities($revenueType->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else

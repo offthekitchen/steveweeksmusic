@@ -10,6 +10,7 @@ Date        Change
 2015-10-02  Changed report to use Report Filters include file
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Revenue repository
+2026-10-15	Default to current year/quarter and auto-generate on first load
 *******************************************************************
 */	
 
@@ -33,10 +34,10 @@ include_once(DATALAYER_DIR . "/Revenue.php");
 include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
 //include Form Class
-include (CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once (CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
  $sActiveMenuItem = REPORTS_ACTIVE;	
 
@@ -56,6 +57,14 @@ require_once (CLASS_DIR . "/tc_calendar.php");
  	define("DISTRICT_TAX_RATE",0.01);
 	 define("COLORADO_TAX_RATE",0.029);
 	 define("SERVICE_FEE_RATE",0.0333);
+
+	// First load: current year + current quarter, then generate
+	if (!isset($_POST["btnGenerate"]) && !isset($_POST["selYear"]) && !isset($_POST["selQuarter"]))
+	{
+		$_POST["selYear"] = date("Y");
+		$_POST["selQuarter"] = (int) ceil((int) date("n") / 3);
+		$_POST["btnGenerate"] = "GenerateReport";
+	}
 
 	if (isset($_POST["btnGenerate"])) 
 	{

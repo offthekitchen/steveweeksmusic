@@ -18,9 +18,11 @@ Date        Change
 2018-04-14	Changed revenue links
 2019-05-09	Added Numeric check for Invoice
 2019-07-19	Added renderVendorDropDown() call
+2026-10-14	Vendor ACTIVE dropdown modes; ALL/NONE search and add rules
 2020-03-06	Added renderDatePicker
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Payment repository
+2026-10-15	Accept YEAR query param for year-scoped search
 *******************************************************************
 */
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -48,10 +50,10 @@ include_once(DATALAYER_DIR . "/Revenue.php");
 include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 //Array of Payment records from the DB
 $aPaymentRecords = [];
@@ -85,7 +87,13 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 
 	//If a Vendor ID is passed, go ahead and search payments for that vendor
 	if (isset($_REQUEST['VENDOR_ID']) && $_REQUEST['VENDOR_ID'] != "") {
-		$_POST['selVendorType'] = $_REQUEST['VENDOR_ID'];
+		$_POST['selVendor'] = $_REQUEST['VENDOR_ID'];
+		$_POST['btnSearch'] = "Search";
+	}
+
+	//If a Year is passed, search payments for that year
+	if (isset($_REQUEST['YEAR']) && $_REQUEST['YEAR'] != "") {
+		$_POST['nYear'] = $_REQUEST['YEAR'];
 		$_POST['btnSearch'] = "Search";
 	}
 
@@ -115,21 +123,27 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			// *   ADD      *
 			// **************
 			if (isset($_POST["btnAdd"])) {
-				buildPaymentObject($thisPayment);
-
-				if ($paymentRepo->insert($thisPayment)) {
-					$thisPayment = $paymentRepo->findById((int) $thisPayment->id) ?? $thisPayment;
-					$aPaymentRecords = [$thisPayment];
-					loadPayment($thisPayment, $form);
-					loadPaymentRevenueLists($thisPayment, $revenueRepo, $aPaymentRevenues, $aPotentialRevenues);
-
-					$form->nMessageType = MESSAGE_TYPE_INFO;
-					$form->sMessage = "Payment Added";
-					$form->nFormMode = FORM_MODE_EDIT;
-				} else {
+				if ((int) ($_POST['selVendor'] ?? -1) === -1) {
 					$form->nMessageType = MESSAGE_TYPE_ERROR;
-					$form->sMessage = "ADD RECORD FAILED";
-					$form->nFormMode = FORM_MODE_EDIT;
+					$form->sMessage = "Vendor choice is required";
+					$form->nFormMode = FORM_MODE_NEW;
+				} else {
+					buildPaymentObject($thisPayment);
+
+					if ($paymentRepo->insert($thisPayment)) {
+						$thisPayment = $paymentRepo->findById((int) $thisPayment->id) ?? $thisPayment;
+						$aPaymentRecords = [$thisPayment];
+						loadPayment($thisPayment, $form);
+						loadPaymentRevenueLists($thisPayment, $revenueRepo, $aPaymentRevenues, $aPotentialRevenues);
+
+						$form->nMessageType = MESSAGE_TYPE_INFO;
+						$form->sMessage = "Payment Added";
+						$form->nFormMode = FORM_MODE_EDIT;
+					} else {
+						$form->nMessageType = MESSAGE_TYPE_ERROR;
+						$form->sMessage = "ADD RECORD FAILED";
+						$form->nFormMode = FORM_MODE_EDIT;
+					}
 				}
 			}
 			// **************
@@ -373,7 +387,9 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 					</div>
 					<div class="col-xs-12 col-sm-6 col-md-3">
 						<?php
-						renderVendorDropDown($_POST['selVendor'] ?? 0);
+						$vendorDropdownMode = ($form->nFormMode == FORM_MODE_EDIT) ? 'edit' : 'entry';
+						$vendorSelected = $_POST['selVendor'] ?? (($vendorDropdownMode === 'edit') ? 0 : -1);
+						renderVendorDropDown($vendorSelected, $vendorDropdownMode);
 						?>
 					</div>
 					<div class="col-xs-12 col-sm-6 col-md-3">
@@ -587,8 +603,16 @@ function buildPaymentSearchCriteria(\Datalayer\Payment $payment): array
 		$criteria['amount'] = $payment->amount;
 	}
 
-	if (!empty($payment->vendorId)) {
-		$criteria['vendorId'] = $payment->vendorId;
+	$selVendor = (int) ($_POST['selVendor'] ?? -1);
+	if ($selVendor === 0) {
+		$criteria['vendorUnassigned'] = true;
+	} elseif ($selVendor > 0) {
+		$criteria['vendorId'] = $selVendor;
+	}
+
+	$paymentYear = $_POST['nYear'] ?? null;
+	if (!empty($paymentYear)) {
+		$criteria['paymentYear'] = (int) $paymentYear;
 	}
 
 	if (!empty($payment->purchaseOrder)) {
@@ -711,6 +735,26 @@ function validate_form ( )
         sErrorMessage += "Payment Name Required\n";
         bValid = false;
     }
+
+	//Vendor ALL is not allowed when adding (entry dropdown includes ALL)
+	if ( document.PaymentMaint.selVendor )
+	{
+		var selVendor = document.PaymentMaint.selVendor;
+		var hasVendorAll = false;
+		for (var i = 0; i < selVendor.options.length; i++)
+		{
+			if (selVendor.options[i].value == "-1")
+			{
+				hasVendorAll = true;
+				break;
+			}
+		}
+		if (hasVendorAll && selVendor.value == "-1")
+		{
+			sErrorMessage += "Vendor choice is required\n";
+			bValid = false;
+		}
+	}
 
 	//Payment Date is a required Field
     if ( document.PaymentMaint.PaymentDate.value == "" || document.PaymentMaint.PaymentDate.value == "0000-00-00" )

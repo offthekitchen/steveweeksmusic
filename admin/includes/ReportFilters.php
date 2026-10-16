@@ -12,6 +12,10 @@ Date        Change
 2024-04-12	Added Artist Dropdown
 2024-05-09	Added Colorado Sessions Filter
 2026-07-30	Migrated Category/RevenueType/Product/Song/CD filters to Datalayer
+2026-10-14	Added Vendor filter (ALL) for reports
+2026-10-14	Vendor filter uses renderVendorDropDown (report mode)
+2026-10-15	Category/RevenueType filters use shared render methods (report mode)
+2026-10-15	Year filter uses renderYearDropDown (desc + current year by default)
 **********************************************************************
 */
 
@@ -19,7 +23,7 @@ Date        Change
 if($bCalendarFilter == TRUE)
 {
 	//Require the Class for the calendar picker
- 	require_once (CLASS_DIR . "/tc_calendar.php");
+ 	require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 	echo "<div class='row'>";
 	echo "<div class='col-xs-6'>";
@@ -66,24 +70,14 @@ if($bCalendarFilter == TRUE)
 // YEAR  AND QUARTER FILTERS
 if($bYearFilter == TRUE || $bQuarterFilter == TRUE)
 {
+	include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
 	echo "YEAR:";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selYear\" ID=\"selYear\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-	$nCurrentYear = date("Y");
-	for ($nYear = 2003; $nYear <= $nCurrentYear+1; $nYear++) 
-	{
-		echo "<OPTION VALUE=\"{$nYear}\"";
-		if ($nYear == $_POST['selYear'])
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$nYear}</OPTION>";
-	} 	
-	echo "</SELECT>";
+	renderYearDropDown($_POST['selYear'] ?? null);
 	echo "</div>";
 	echo "</div>";
 
@@ -154,66 +148,23 @@ if($bArtistFilter == TRUE )
 {
 	renderArtistDropDown($_POST['selArtist']);
 }
- //CATEGORY FILTER
+
+// VENDOR FILTER (shared renderVendorDropDown in report mode)
+if($bVendorFilter == TRUE)
+{
+	renderVendorDropDown($_POST['selVendor'] ?? -1, 'report');
+}
+
+// CATEGORY FILTER (shared renderCategoryDropDown in report mode)
 if($bCategoryFilter == TRUE)
 {
-	include_once(DATALAYER_DIR . "/Connection.php");
-	include_once(DATALAYER_DIR . "/Category.php");
-	include_once(DATALAYER_DIR . "/CategoryRepository.php");
+	renderCategoryDropDown($_POST['selCategory'] ?? -1, 'report');
+}
 
-	echo "<div class='row'>";
-	echo "<div class='col-xs-12 col-sm-2'>";
-	echo "CATEGORY:";
-	echo "</div>";
-	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selCategory\" ID=\"selCategory\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-
-	$categoryRepo = new \Datalayer\CategoryRepository();
-	foreach ($categoryRepo->find() as $oCategory)
-	{
-		echo "<OPTION VALUE=\"{$oCategory->id}\" ";
-		if ($oCategory->id == ($_POST['selCategory'] ?? null))
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$oCategory->name}</OPTION>";
-	}
-
-	echo "</SELECT>";
-	echo "</div>";
-	echo "</div>";
-} 
-
-//REVENUE TYPE FILTER
+// REVENUE TYPE FILTER (shared renderRevenueTypeDropDown in report mode)
 if($bRevenueTypeFilter == TRUE)
 {
-	include_once(DATALAYER_DIR . "/Connection.php");
-	include_once(DATALAYER_DIR . "/RevenueType.php");
-	include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
-
-	echo "<div class='row'>";
-	echo "<div class='col-xs-12 col-sm-2'>";
-	echo "REVENUE TYPE:";
-	echo "</div>";
-	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selRevenueType\" ID=\"selRevenueType\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-
-	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
-	foreach ($revenueTypeRepo->find() as $oRevenueType)
-	{
-		echo "<OPTION VALUE=\"{$oRevenueType->id}\" ";
-		if ($oRevenueType->id == ($_POST['selRevenueType'] ?? null))
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$oRevenueType->name}</OPTION>";
-	}
-
-	echo "</SELECT>";
-	echo "</div>";
-	echo "</div>";
+	renderRevenueTypeDropDown($_POST['selRevenueType'] ?? -1, 'report');
 } 
  
  //PRODUCT FILTER
@@ -340,6 +291,11 @@ if(isset($_POST['selYear']) && $_POST['selYear'] > 0)
 if(isset($_POST['selCategory']) && $_POST['selCategory'] > 0)
 {
 	$sBaseQueryString .= "&CATEGORY_ID={$_POST['selCategory']}";
+}
+
+if(isset($_POST['selVendor']) && $_POST['selVendor'] > 0)
+{
+	$sBaseQueryString .= "&VENDOR_ID={$_POST['selVendor']}";
 }
  
  

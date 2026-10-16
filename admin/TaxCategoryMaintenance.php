@@ -36,7 +36,7 @@ include_once(DATALAYER_DIR . "/Expense.php");
 include_once(DATALAYER_DIR . "/ExpenseRepository.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Array of TaxCategory records from the DB
 $aTaxCategoryRecords = [];
@@ -342,6 +342,18 @@ include(ADMIN_INCLUDE_DIR . "/AdminHeader-Responsive.php");
 			<div class="col-xs-12  FieldGroup">
 				NAME: <input type="text" name="txtTaxCategoryName" value="<?php echo $_POST['txtTaxCategoryName'] ?? ''; ?>" size="60" />
 			</div>
+			<div class="col-xs-12 FieldGroup">
+				<div class="row">
+					<div class="col-xs-3 col-sm-2">
+						<input type="checkbox" name="chkActive" class="result-checkbox" value="ACTIVE" <?php if (!empty($_POST['chkActive'])) {
+							echo " checked ";
+						} ?> />
+					</div>
+					<div class="col-xs-9 col-sm-10 result-checkbox-text">
+						ACTIVE
+					</div>
+				</div>
+			</div>
 			<div class="col-xs-12">		
 				<div class="row">
 					<div class ="col-xs-3 FormFieldNoEdit">
@@ -391,6 +403,7 @@ function buildTaxCategoryObject(\Datalayer\TaxCategory $taxCategory)
 	$taxCategory->id = (!empty($id) && is_numeric($id)) ? (int) $id : null;
 
 	$taxCategory->name = html_entity_decode($_POST['txtTaxCategoryName'] ?? '', ENT_QUOTES);
+	$taxCategory->active = (($_POST['chkActive'] ?? '') === 'ACTIVE') ? 1 : 0;
 }
 
 
@@ -409,6 +422,7 @@ function loadTaxCategory(\Datalayer\TaxCategory $taxCategory, $form)
 		$_POST['hdnTaxCategoryID'] = $taxCategory->id;
 
 		$_POST['txtTaxCategoryName'] = htmlentities($taxCategory->name ?? '', ENT_QUOTES);
+		$_POST['chkActive'] = (!empty($taxCategory->active)) ? 'ACTIVE' : '';
 		$_POST['txtLastUpdate'] = htmlentities($taxCategory->lastUpdate ?? '', ENT_QUOTES);
 	}
 	else

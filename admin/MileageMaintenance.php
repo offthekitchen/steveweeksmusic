@@ -37,10 +37,10 @@ include_once(DATALAYER_DIR . "/Mileage.php");
 include_once(DATALAYER_DIR . "/MileageRepository.php");
 
 //include Form Class		
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once(CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
 $sActiveMenuItem = PERFORMANCES_ACTIVE;	
 $sPageName = "Mileage Maintenance";
@@ -322,14 +322,14 @@ $aMileageRecords = [];
 					<div class="row">
 						<div class="col-xs-12  FieldGroup">
 							<div class="row">
-								<div class="col-xs-12 col-sm-8">
-									MILEAGE: <input type="text" name="txtMileage" value="<?php echo $_POST['txtMileage'] ?? ''; ?>" size="60" />
-								</div>
 								<div class="col-xs-12 col-sm-4">
 									DATE: <BR />
 									<?php
 									renderDatePicker("MileageDate", $_POST['MileageDate'] ?? ($thisMileage->mileageDate ?? ''));
 									?>
+								</div>
+								<div class="col-xs-12 col-sm-8">
+									MILEAGE: <input type="text" name="txtMileage" value="<?php echo $_POST['txtMileage'] ?? ''; ?>" size="60" />
 								</div>
 								<div class="col-xs-12">
 									REASON: <input type="text" name="txtReason" value="<?php echo $_POST['txtReason'] ?? ''; ?>" size="60" />

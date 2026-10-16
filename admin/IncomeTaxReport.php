@@ -9,6 +9,7 @@ Date        Change
 2015-10-20  Changed to use Report Filters include
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer repositories
+2026-10-15	Default to current year and auto-generate; pad revenue/expense sections
 *******************************************************************
 */	
 
@@ -38,7 +39,7 @@ include_once(DATALAYER_DIR . "/RevenueType.php");
 include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 
 //include Form Class
-include(CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
  $sActiveMenuItem = REPORTS_ACTIVE;	
  $sPageName = "Income Tax Report";
@@ -53,6 +54,24 @@ include(CLASS_DIR . "/class_Form.php");
 
 <!-- Javascript required for Calendar picker -->
 <script language="javascript" src="<?php echo ADMIN_JS_DIR ?>/calendar.js"></script>
+<style>
+	.IncomeTaxBox {
+		margin-left: 15px;
+		margin-right: 15px;
+		padding-left: 15px;
+		padding-right: 15px;
+		overflow: hidden;
+	}
+	.IncomeTaxBoxTitle {
+		margin-left: 15px;
+		margin-right: 15px;
+	}
+	/* Nested Bootstrap rows use -15px margins; keep zebra rows inside the border */
+	.IncomeTaxBox .row {
+		margin-left: 0;
+		margin-right: 0;
+	}
+</style>
 
 <body>
 
@@ -79,11 +98,10 @@ include(CLASS_DIR . "/class_Form.php");
 	elseif(!isset($_POST['StartDate']) || !isset($_POST['EndDate']))
 	{
 		$nCurrentYear = date("Y");
-/* 
 		$_POST['selYear'] = $nCurrentYear;
 		$_POST['StartDate'] = "{$nCurrentYear}-01-01";
 		$_POST['EndDate'] = "{$nCurrentYear}-12-31";
-		$_POST['btnGenerate'] = "GenerateReport"; */
+		$_POST['btnGenerate'] = "GenerateReport";
 	}
 
 	//Instantiate needed objects
@@ -140,180 +158,163 @@ include(CLASS_DIR . "/class_Form.php");
 	</div>
 	<div class="row">		
 		<div class="col-xs-12 col-md-5">
-			<div class="row">
-				<div class="col-xs-12 FieldGroupTitle"> 
-					REVENUE
-				</div>	
-				<div class="col-xs-12 FieldGroup"> 
-					<div class="FinancialData">
-						<div class="row">		
-							<div class="col-xs-12">
-								<?php
-								if (isset($_POST["btnGenerate"])) 
-								{
-									$nTotalRevenueAmount = 0;
-									$aRevenueTypes = $revenueTypeRepo->find();
-									foreach ($aRevenueTypes as $oRevenueType)
-									{
-										//Alternate the report style
-										if ($sReportStyleClass == REPORT_STYLE_CLASS)
-										{
-											$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
-										}
-										else
-										{
-											$sReportStyleClass = REPORT_STYLE_CLASS;
-										}
+			<div class="FieldGroupTitle IncomeTaxBoxTitle"> 
+				REVENUE
+			</div>	
+			<div class="FieldGroup IncomeTaxBox"> 
+				<div class="FinancialData">
+					<?php
+					if (isset($_POST["btnGenerate"])) 
+					{
+						$nTotalRevenueAmount = 0;
+						$aRevenueTypes = $revenueTypeRepo->find();
+						foreach ($aRevenueTypes as $oRevenueType)
+						{
+							//Alternate the report style
+							if ($sReportStyleClass == REPORT_STYLE_CLASS)
+							{
+								$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
+							}
+							else
+							{
+								$sReportStyleClass = REPORT_STYLE_CLASS;
+							}
 
-										$aRevenues = $revenueRepo->find([
-											'revenueTypeId' => $oRevenueType->id,
-											'startDate' => $_POST['StartDate'] ?? '',
-											'endDate' => $_POST['EndDate'] ?? '',
-										]);
-										$nTotalRevenueTypeAmount = 0.0;
-										foreach ($aRevenues as $oRevenue) {
-											$nTotalRevenueTypeAmount += $oRevenue->amount ?? 0;
-										}
-										$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
+							$aRevenues = $revenueRepo->find([
+								'revenueTypeId' => $oRevenueType->id,
+								'startDate' => $_POST['StartDate'] ?? '',
+								'endDate' => $_POST['EndDate'] ?? '',
+							]);
+							$nTotalRevenueTypeAmount = 0.0;
+							foreach ($aRevenues as $oRevenue) {
+								$nTotalRevenueTypeAmount += $oRevenue->amount ?? 0;
+							}
+							$nTotalRevenueAmount += $nTotalRevenueTypeAmount;
 
-										echo "<div class='row'>";
-										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oRevenueType->name . "</div>";
-										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
-										if ($nTotalRevenueTypeAmount > 0)
-										{
-											echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
-											echo "&END_DATE=" . $_POST['EndDate'];
-											echo "&REVENUE_TYPE_ID=" . $oRevenueType->id . "'>";
-											echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
-											echo "</a>";
-										}
-										else
-										{
-											echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
-										}
-										echo"</div>";
-										echo "</div>";
-									}
+							echo "<div class='row'>";
+							echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oRevenueType->name . "</div>";
+							echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
+							if ($nTotalRevenueTypeAmount > 0)
+							{
+								echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
+								echo "&END_DATE=" . $_POST['EndDate'];
+								echo "&REVENUE_TYPE_ID=" . $oRevenueType->id . "'>";
+								echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
+								echo "</a>";
+							}
+							else
+							{
+								echo number_format((float)$nTotalRevenueTypeAmount, 2, '.', '');
+							}
+							echo"</div>";
+							echo "</div>";
+						}
 
-									echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
-									echo "<div class='row'>";
-									echo "<div class='col-xs-6'>Total</div>";
-									echo "<div class='col-xs-6'> $";
-									if ($nTotalRevenueAmount > 0)
-									{
-										echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
-										echo "&END_DATE=" . $_POST['EndDate'] . "'>";
-										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
-										echo "</a>";
-									}
-									else
-									{
-										echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
-									}
-									echo "</div>";
-									echo "</div>";
-								}
-								?>
-							</div>
-						</div>
-					</div>
+						echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+						echo "<div class='row'>";
+						echo "<div class='col-xs-6'>Total</div>";
+						echo "<div class='col-xs-6'> $";
+						if ($nTotalRevenueAmount > 0)
+						{
+							echo "<a href='" . ADMIN_DIR . "/RevenueMaintenance.php?START_DATE=" . $_POST['StartDate'];
+							echo "&END_DATE=" . $_POST['EndDate'] . "'>";
+							echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+							echo "</a>";
+						}
+						else
+						{
+							echo number_format((float)$nTotalRevenueAmount, 2, '.', '');
+						}
+						echo "</div>";
+						echo "</div>";
+					}
+					?>
 				</div>
 			</div>
 		</div>	
 
 		<div class="col-xs-12 col-md-5">
-			<div class="row">
+			<div class="FieldGroupTitle IncomeTaxBoxTitle"> 
+				EXPENSES
+			</div>
+			<div class="FieldGroup IncomeTaxBox"> 
+				<div class="FinancialData">
+					<?php
+					if (isset($_POST["btnGenerate"])) 
+					{
+						$nTotalExpenseAmount = 0;
+						foreach ($taxCategoryRepo->find() as $oExpenseTaxCategory)
+						{
+							//Alternate the report style
+							if ($sReportStyleClass == REPORT_STYLE_CLASS)
+							{
+								$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
+							}
+							else
+							{
+								$sReportStyleClass = REPORT_STYLE_CLASS;
+							}
 
-				<div class="col-xs-12 FieldGroupTitle"> 
-					EXPENSES
-				</div>
-				<div class="col-xs-12 FieldGroup"> 
-					<div class="FinancialData">
-						<div class="row">		
-							<div class="col-xs-12">
-								<?php
-								if (isset($_POST["btnGenerate"])) 
-								{
-									$nTotalExpenseAmount = 0;
-									foreach ($taxCategoryRepo->find() as $oExpenseTaxCategory)
-									{
-										//Alternate the report style
-										if ($sReportStyleClass == REPORT_STYLE_CLASS)
-										{
-											$sReportStyleClass = REPORT_STYLE_CLASS_ALT;
-										}
-										else
-										{
-											$sReportStyleClass = REPORT_STYLE_CLASS;
-										}
+							$aTaxCategoryExpenses = $expenseRepo->find([
+								'taxCategoryId' => $oExpenseTaxCategory->id,
+								'startDate' => $_POST['StartDate'] ?? '',
+								'endDate' => $_POST['EndDate'] ?? '',
+							]);
+							$nTotalTaxCategoryAmount = 0.0;
+							foreach ($aTaxCategoryExpenses as $oExpense) {
+								$nTotalTaxCategoryAmount += $oExpense->expenseAmount ?? 0;
+							}
+							$nTotalExpenseAmount += $nTotalTaxCategoryAmount;
 
-										$aTaxCategoryExpenses = $expenseRepo->find([
-											'taxCategoryId' => $oExpenseTaxCategory->id,
-											'startDate' => $_POST['StartDate'] ?? '',
-											'endDate' => $_POST['EndDate'] ?? '',
-										]);
-										$nTotalTaxCategoryAmount = 0.0;
-										foreach ($aTaxCategoryExpenses as $oExpense) {
-											$nTotalTaxCategoryAmount += $oExpense->expenseAmount ?? 0;
-										}
-										$nTotalExpenseAmount += $nTotalTaxCategoryAmount;
-
-										echo "<div class='row'>";
-										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oExpenseTaxCategory->name . "</div>";
-										echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
-										if ($nTotalTaxCategoryAmount > 0)
-										{
-											echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
-											echo "&END_DATE=" . $_POST['EndDate'];
-											echo "&TAX_CATEGORY_ID=" . $oExpenseTaxCategory->id . "'>";
-											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
-											echo "</a>";
-										}
-										else
-										{
-											echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
-										}
-										echo"</div>";
-										echo "</div>";
-									}
-									echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
-									echo "<div class='row'>";
-									echo "<div class='col-xs-6'>Total</div>";
-									echo "<div class='col-xs-6'> $";
-									if ($nTotalExpenseAmount > 0)
-									{
-										echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
-										echo "&END_DATE=" . $_POST['EndDate'] . "'>";
-										echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
-										echo "</a>";
-									}
-									else
-									{
-										echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
-									}
-									echo "</div>";
-									echo "</div>";
-								}
-								?>
-							</div>
-						</div>
-					</div>
+							echo "<div class='row'>";
+							echo "<div class='col-xs-6 " . $sReportStyleClass . "'>" . $oExpenseTaxCategory->name . "</div>";
+							echo "<div class='col-xs-6 " . $sReportStyleClass . "'>$";
+							if ($nTotalTaxCategoryAmount > 0)
+							{
+								echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
+								echo "&END_DATE=" . $_POST['EndDate'];
+								echo "&TAX_CATEGORY_ID=" . $oExpenseTaxCategory->id . "'>";
+								echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
+								echo "</a>";
+							}
+							else
+							{
+								echo number_format((float)$nTotalTaxCategoryAmount, 2, '.', '');
+							}
+							echo"</div>";
+							echo "</div>";
+						}
+						echo "<div class='row'><div class='col-xs-12'><HR></div></div>";
+						echo "<div class='row'>";
+						echo "<div class='col-xs-6'>Total</div>";
+						echo "<div class='col-xs-6'> $";
+						if ($nTotalExpenseAmount > 0)
+						{
+							echo "<a href='" . ADMIN_DIR . "/ExpenseMaintenance.php?START_DATE=" . $_POST['StartDate'];
+							echo "&END_DATE=" . $_POST['EndDate'] . "'>";
+							echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
+							echo "</a>";
+						}
+						else
+						{
+							echo number_format((float)$nTotalExpenseAmount, 2, '.', '');
+						}
+						echo "</div>";
+						echo "</div>";
+					}
+					?>
 				</div>
 			</div>
 		</div>
 		<div class="col-xs-12 col-md-2">
-			<div class="FieldGroupTitle" >
+			<div class="FieldGroupTitle IncomeTaxBoxTitle">
 			PROFIT: 
 			</div>
-			<div class="FieldGroup">
-				<div class="row">
-				<div class="col-xs-12">		
-					<?php 
-					$nTotalProfit = $nTotalRevenueAmount - $nTotalExpenseAmount;
-					echo "&nbsp;&nbsp;$" . number_format((float)$nTotalProfit, 2, '.', ''); 
-					?>
-					</div>
-				</div>
+			<div class="FieldGroup IncomeTaxBox">
+				<?php 
+				$nTotalProfit = $nTotalRevenueAmount - $nTotalExpenseAmount;
+				echo "&nbsp;&nbsp;$" . number_format((float)$nTotalProfit, 2, '.', ''); 
+				?>
 			</div>
 		</div>
 	</div>

@@ -13,12 +13,8 @@
 	
 	//inlcude admin settings
  	include_once (ADMIN_DIR . "/includes/AdminSettings.php");
-	 	
-	//include DB Class		
-	include_once (CLASS_DIR . "/class_DB.php");
-		
-	//Instantiate DB
-	$DB = new Database();
+
+	include_once(DATALAYER_DIR . "/Connection.php");
 
 	$sActiveMenuItem = ADMIN_HOME_ACTIVE;
 	$sPageName = "Main";
@@ -52,7 +48,7 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						</div>
 						<div>
 							<?php 
-							$sVersion = $DB->getVersion();
+							$sVersion = \Datalayer\Connection::getPdo()->getAttribute(\PDO::ATTR_SERVER_VERSION);
 							echo "Current mySQL version: {$sVersion}";
 							?>
 						</div>
@@ -230,6 +226,9 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 						</div>
 						<div class="admin-link">
 							<A HREF="<?php echo ADMIN_DIR; ?>/TourReport.php">Tour Report</A>					
+						</div>
+						<div class="admin-link">
+							<A HREF="<?php echo ADMIN_DIR; ?>/VendorReport.php">Vendor Report</A>
 						</div>
 					</div>
 				</div>

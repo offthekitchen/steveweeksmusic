@@ -40,10 +40,10 @@ include_once(DATALAYER_DIR . "/Revenue.php");
 include_once(DATALAYER_DIR . "/RevenueRepository.php");
 
 //include Form Class		
-include (CLASS_DIR . "/class_Form.php");
+include_once(ADMIN_INCLUDE_DIR . "/Form.php");
 
 //Require the Class for the calendar picker
-require_once (CLASS_DIR . "/tc_calendar.php");
+require_once(ADMIN_DIR . "/calendar/classes/tc_calendar.php");
 
  $sActiveMenuItem = REPORTS_ACTIVE;
  $sPageName = "Revenue Type Report";
@@ -157,8 +157,8 @@ require_once (CLASS_DIR . "/tc_calendar.php");
 <?php
 if (isset($_POST["btnGenerate"])) 
 {
-	//Only display this section if reporting on all revenute types 
-	if($_POST['selRevenueType'] == 0)
+	//Only display this section if reporting on all revenue types (ALL = -1)
+	if ((int) ($_POST['selRevenueType'] ?? -1) <= 0)
 	{
 ?>
 	<div class="row"> 		
