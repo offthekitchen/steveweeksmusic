@@ -15,6 +15,7 @@ Date        Change
 2026-10-14	Added Vendor filter (ALL) for reports
 2026-10-14	Vendor filter uses renderVendorDropDown (report mode)
 2026-10-15	Category/RevenueType filters use shared render methods (report mode)
+2026-10-15	Year filter uses renderYearDropDown (desc + current year by default)
 **********************************************************************
 */
 
@@ -69,24 +70,14 @@ if($bCalendarFilter == TRUE)
 // YEAR  AND QUARTER FILTERS
 if($bYearFilter == TRUE || $bQuarterFilter == TRUE)
 {
+	include_once(ADMIN_INCLUDE_DIR . "/CommonFunctions.php");
+
 	echo "<div class='row'>";
 	echo "<div class='col-xs-12 col-sm-2'>";
 	echo "YEAR:";
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selYear\" ID=\"selYear\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-	$nCurrentYear = date("Y");
-	for ($nYear = 2003; $nYear <= $nCurrentYear+1; $nYear++) 
-	{
-		echo "<OPTION VALUE=\"{$nYear}\"";
-		if ($nYear == $_POST['selYear'])
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$nYear}</OPTION>";
-	} 	
-	echo "</SELECT>";
+	renderYearDropDown($_POST['selYear'] ?? null);
 	echo "</div>";
 	echo "</div>";
 

@@ -22,6 +22,7 @@ Date        Change
 2026-10-12	Load local Form helper and calendar (no shared CLASS_DIR)
 2026-10-14	renderVendorDropDown modes: entry, edit, report (ACTIVE filter)
 2026-10-15	Category/TaxCategory/RevenueType ACTIVE dropdown modes
+2026-10-15	Added renderYearDropDown (order + default); CD ALL vs SINGLES select fix
 *******************************************************************
 */	
 ?>
@@ -475,7 +476,8 @@ function renderCDDropDown($nCDID)
 	foreach ($cdRepo->find(['includeSingles' => true, 'orderBy' => 'name']) as $cd)
 	{
 		echo "<OPTION VALUE=\"{$cd->id}\" ";
-		if ($cd->id == $nCDID)
+		// Require a real filter value so unset/empty ALL does not match SINGLES (id 0)
+		if ($nCDID !== null && $nCDID !== '' && is_numeric($nCDID) && (int) $cd->id === (int) $nCDID)
 		{
 			echo " SELECTED ";
 		}
@@ -488,6 +490,59 @@ function renderCDDropDown($nCDID)
 	{
 		echo "<A HREF='" . ADMIN_DIR . "/CDMaintenance.php?CD_ID={$nCDID}' class='secondaryLinkButton'>Edit CD</a>";
 	}
+}
+
+/*
+ ********************************************************************************
+ * renderYearDropDown
+ *
+ * Renders the shared report year <select> (ALL + year list).
+ * @param mixed  $nSelectedYear  Current selection (null/'' → use $nDefaultYear)
+ * @param string $sOrder         'desc' (newest first, default) or 'asc'
+ * @param mixed  $nDefaultYear   Selected when $nSelectedYear is empty (default: current year)
+ ********************************************************************************
+*/
+function renderYearDropDown($nSelectedYear = null, $sOrder = 'desc', $nDefaultYear = null)
+{
+	$nCurrentYear = (int) date('Y');
+	$nStartYear = 2003;
+	$nEndYear = $nCurrentYear + 1;
+
+	if ($nDefaultYear === null || $nDefaultYear === '') {
+		$nDefaultYear = $nCurrentYear;
+	}
+
+	if ($nSelectedYear === null || $nSelectedYear === '') {
+		$nSelectedYear = $nDefaultYear;
+	}
+
+	echo "<SELECT NAME=\"selYear\" ID=\"selYear\">";
+	echo "<OPTION VALUE=\"0\"";
+	if ((int) $nSelectedYear === 0) {
+		echo " SELECTED ";
+	}
+	echo ">ALL</OPTION>";
+
+	$bAscending = (strtolower((string) $sOrder) === 'asc');
+	if ($bAscending) {
+		for ($nYear = $nStartYear; $nYear <= $nEndYear; $nYear++) {
+			echo "<OPTION VALUE=\"{$nYear}\"";
+			if ((int) $nYear === (int) $nSelectedYear) {
+				echo " SELECTED ";
+			}
+			echo ">{$nYear}</OPTION>";
+		}
+	} else {
+		for ($nYear = $nEndYear; $nYear >= $nStartYear; $nYear--) {
+			echo "<OPTION VALUE=\"{$nYear}\"";
+			if ((int) $nYear === (int) $nSelectedYear) {
+				echo " SELECTED ";
+			}
+			echo ">{$nYear}</OPTION>";
+		}
+	}
+
+	echo "</SELECT>";
 }
 
 
