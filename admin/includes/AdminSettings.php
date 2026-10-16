@@ -42,6 +42,7 @@ Date        Change
 
 //DB Constants
  define("CATEGORY_PERFORMANCE",2);
+ define("REVENUE_TYPE_ROYALTY",2);
  define("REVENUE_TYPE_CD_SALE",3);
  define("REVENUE_TYPE_PERFORMANCE_FEE",4);
  define("COLORAD_SESSIONS_CAT_ID",22);

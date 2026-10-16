@@ -171,13 +171,17 @@ if (isset($_POST["btnGenerate"]))
 				<?php
 					$nTotalPaymentAmount = 0;
 					$nTotalExpenseAmount = 0;
-					// PaymentMaintenance does not support YEAR query params
-					$sPaymentBaseQueryString = preg_replace('/&YEAR=\d+/', '', $sBaseQueryString);
 
 					foreach ($aVendorRecords as $vendor)
 					{
-						$sExpenseQueryString = "{$sBaseQueryString}&VENDOR_ID={$vendor->id}";
-						$sPaymentQueryString = "{$sPaymentBaseQueryString}&VENDOR_ID={$vendor->id}";
+						// ReportFilters already adds VENDOR_ID when a specific vendor is selected
+						if (($_POST['selVendor'] ?? 0) > 0) {
+							$sExpenseQueryString = $sBaseQueryString;
+							$sPaymentQueryString = $sBaseQueryString;
+						} else {
+							$sExpenseQueryString = "{$sBaseQueryString}&VENDOR_ID={$vendor->id}";
+							$sPaymentQueryString = "{$sBaseQueryString}&VENDOR_ID={$vendor->id}";
+						}
 
 						$paymentCriteria = ['vendorId' => $vendor->id];
 						$expenseCriteria = ['vendorId' => $vendor->id];
@@ -217,7 +221,7 @@ if (isset($_POST["btnGenerate"]))
 					echo "<td> $";
 					if ($nTotalPaymentAmount > 0)
 					{
-						echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sPaymentBaseQueryString}'>";
+						echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sBaseQueryString}'>";
 						echo number_format((float)$nTotalPaymentAmount, 2, '.', ',');
 						echo "</a>";
 					}
@@ -275,12 +279,11 @@ if (isset($_POST["btnGenerate"]))
 					<?php
 					$nGrandPaymentTotal = 0;
 					$nGrandExpenseTotal = 0;
-					// PaymentMaintenance does not support YEAR query params
-					$sPaymentBaseQueryString = preg_replace('/&YEAR=\d+/', '', $sBaseQueryString);
 
 					for ($nYear = $nStartYear; $nYear <= $nEndYear; $nYear++)
 					{
 						$sExpenseQueryString = "{$sBaseQueryString}&YEAR={$nYear}";
+						$sPaymentQueryString = "{$sBaseQueryString}&YEAR={$nYear}";
 
 						$nYearPaymentTotal = 0.0;
 						$nYearExpenseTotal = 0.0;
@@ -304,7 +307,7 @@ if (isset($_POST["btnGenerate"]))
 						echo "<td>";
 						if ($nYearPaymentTotal > 0)
 						{
-							echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sPaymentBaseQueryString}'>";
+							echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sPaymentQueryString}'>";
 							echo "$" . number_format((float)$nYearPaymentTotal, 2, '.', ',');
 							echo "</a>";
 						}
@@ -332,7 +335,7 @@ if (isset($_POST["btnGenerate"]))
 					echo "<tr>";
 					echo "<th>Total</th>";
 					echo "<td>";
-					echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sPaymentBaseQueryString}'>";
+					echo "<a href='" . ADMIN_DIR . "/PaymentMaintenance.php{$sBaseQueryString}'>";
 					echo "$" . number_format((float)$nGrandPaymentTotal, 2, '.', ',');
 					echo "</a>";
 					echo "</td>";

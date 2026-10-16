@@ -22,6 +22,7 @@ Date        Change
 2020-03-06	Added renderDatePicker
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Payment repository
+2026-10-15	Accept YEAR query param for year-scoped search
 *******************************************************************
 */
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -87,6 +88,12 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 	//If a Vendor ID is passed, go ahead and search payments for that vendor
 	if (isset($_REQUEST['VENDOR_ID']) && $_REQUEST['VENDOR_ID'] != "") {
 		$_POST['selVendor'] = $_REQUEST['VENDOR_ID'];
+		$_POST['btnSearch'] = "Search";
+	}
+
+	//If a Year is passed, search payments for that year
+	if (isset($_REQUEST['YEAR']) && $_REQUEST['YEAR'] != "") {
+		$_POST['nYear'] = $_REQUEST['YEAR'];
 		$_POST['btnSearch'] = "Search";
 	}
 
@@ -601,6 +608,11 @@ function buildPaymentSearchCriteria(\Datalayer\Payment $payment): array
 		$criteria['vendorUnassigned'] = true;
 	} elseif ($selVendor > 0) {
 		$criteria['vendorId'] = $selVendor;
+	}
+
+	$paymentYear = $_POST['nYear'] ?? null;
+	if (!empty($paymentYear)) {
+		$criteria['paymentYear'] = (int) $paymentYear;
 	}
 
 	if (!empty($payment->purchaseOrder)) {
