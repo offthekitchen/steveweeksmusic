@@ -44,11 +44,19 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
     - Companion offthekitchen branch `version1.1-feature-lookup-active-flags`: `ACTIVE` on Category/TaxCategory/RevenueType; expense `taxCategoryUnassigned`; revenue `revenueTypeUnassigned`.
   - Why: Retire lookups without deleting history; keep new entry limited to active values.
 
+- **report-filter-defaults** (version2.1-feature-report-filter-defaults): Better defaults for Song Maintenance and tax reports; shared year dropdown.
+  - What changed:
+    - Song Maintenance CD search dropdown defaults to ALL (not SINGLES when unset).
+    - Income Tax Report opens on the current year and auto-generates; Revenue/Expenses boxes have outer gutters and contained zebra rows.
+    - Sales Tax Report opens on the current year and current quarter and auto-generates.
+    - Shared `renderYearDropDown` (order + default; newest-first and current year by default); ReportFilters uses it for all year filters.
+  - Why: Land on useful filters without extra clicks; keep year lists consistent across reports.
+
 ### Bugfixes
 - **mileage-field-order** (version2.1-bugfix-mileage-field-order): Put DATE before MILEAGE on Mileage Maintenance.
   - What was wrong: MILEAGE appeared above DATE when the fields stacked (and before DATE in the form layout).
   - What fixed it: Swapped the DATE and MILEAGE field blocks so DATE is first, then MILEAGE, then REASON.
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE), Category/Tax Category/Revenue Type ACTIVE, Expense tax category and Revenue type dropdowns, Expense/Revenue inactive category checkboxes + Clear
-- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor/Category/TaxCategory/RevenueType repositories) with this release. `ACTIVE` columns on `VENDOR`, `CATEGORY`, `TAX_CATEGORY`, and `REVENUE_TYPE` must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.1-feature-lookup-active-flags` (and earlier `version1.0` vendor-active on main) with this feature.
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE), Category/Tax Category/Revenue Type ACTIVE, Expense tax category and Revenue type dropdowns, Expense/Revenue inactive category checkboxes + Clear, Song Maintenance CD default ALL, Income Tax Report (current year + generate + section gutters), Sales Tax Report (current year/quarter + generate), any year-filter report for newest-first years
+- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor/Category/TaxCategory/RevenueType repositories) with this release. `ACTIVE` columns on `VENDOR`, `CATEGORY`, `TAX_CATEGORY`, and `REVENUE_TYPE` must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.1-feature-lookup-active-flags` (and earlier `version1.0` vendor-active on main) with this feature. No new offthekitchen deploy for report-filter-defaults (admin UI only).
