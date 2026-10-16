@@ -52,11 +52,19 @@ Finish admin cleanup so Steve Weeks Music no longer needs shared `offthekitchen.
     - Shared `renderYearDropDown` (order + default; newest-first and current year by default); ReportFilters uses it for all year filters.
   - Why: Land on useful filters without extra clicks; keep year lists consistent across reports.
 
+- **payment-year-royalty-error** (version2.1-feature-payment-year-royalty-error): Vendor Report YEAR→Payment Maintenance; royalty quantity on Error Report.
+  - What changed:
+    - Vendor Report payment drill-down links keep `YEAR` (and avoid duplicate `VENDOR_ID` when a vendor is selected).
+    - Payment Maintenance accepts `YEAR` and searches via `paymentYear`.
+    - `REVENUE_TYPE_ROYALTY` (2) in AdminSettings; Error Report flags royalty revenues with a quantity.
+    - Companion offthekitchen branch `version1.2-feature-payment-year-royalty-error`: `findRevenueErrors` optional royalty type check.
+  - Why: Year-scoped payment drill-down from Vendor Report; catch royalties that incorrectly carry a product quantity.
+
 ### Bugfixes
 - **mileage-field-order** (version2.1-bugfix-mileage-field-order): Put DATE before MILEAGE on Mileage Maintenance.
   - What was wrong: MILEAGE appeared above DATE when the fields stacked (and before DATE in the form layout).
   - What fixed it: Swapped the DATE and MILEAGE field blocks so DATE is first, then MILEAGE, then REASON.
 
 ## Test notes
-- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE), Category/Tax Category/Revenue Type ACTIVE, Expense tax category and Revenue type dropdowns, Expense/Revenue inactive category checkboxes + Clear, Song Maintenance CD default ALL, Income Tax Report (current year + generate + section gutters), Sales Tax Report (current year/quarter + generate), any year-filter report for newest-first years
-- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor/Category/TaxCategory/RevenueType repositories) with this release. `ACTIVE` columns on `VENDOR`, `CATEGORY`, `TAX_CATEGORY`, and `REVENUE_TYPE` must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.1-feature-lookup-active-flags` (and earlier `version1.0` vendor-active on main) with this feature. No new offthekitchen deploy for report-filter-defaults (admin UI only).
+- Pages to check: AdminMain, Expense/Revenue maintenance (datepicker + category checkboxes), Error Report, one other Form+calendar maintenance page, Vendor Report (`admin/VendorReport.php`), Payment/Expense maintenance drill-downs from report amounts, Vendor Maintenance ACTIVE checkbox, Payment/Expense vendor dropdown add/search/edit modes, Mileage Maintenance field order (DATE then MILEAGE), Category/Tax Category/Revenue Type ACTIVE, Expense tax category and Revenue type dropdowns, Expense/Revenue inactive category checkboxes + Clear, Song Maintenance CD default ALL, Income Tax Report (current year + generate + section gutters), Sales Tax Report (current year/quarter + generate), any year-filter report for newest-first years, Vendor Report payment links with YEAR (+ single VENDOR_ID when vendor filtered), Payment Maintenance `?YEAR=`, Error Report royalty+quantity rows
+- Special setup steps: Deploy updated offthekitchen datalayer (`Connection.php`, Payment/Revenue/Expense/Vendor/Category/TaxCategory/RevenueType repositories) with this release. `ACTIVE` columns on `VENDOR`, `CATEGORY`, `TAX_CATEGORY`, and `REVENUE_TYPE` must already exist (local and production). Shared `classes` folder is left in place for Thurdy. Coordinate merge of offthekitchen `version1.2-feature-payment-year-royalty-error` (and earlier `version1.1` / `version1.0` on main as needed) with this feature.

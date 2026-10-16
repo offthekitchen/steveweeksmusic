@@ -60,7 +60,7 @@ $sPageName = "Error Report";
 				$paymentRepo = new \Datalayer\PaymentRepository();
 				$revenueRepo = new \Datalayer\RevenueRepository();
 				$aPaymentErrors = $paymentRepo->findPaymentErrors();
-				$aRevenueErrors = $revenueRepo->findRevenueErrors();
+				$aRevenueErrors = $revenueRepo->findRevenueErrors(REVENUE_TYPE_ROYALTY);
 			} catch (\Throwable $e) {
 				echo "ERROR RETRIEVING DATA ERRORS";
 				$form->sMessage = "Error retrieving data errors: " . $e->getMessage();
