@@ -14,6 +14,7 @@ Date        Change
 2026-07-30	Migrated Category/RevenueType/Product/Song/CD filters to Datalayer
 2026-10-14	Added Vendor filter (ALL) for reports
 2026-10-14	Vendor filter uses renderVendorDropDown (report mode)
+2026-10-15	Category/RevenueType filters use shared render methods (report mode)
 **********************************************************************
 */
 
@@ -163,66 +164,16 @@ if($bVendorFilter == TRUE)
 	renderVendorDropDown($_POST['selVendor'] ?? -1, 'report');
 }
 
- //CATEGORY FILTER
+// CATEGORY FILTER (shared renderCategoryDropDown in report mode)
 if($bCategoryFilter == TRUE)
 {
-	include_once(DATALAYER_DIR . "/Connection.php");
-	include_once(DATALAYER_DIR . "/Category.php");
-	include_once(DATALAYER_DIR . "/CategoryRepository.php");
+	renderCategoryDropDown($_POST['selCategory'] ?? -1, 'report');
+}
 
-	echo "<div class='row'>";
-	echo "<div class='col-xs-12 col-sm-2'>";
-	echo "CATEGORY:";
-	echo "</div>";
-	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selCategory\" ID=\"selCategory\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-
-	$categoryRepo = new \Datalayer\CategoryRepository();
-	foreach ($categoryRepo->find() as $oCategory)
-	{
-		echo "<OPTION VALUE=\"{$oCategory->id}\" ";
-		if ($oCategory->id == ($_POST['selCategory'] ?? null))
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$oCategory->name}</OPTION>";
-	}
-
-	echo "</SELECT>";
-	echo "</div>";
-	echo "</div>";
-} 
-
-//REVENUE TYPE FILTER
+// REVENUE TYPE FILTER (shared renderRevenueTypeDropDown in report mode)
 if($bRevenueTypeFilter == TRUE)
 {
-	include_once(DATALAYER_DIR . "/Connection.php");
-	include_once(DATALAYER_DIR . "/RevenueType.php");
-	include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
-
-	echo "<div class='row'>";
-	echo "<div class='col-xs-12 col-sm-2'>";
-	echo "REVENUE TYPE:";
-	echo "</div>";
-	echo "<div class='col-xs-12 col-sm-10'>";
-	echo "<SELECT NAME=\"selRevenueType\" ID=\"selRevenueType\">";
-	echo "<OPTION VALUE=\"0\">ALL</OPTION>";
-
-	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
-	foreach ($revenueTypeRepo->find() as $oRevenueType)
-	{
-		echo "<OPTION VALUE=\"{$oRevenueType->id}\" ";
-		if ($oRevenueType->id == ($_POST['selRevenueType'] ?? null))
-		{
-			echo " SELECTED ";
-		}
-		echo ">{$oRevenueType->name}</OPTION>";
-	}
-
-	echo "</SELECT>";
-	echo "</div>";
-	echo "</div>";
+	renderRevenueTypeDropDown($_POST['selRevenueType'] ?? -1, 'report');
 } 
  
  //PRODUCT FILTER

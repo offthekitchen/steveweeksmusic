@@ -21,6 +21,7 @@ Date        Change
 2026-07-30	Fixed renderDatePicker to show picker for empty add-mode dates
 2026-10-12	Load local Form helper and calendar (no shared CLASS_DIR)
 2026-10-14	renderVendorDropDown modes: entry, edit, report (ACTIVE filter)
+2026-10-15	Category/TaxCategory/RevenueType ACTIVE dropdown modes
 *******************************************************************
 */	
 ?>
@@ -38,6 +39,10 @@ include_once(DATALAYER_DIR . "/Vendor.php");
 include_once(DATALAYER_DIR . "/VendorRepository.php");
 include_once(DATALAYER_DIR . "/TaxCategory.php");
 include_once(DATALAYER_DIR . "/TaxCategoryRepository.php");
+include_once(DATALAYER_DIR . "/Category.php");
+include_once(DATALAYER_DIR . "/CategoryRepository.php");
+include_once(DATALAYER_DIR . "/RevenueType.php");
+include_once(DATALAYER_DIR . "/RevenueTypeRepository.php");
 include_once(DATALAYER_DIR . "/Song.php");
 include_once(DATALAYER_DIR . "/SongRepository.php");
 include_once(DATALAYER_DIR . "/ThurdyDrop.php");
@@ -193,31 +198,168 @@ function renderVendorDropDown($nVendorID, $mode = 'entry')
 /*
  ********************************************************************************
  * renderTaxCategoryDropDown
- * 
- * This function renders a drop-down list of Tax Categories
+ *
+ * Modes: entry (active + NONE + ALL), edit (active + NONE), report (all + ALL)
  ********************************************************************************
 */
-function renderTaxCategoryDropDown($nTaxCategoryID)
+function renderTaxCategoryDropDown($nTaxCategoryID, $mode = 'entry')
 {
- 	echo "TAX CATEGORY:\n"; 
-	echo "<SELECT NAME=\"selTaxCategory\" ID=\"selTaxCategory\">\n";
-	echo "<OPTION VALUE=\"0\">NONE</OPTION>\n";
+	$selected = (int) $nTaxCategoryID;
 	$taxCategoryRepo = new \Datalayer\TaxCategoryRepository();
-	foreach ($taxCategoryRepo->find() as $taxCategory)
-	{
-		echo "<OPTION VALUE=\"{$taxCategory->id}\" ";
-		if ($taxCategory->id == ($_POST['selTaxCategory'] ?? null))
-		{
+
+	if ($mode === 'report') {
+		$taxCategories = $taxCategoryRepo->find();
+	} else {
+		$criteria = ['active' => 1];
+		if ($selected > 0) {
+			$criteria['includeId'] = $selected;
+		}
+		$taxCategories = $taxCategoryRepo->find($criteria);
+	}
+
+	echo "TAX CATEGORY:\n";
+	echo "<SELECT NAME=\"selTaxCategory\" ID=\"selTaxCategory\">\n";
+
+	if ($mode === 'entry' || $mode === 'report') {
+		echo "<OPTION VALUE=\"-1\"";
+		if ($selected === -1) {
 			echo " SELECTED ";
 		}
-		echo ">{$taxCategory->name}</OPTION>";
+		echo ">ALL</OPTION>\n";
 	}
-	
+
+	if ($mode === 'entry' || $mode === 'edit') {
+		echo "<OPTION VALUE=\"0\"";
+		if ($selected === 0) {
+			echo " SELECTED ";
+		}
+		echo ">NONE</OPTION>\n";
+	}
+
+	foreach ($taxCategories as $taxCategory) {
+		echo "<OPTION VALUE=\"{$taxCategory->id}\" ";
+		if ((int) $taxCategory->id === $selected) {
+			echo " SELECTED ";
+		}
+		echo ">" . htmlspecialchars($taxCategory->name ?? '', ENT_QUOTES) . "</OPTION>";
+	}
+
 	echo "</SELECT>";
 
-	if ($nTaxCategoryID > 0 )
-	{
-		echo "<A HREF='" . ADMIN_DIR . "/TaxCategoryMaintenance.php?ID={$nTaxCategoryID}' class='secondaryLinkButton'>Edit Tax Category</A>";
+	if ($mode !== 'report' && $selected > 0) {
+		echo "<A HREF='" . ADMIN_DIR . "/TaxCategoryMaintenance.php?ID={$selected}' class='secondaryLinkButton'>Edit Tax Category</A>";
+	}
+}
+
+/*
+ ********************************************************************************
+ * renderCategoryDropDown
+ *
+ * Modes: entry (active + NONE + ALL), edit (active + NONE), report (all + ALL)
+ ********************************************************************************
+*/
+function renderCategoryDropDown($nCategoryID, $mode = 'entry')
+{
+	$selected = (int) $nCategoryID;
+	$categoryRepo = new \Datalayer\CategoryRepository();
+
+	if ($mode === 'report') {
+		$categories = $categoryRepo->find();
+	} else {
+		$criteria = ['active' => 1];
+		if ($selected > 0) {
+			$criteria['includeId'] = $selected;
+		}
+		$categories = $categoryRepo->find($criteria);
+	}
+
+	echo "CATEGORY:\n";
+	echo "<SELECT NAME=\"selCategory\" ID=\"selCategory\">\n";
+
+	if ($mode === 'entry' || $mode === 'report') {
+		echo "<OPTION VALUE=\"-1\"";
+		if ($selected === -1) {
+			echo " SELECTED ";
+		}
+		echo ">ALL</OPTION>\n";
+	}
+
+	if ($mode === 'entry' || $mode === 'edit') {
+		echo "<OPTION VALUE=\"0\"";
+		if ($selected === 0) {
+			echo " SELECTED ";
+		}
+		echo ">NONE</OPTION>\n";
+	}
+
+	foreach ($categories as $category) {
+		echo "<OPTION VALUE=\"{$category->id}\" ";
+		if ((int) $category->id === $selected) {
+			echo " SELECTED ";
+		}
+		echo ">" . htmlspecialchars($category->name ?? '', ENT_QUOTES) . "</OPTION>";
+	}
+
+	echo "</SELECT>";
+
+	if ($mode !== 'report' && $selected > 0) {
+		echo "<A HREF='" . ADMIN_DIR . "/CategoryMaintenance.php?ID={$selected}' class='secondaryLinkButton'>Edit Category</A>";
+	}
+}
+
+/*
+ ********************************************************************************
+ * renderRevenueTypeDropDown
+ *
+ * Modes: entry (active + NONE + ALL), edit (active + NONE), report (all + ALL)
+ ********************************************************************************
+*/
+function renderRevenueTypeDropDown($nRevenueTypeID, $mode = 'entry')
+{
+	$selected = (int) $nRevenueTypeID;
+	$revenueTypeRepo = new \Datalayer\RevenueTypeRepository();
+
+	if ($mode === 'report') {
+		$revenueTypes = $revenueTypeRepo->find();
+	} else {
+		$criteria = ['active' => 1];
+		if ($selected > 0) {
+			$criteria['includeId'] = $selected;
+		}
+		$revenueTypes = $revenueTypeRepo->find($criteria);
+	}
+
+	echo "REVENUE TYPE:\n";
+	echo "<SELECT NAME=\"selRevenueType\" ID=\"selRevenueType\">\n";
+
+	if ($mode === 'entry' || $mode === 'report') {
+		echo "<OPTION VALUE=\"-1\"";
+		if ($selected === -1) {
+			echo " SELECTED ";
+		}
+		echo ">ALL</OPTION>\n";
+	}
+
+	if ($mode === 'entry' || $mode === 'edit') {
+		echo "<OPTION VALUE=\"0\"";
+		if ($selected === 0) {
+			echo " SELECTED ";
+		}
+		echo ">NONE</OPTION>\n";
+	}
+
+	foreach ($revenueTypes as $revenueType) {
+		echo "<OPTION VALUE=\"{$revenueType->id}\" ";
+		if ((int) $revenueType->id === $selected) {
+			echo " SELECTED ";
+		}
+		echo ">" . htmlspecialchars($revenueType->name ?? '', ENT_QUOTES) . "</OPTION>";
+	}
+
+	echo "</SELECT>";
+
+	if ($mode !== 'report' && $selected > 0) {
+		echo "<A HREF='" . ADMIN_DIR . "/RevenueTypeMaintenance.php?ID={$selected}' class='secondaryLinkButton'>Edit Revenue Type</A>";
 	}
 }
 
