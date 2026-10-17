@@ -75,9 +75,7 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 						If you're interested in booking me or seeing a show, <em><a
 								href="<?php echo $ROOT; ?>/contact.php">CONTACT ME</a></em>.&nbsp;&nbsp;
 						I'd love to get the chance to come to your town and perform.<br><br>
-						<note>I'm taking a break from touring in 2025 to catch my breath and reset, so I'll only be
-							performing a very small select number
-							of shows.&nbsp;&nbsp;I will return to touring in 2026 and hope to see you on the road!
+						<note>I'll be starting to plan my summer tour in November.  Contact me if you're interested in having me perform in your town.
 						</note>
 					</div>
 				</div>
