@@ -58,6 +58,12 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							echo "Web Server version: {$WebServerVersion[0]} {$WebServerVersion[1]}" ;
 							?>
 						</div>
+						<div>
+							Admin version: 2.1
+						</div>
+						<div>
+							Datalayer version: 1.2
+						</div>
 					</div>
 				</div>
 			</div>
