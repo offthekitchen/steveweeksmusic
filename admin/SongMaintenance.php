@@ -209,6 +209,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							$criteria['displayOnSite'] = $thisSong->displayOnSite;
 						}
 
+						$iswc = trim($thisSong->iswc ?? '');
+						if ($iswc !== '') {
+							$criteria['iswc'] = $iswc;
+						}
+
 						$aSongRecords = $songRepo->find($criteria);
 
 						if (sizeof($aSongRecords) < 1) {
