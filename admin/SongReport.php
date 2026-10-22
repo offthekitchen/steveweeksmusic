@@ -8,6 +8,7 @@ Date        Change
 -------------------------------------------------------------
 2016-01-05  Created
 2016-01-25  Added BMI Number and link to Song Maintenance
+2026-10-21  Added ISWC
 2016-01-27  Changed dropdowns to use common functions
 2017-04-09	Made Responsive
 2026-07-30	Migrated to new Datalayer Song repository
@@ -271,6 +272,13 @@ function buildSongData(\Datalayer\Song $song, \Datalayer\CDRepository $cdRepo)
 	echo "</div>";
 	echo "<div class='col-xs-12 col-sm-10'>";
 	echo "<dd>{$song->bmiNumber}</dd>";
+	echo "</div>";
+
+	echo "<div class='col-xs-12 col-sm-2'>";
+	echo "<dt>ISWC</dt>";
+	echo "</div>";
+	echo "<div class='col-xs-12 col-sm-10'>";
+	echo "<dd>{$song->iswc}</dd>";
 	echo "</div>";
 
 	echo "</dl>";
