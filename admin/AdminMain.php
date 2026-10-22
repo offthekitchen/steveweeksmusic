@@ -256,7 +256,7 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							<?php 
 							if (ENVIRONMENT == "LOCAL")
 							{
-								$sphpMyAdminURL = "http://localhost/phpmyadmin/";
+								$sphpMyAdminURL = "http://localhost/phpmyadmin5.2.3/";
 							}
 							elseif (ENVIRONMENT == "PROD")
 							{
