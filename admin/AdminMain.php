@@ -59,10 +59,10 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							?>
 						</div>
 						<div>
-							Admin version: 2.1
+							Admin version: 2.2
 						</div>
 						<div>
-							Datalayer version: 1.2
+							Datalayer version: 1.3
 						</div>
 					</div>
 				</div>
