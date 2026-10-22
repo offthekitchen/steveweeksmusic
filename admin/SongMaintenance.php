@@ -18,6 +18,7 @@ Date        Change
 2020-05-14	Added renderDatepicker()
 2021-08-30	Updated for PHP 8
 2026-07-30	Migrated to new Datalayer Song repository
+2026-10-21	Added ISWC field
 *******************************************************************
 */
 error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
@@ -410,6 +411,11 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 									<input type="text" name="txtBMINumber" value="<?php echo $_POST['txtBMINumber']; ?>"
 										size="40" />
 								</div>
+								<div class="col-xs-12">
+									ISWC:
+									<input type="text" name="txtISWC" value="<?php echo $_POST['txtISWC']; ?>"
+										size="40" maxlength="16" />
+								</div>
 								<div class="col-xs-3 col-sm-2">
 									<input type="checkbox" name="chkActive" class="result-checkbox" value="ACTIVE" <?php if ($_POST['chkActive']) {
 										echo " checked ";
@@ -557,6 +563,8 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			$Song->bmiNumber = 0;
 		}
 
+		$Song->iswc = html_entity_decode($_POST['txtISWC'] ?? '', ENT_QUOTES);
+
 		if (($_POST['chkActive'] ?? '') == "ACTIVE") {
 			$Song->active = TRUE;
 		}
@@ -606,6 +614,7 @@ include(ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 			$_POST['txtLastUpdate'] = htmlentities($Song->lastUpdate ?? '', ENT_QUOTES);
 			$_POST['selArtist'] = $Song->artistId;
 			$_POST['txtBMINumber'] = htmlentities((string) $Song->bmiNumber, ENT_QUOTES);
+			$_POST['txtISWC'] = htmlentities($Song->iswc ?? '', ENT_QUOTES);
 			$_POST['chkActive'] = $Song->active;
 			$_POST['chkDisplayOnSite'] = $Song->displayOnSite;
 
