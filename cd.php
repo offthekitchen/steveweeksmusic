@@ -6,6 +6,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2026-10-12	Migrated to shared PDO datalayer
+2026-11-02	Load the default CD when a requested CD ID is not found
 *******************************************************************
 */
 //Don't Display Notice messages from PHP Server
@@ -40,13 +41,15 @@ if (isset($_REQUEST['cd-id']) && $_REQUEST['cd-id'] != "") {
 
 $cdRepo = new \Datalayer\CDRepository();
 $oThisCD = $cdRepo->findById($nCDID);
+if ($oThisCD === null && $nCDID !== DEFAULT_CD_ID) {
+	$nCDID = DEFAULT_CD_ID;
+	$oThisCD = $cdRepo->findById($nCDID);
+}
 
 $aSongs = [];
 if ($oThisCD !== null) {
 	$songRepo = new \Datalayer\SongRepository();
 	$aSongs = $songRepo->find(['cdId' => $oThisCD->id]);
-} else {
-	error_log('cd.php: Error getting CD id ' . $nCDID);
 }
 
 if ($oThisCD !== null) {
