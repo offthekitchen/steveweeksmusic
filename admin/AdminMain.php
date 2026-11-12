@@ -256,11 +256,11 @@ include (ADMIN_INCLUDE_DIR . "/HTMLHead.php");
 							<?php 
 							if (ENVIRONMENT == "LOCAL")
 							{
-								$sphpMyAdminURL = "http://localhost/phpmyadmin/";
+								$sphpMyAdminURL = "http://localhost/phpmyadmin5.2.3/";
 							}
 							elseif (ENVIRONMENT == "PROD")
 							{
-								$sphpMyAdminURL = "https://a2plcpnl0421.prod.iad2.secureserver.net:2083/cpsess7456172144/3rdparty/phpMyAdmin/index.php#PMAURL-0:index.php?db=&table=&server=1&target=&token=7010b0bb600358b4f94b9d0ef68cd3ad";
+								$sphpMyAdminURL = "https://p3plzcpnl505042.prod.phx3.secureserver.net:2083/cpsess3726931841/3rdparty/phpMyAdmin/index.php";
 							}
 							?>
 							<A HREF="<?php echo $sphpMyAdminURL; ?>" target="_blank">phpMyAdmin</A><SMALL> (Database Administration)</SMALL>

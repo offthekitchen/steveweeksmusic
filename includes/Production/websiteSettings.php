@@ -50,6 +50,7 @@ date_default_timezone_set('America/Denver');
   //Data Values
   //Singles are not on the DB 
   define("DEFAULT_CD_ID",5);
+  define("DEFAULT_SONG_ID",134);
   define("SINGLES_CD_ID",0);
   define("STEVE_WEEKS_FAMILY_ARTIST_ID",1);
   define("TRAVEL_BUGS_ARTIST_ID",2);

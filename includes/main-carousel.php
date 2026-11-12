@@ -7,6 +7,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2026-10-12	Migrated to shared PDO datalayer
+2026-11-02	Omit the Next Show slide when no upcoming performance exists
 *******************************************************************
 */
 //This include defines the relative path to the root directory from this sub-directory
@@ -22,9 +23,6 @@ include_once(DATALAYER_DIR . "/PerformanceRepository.php");
 
 $performanceRepo = new \Datalayer\PerformanceRepository();
 $oNextPerformance = $performanceRepo->findNext(false);
-if ($oNextPerformance === null) {
-	error_log('main_carousel.php: NO PERFORMANCES FOUND!');
-}
 ?>
 <div id="myCarousel" class="carousel slide" data-ride="carousel">
   <!-- Indicators -->
@@ -36,7 +34,9 @@ if ($oNextPerformance === null) {
 	<li data-target="#myCarousel" data-slide-to="4"></li>
 	<li data-target="#myCarousel" data-slide-to="5"></li>
 	<li data-target="#myCarousel" data-slide-to="6"></li>
+	<?php if ($oNextPerformance) { ?>
 	<li data-target="#myCarousel" data-slide-to="7"></li>
+	<?php } ?>
   </ol>
 
 	<div class="carousel-inner" role="listbox">
@@ -104,21 +104,20 @@ if ($oNextPerformance === null) {
 				</a>
 			</div>		
 		</div>
+		<?php if ($oNextPerformance) { ?>
 		<div class="item">
 			<div class="slide-container">
 				<a href="<?php echo "{$ROOT}/performance.php#next-performance";?>">
-					<div class="slide-title">NEXT SHOW - <?php echo $oNextPerformance ? htmlspecialchars($oNextPerformance->name) : '';?></div>
+					<div class="slide-title">NEXT SHOW - <?php echo htmlspecialchars($oNextPerformance->name);?></div>
 					<img src="<?php echo IMG_DIR; ?>/slide_next_show.jpg" alt="Next Show"  style="width:100%; height: auto;">
 					<div class="slide-caption">
 						<span class="slide-overlay">
 							<?php 
-							if ($oNextPerformance) {
-								if(!empty($oNextPerformance->locationCity) && !empty($oNextPerformance->locationState)) {
-									echo "{$oNextPerformance->locationCity}, {$oNextPerformance->locationState} - " . date("m-d-Y",strtotime($oNextPerformance->performanceDate));
-								}
-								else {
-									echo "{$oNextPerformance->name}, {$oNextPerformance->location}";
-								}
+							if(!empty($oNextPerformance->locationCity) && !empty($oNextPerformance->locationState)) {
+								echo "{$oNextPerformance->locationCity}, {$oNextPerformance->locationState} - " . date("m-d-Y",strtotime($oNextPerformance->performanceDate));
+							}
+							else {
+								echo "{$oNextPerformance->name}, {$oNextPerformance->location}";
 							}
 							?>
 						</span>
@@ -126,6 +125,7 @@ if ($oNextPerformance === null) {
 				</a>
 			</div>		
 		</div>
+		<?php } ?>
 	</div>
 
 	<!-- Left and right controls -->

@@ -6,6 +6,7 @@ NOTES
 Date        Change
 -------------------------------------------------------------
 2026-10-12	Migrated to shared PDO datalayer
+2026-11-02	Load the default song when a requested song ID is not found
 *******************************************************************
 */
 //Don't Display Notice messages from PHP Server
@@ -47,9 +48,10 @@ $sSongBreadcrumbItem = [];
 $sCDBreadcrumbItem = [];
 
 $criteria = ['artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID];
+$bSongIdSupplied = isset($_REQUEST['song-id']) && $_REQUEST['song-id'] != "";
 
 //If a Song ID is passed, display information for that Song
-if (isset($_REQUEST['song-id']) && $_REQUEST['song-id'] != "") {
+if ($bSongIdSupplied) {
 	$nSongID = (int) preg_replace("/[^0-9]/", "", $_REQUEST['song-id']);
 	$criteria['id'] = $nSongID;
 }
@@ -61,8 +63,13 @@ if (isset($_REQUEST['cd-id']) && $_REQUEST['cd-id'] != "") {
 }
 
 $aSongs = $songRepo->find($criteria);
-if (sizeof($aSongs) < 1 && $nSongID > 0) {
-	error_log('song.php: Error getting Song id ' . $nSongID);
+if (sizeof($aSongs) < 1 && $bSongIdSupplied) {
+	$nSongID = DEFAULT_SONG_ID;
+	$criteria = [
+		'artistId' => STEVE_WEEKS_FAMILY_ARTIST_ID,
+		'id' => DEFAULT_SONG_ID,
+	];
+	$aSongs = $songRepo->find($criteria);
 }
 
 if (sizeof($aSongs) > 0) {
