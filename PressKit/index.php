@@ -62,7 +62,7 @@
 					<div class="col-xs-10 col-xs-push-1 col-md-5 col-md-push-1">
 					</div>
 					</div>
-					My music is in frequent rotation on Sirius XM satellite radio (Kids Place Live) where I've had multiple #1 hits.  I've won the children's music category of the US Songwriting Competition as well as various parenting and music awards.   
+					My music is in frequent rotation on Sirius XM satellite radio (Kids Place Live) where I've had multiple #1 hits.  I've won the children's music category of the US  and the International Songwriting Competitions as well as <a href="https://steveweeksmusic.com/awards.php"target="_blank"> numerous other parenting and music awards</a>.   
 					</div>
 				</div>
 			</aside>
