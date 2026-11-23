@@ -36,6 +36,8 @@ switch ($nThemeNumber) {
 <meta property="og:site_name" content="Steve Weeks Music" />
 <meta property="og:url" content="http://<?php echo $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"]; ?>" />
 <meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1, user-scalable=0">
+<meta name="robots" content="noai, noimageai">
+<meta name="tdm-reservation" content="1">
 <TITLE>Steve Weeks Music - <?php echo "$sPageName" ?></TITLE>
 <!-- customized Boostrap - http://getbootstrap.com/customize/?id=1aadfb3bf645d83ccfc7ae41f22ed034 -->
 <link rel="stylesheet" href="<?php echo $ROOT; ?>/css/bootstrap.min.css">
