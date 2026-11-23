@@ -11,7 +11,8 @@
 			</p>
 		</div>
 		<div class="col-xs-12">	
-			<p>&copy; copyright <?php echo date("Y");?> <b>Steve Weeks Music</b></p>
+			<p class="avoid-theme">&copy; copyright <?php echo date("Y");?> <b>Steve Weeks Music. All Rights Reserved. </b>All music, audio recordings, lyrics, graphic design, illustrations, and photography on this website are protected by copyright. No part of this creative work may be scraped, downloaded, cloned, or used to train, fine-tune, or generate outputs from artificial intelligence (AI) or machine learning models without express prior written permission.</p>
+			<p class="avoid-theme"><a href="<?php echo $ROOT; ?>/copyright.php">Copyright</a></p>
 		</div>	
 	</div>	
 </footer>
