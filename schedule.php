@@ -108,10 +108,6 @@ include(INCLUDE_DIR . "/HTMLHead.php");
 				<div class="row">
 					<div class="col-xs-12 col-sm-10 col-sm-push-1 col-md-8 col-md-push-2">
 						<div class="frame-box in-front-of-theme-image green-frame call-to-action">
-							Well, COVID certainly threw a monkey wrench into my schedule for 2020.&nbsp;&nbsp;
-							I am optimitiscally booking shows for 2021, so if you are willing to take the chance or you're looking for a virtual
-							show, just reach out.&nbsp;&nbsp;I'm hopeful that I'll be back on the road and in front of wonderful folks again soon!
-							<BR><BR>
 							<?php
 							renderNextPerformanceDescription();
 							?>
